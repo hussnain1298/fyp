@@ -1,0 +1,154 @@
+"use client";
+
+import { useState } from "react";
+import { firestore } from "@/lib/firebase"; // Firebase Client SDK
+import { collection, addDoc } from "firebase/firestore"; // Firestore methods
+import Link from "next/link"; // Import Link for Next.js routing
+
+export default function Footer() {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const footerLinks = {
+    PRODUCT: [
+      { name: "Features", href: "/features" },
+      { name: "Integrations", href: "/integrations" },
+      { name: "Pricing", href: "/pricing" },
+      { name: "FAQ", href: "/faq" },
+    ],
+    COMPANY: [
+      { name: "Privacy", href: "/privacy" },
+      { name: "Terms of Service", href: "/terms" },
+    ],
+    DEVELOPERS: [
+      { name: "Public API", href: "/api" },
+      { name: "Documentation", href: "/docs" },
+      { name: "Guides", href: "/guides" },
+    ],
+  };
+
+  const socialLinks = [
+    {
+      icon: <i className="fab fa-facebook"></i>,
+      href: "https://facebook.com",
+      label: "Facebook",
+    },
+    {
+      icon: <i className="fab fa-twitter"></i>,
+      href: "https://twitter.com",
+      label: "Twitter",
+    },
+    {
+      icon: <i className="fab fa-linkedin"></i>,
+      href: "https://linkedin.com",
+      label: "LinkedIn",
+    },
+    // Add other social media links here...
+  ];
+
+  // Validate Email Format
+  const validateEmail = (email) => {
+    const regex = /^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/;
+    return regex.test(email);
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    if (!email || !validateEmail(email)) {
+      setError("Please enter a valid email address.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Add the email to the "Our-subscribers" collection in Firestore
+      await addDoc(collection(firestore, "Our-subscribers"), {
+        email,
+        timestamp: new Date(),
+      });
+
+      setSuccess("Subscription successful!");
+      setEmail(""); // Clear the email input field
+    } catch (err) {
+      setError("Subscription failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <footer className="bg-gray-100 pt-10 pb-2 px-10 mt-14 w-full m-auto">
+      <div className="container mx-20 ">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
+          {/* Links Sections */}
+          {Object.entries(footerLinks).map(([category, links]) => (
+            <div key={category}>
+              <h3 className="font-semibold text-sm text-gray-900 mb-2 md:mb-4">
+                {category}
+              </h3>
+              <ul className="space-y-3">
+                {links.map((link) => (
+                  <li key={link.name}>
+                    <Link
+                      href={link.href}
+                      className="text-gray-600 hover:text-gray-900 text-sm"
+                    >
+                      {link.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          <div className="flex flex-col gap-4 items-start">
+            {/* Email Input & Subscribe Button */}
+            <input
+              className="w-5/6 px-3 py-2"
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <button
+              className="bg-green-600 text-white px-4 py-2 rounded-md"
+              onClick={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? "Subscribing..." : "Subscribe Now"}
+            </button>
+
+            {/* Success & Error Messages */}
+            {error && <p className="text-red-500 mt-4">{error}</p>}
+            {success && <p className="text-green-500 mt-4">{success}</p>}
+          </div>
+        </div>
+
+        {/* Social Media Links */}
+        <div className="flex justify-center space-x-6 py-4">
+          {socialLinks.map(({ icon, href, label }) => (
+            <a
+              key={label}
+              href={href}
+              aria-label={label}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {icon}
+            </a>
+          ))}
+        </div>
+
+        {/* Copyright */}
+        <div className="text-center py-4 text-gray-500 text-sm">
+          © 2025 CareConnect, Inc. All rights reserved.
+        </div>
+      </div>
+    </footer>
+  );
+}
