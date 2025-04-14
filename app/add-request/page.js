@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState } from "react"; // ✅ Add this
 import { useRouter } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
 import { addDoc, collection } from "firebase/firestore";
@@ -33,8 +33,8 @@ export default function AddRequest() {
       await addDoc(collection(firestore, "requests"), {
         title,
         description,
-        orphanageId: user.uid,
-        orphanageEmail: user.email,
+        orphanageId: user.uid, // ✅ Ensure orphanageId is stored
+        orphanageEmail: user.email, // ✅ Store orphanage email for reference
         status: "Pending", // Default status
         timestamp: new Date(),
       });

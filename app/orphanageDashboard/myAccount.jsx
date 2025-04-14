@@ -3,13 +3,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Poppins } from "next/font/google";
+import { auth } from "@/lib/firebase"; // ✅ Import auth for logout
+
 import OrphanageDashboard from "./dashboard";
 import Navbar from "../Navbar/page";
 import AccountDetails from "./accountDetails";
 import AddressSection from "./addressSection";
 import LoginPage from "../login/page";
 import Request from "./requests";
-// Integrated DonorNavbar
 
 // Importing Poppins Font
 const poppins = Poppins({
@@ -19,12 +20,23 @@ const poppins = Poppins({
 
 export default function MyAccount() {
   const [activeTab, setActiveTab] = useState("Dashboard");
-  const router = useRouter(); // Next.js Router
+  const router = useRouter();
+
+  // ✅ Proper Logout Function
+  const handleLogout = async () => {
+    try {
+      await auth.signOut(); // 🔹 Sign the user out of Firebase
+      localStorage.removeItem("userSession"); // 🔹 Remove session data
+      router.push("/login"); // 🔹 Redirect to login
+    } catch (error) {
+      console.error("🔥 Error Logging Out:", error.message);
+    }
+  };
 
   return (
     <section className={`${poppins.className} container mx-auto`}>
       {/* Navbar Section */}
-  <Navbar/>
+      <Navbar />
 
       {/* Main Account Section */}
       <div className="flex flex-col lg:flex-row mt-8 gap-10">
@@ -36,7 +48,7 @@ export default function MyAccount() {
                 key={tab}
                 onClick={() => {
                   if (tab === "Logout") {
-                    router.push("/login"); // Next.js optimized navigation
+                    handleLogout(); // ✅ Call Logout Function
                   } else {
                     setActiveTab(tab);
                   }
@@ -57,9 +69,9 @@ export default function MyAccount() {
           <p className="text-lg font-medium">
             Hello <span className="font-bold">CareConnect.</span> (not{" "}
             <span className="font-bold">careconnect.com</span>?{" "}
-            <a href="/logout" className="text-blue-500 ml-1">
+            <button onClick={handleLogout} className="text-blue-500 ml-1">
               Log out
-            </a>
+            </button>
             )
           </p>
 
@@ -67,9 +79,7 @@ export default function MyAccount() {
           {activeTab === "Dashboard" && <OrphanageDashboard />}
           {activeTab === "Account details" && <AccountDetails />}
           {activeTab === "Addresses" && <AddressSection />}
-          {activeTab === "Logout " && <LoginPage />}
           {activeTab === "Requests" && <Request />}
-
         </div>
       </div>
     </section>

@@ -10,7 +10,10 @@ export default function DonationRequest() {
         <p className="text-gray-500  text-center text-sm md:text-base lg:text-lg xl:text-xl">
           Serving Humanity is the Spirit of All Religions
         </p>
+        
         <CardHoverDemo />
+       
+        
       </div>
     </main>
   );

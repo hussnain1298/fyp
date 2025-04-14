@@ -1,31 +1,56 @@
 "use client";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Poppins } from "next/font/google";
-import { FaFileAlt, FaDownload, FaMapMarkerAlt, FaUser, FaSignOutAlt } from "react-icons/fa"; 
-
-// Importing Poppins Font
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-});
+import { auth, firestore } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { 
+  FaFileAlt, FaDownload, FaMapMarkerAlt, FaUser, FaSignOutAlt 
+} from "react-icons/fa"; 
 
 export default function OrphanageDashboard() {
-  return (
-    <section className={`${poppins.className} container mx-auto px-6 py-8 flex`}>
-     
+  const [user, setUser] = useState(null);
+  
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const currentUser = auth.currentUser;
 
+      if (currentUser) {
+        const userRef = doc(firestore, "users", currentUser.uid);
+        const userDoc = await getDoc(userRef);
+
+        if (userDoc.exists()) {
+          setUser(userDoc.data());
+        } else {
+          console.log("User document not found!");
+        }
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  return (
+    <section className="container mx-auto px-6 py-8 flex">
       {/* Main Content */}
       <motion.div
-        className="w-full bg-white shadow-md  p-6"
+        className="w-full bg-white shadow-md p-6"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-       
-        <p className="text-gray-600 ">
-          From your account dashboard, you can view your <span className="text-blue-500 cursor-pointer">recent Donations</span>,
-          manage your <span className="text-blue-500 cursor-pointer">Transaction charges</span> and <span className="text-blue-500 cursor-pointer">billing addresses</span>,
-          and edit your <span className="text-blue-500 cursor-pointer">password</span> and account details.
+        {/* ✅ Display User Name or Email */}
+        <h1 className="mt-2 mb-2 text-2xl font-bold">
+          WELCOME {user?.fullName ? user.fullName : user?.email || ""}
+        </h1>
+        
+        <p className="text-gray-600">
+          From your account dashboard, you can view your{" "}
+          <span className="text-blue-500 cursor-pointer">recent Donations</span>,
+          manage your{" "}
+          <span className="text-blue-500 cursor-pointer">Transaction charges</span> and{" "}
+          <span className="text-blue-500 cursor-pointer">billing addresses</span>, 
+          and edit your{" "}
+          <span className="text-blue-500 cursor-pointer">password</span> and account details.
         </p>
 
         {/* Dashboard Icons */}

@@ -1,24 +1,10 @@
 "use client";
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Poppins } from "next/font/google";
-
+import withAuth from "@/lib/withAuth"; // 🔹 Import Auth HOC
 import MyAccount from "./myAccount";
 
-
-// Importing Poppins Font
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-});
-
-
-export default function DonorDashboards() {
-  return (
-    <div>
-<MyAccount/>
-
-  </div>
-  )
-  
+function DonorDashboard({ user }) {
+ 
+  return <MyAccount />;
 }
+
+export default withAuth(DonorDashboard, ["Donor"]); // 🔹 Only "Donor" can access

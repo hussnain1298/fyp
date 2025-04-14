@@ -1,65 +1,76 @@
 "use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { auth, firestore } from "@/lib/firebase"; // Firebase imports
-import { signInWithEmailAndPassword } from "firebase/auth"; // Firebase Auth v9+ import
-import { getDoc, doc } from "firebase/firestore"; // Firestore v9+ import
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation"; // ✅ Get query params
+import { auth, firestore } from "@/lib/firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { getDoc, doc } from "firebase/firestore";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [donorCheck, setDonorCheck] = useState(false); // ✅ Track if user came from Donate
   const router = useRouter();
+  const searchParams = useSearchParams(); // ✅ Get query params
+
+  useEffect(() => {
+    // ✅ If login page was opened from Donate button, show donor restriction
+    if (searchParams.get("redirect") === "donate") {
+      setDonorCheck(true);
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError(""); // ✅ Reset error before login attempt
 
     try {
-      // Step 1: Authenticate the user with Firebase Authentication (Email/Password)
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      // ✅ Step 1: User Authentication
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Step 2: Query Firestore to get the user's role
-      const userDoc = await getDoc(doc(firestore, "users", user.uid));
+      // ✅ Step 2: Fetch User Role from Firestore
+      const userDocRef = doc(firestore, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        const role = userData.userType; // Role is stored in Firestore as 'userType'
+        const role = userData.userType || null; // ✅ Ensure userType exists
 
-        // Step 3: Redirect based on the user's role
+        // ✅ If coming from Donate button, enforce Donor restriction
+        if (donorCheck && role !== "Donor") {
+          setError("Only donors can proceed with donations.");
+          return;
+        }
+
+        // ✅ Redirect based on user role
         if (role === "Donor") {
-          router.push("/donordashboard");
+          router.push("/donorDashboard");
         } else if (role === "Orphanage") {
           router.push("/orphanageDashboard");
+        } else {
+          setError("User role is missing. Please contact support.");
         }
       } else {
-        setError("User role not found.");
+        setError("User data not found in Firestore.");
       }
     } catch (err) {
-      setError(err.message); // Handle login error
+      setError("Login failed: " + err.message);
     }
   };
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50">
       <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-lg">
-        <h2 className="text-2xl font-bold text-center text-gray-700 mb-6">
-          Login
-        </h2>
+        <h2 className="text-2xl font-bold text-center text-gray-700 mb-6">Login</h2>
+
+        {/* ✅ Show Donor Restriction Message Only When Required */}
+        {donorCheck && <p className="text-red-500 text-center mb-4">Only donors can proceed with donations.</p>}
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
         <form onSubmit={handleLogin} className="space-y-4">
-          {/* Email Input */}
           <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-600"
-            >
+            <label htmlFor="email" className="block text-sm font-medium text-gray-600">
               Email
             </label>
             <input
@@ -73,12 +84,8 @@ export default function Login() {
             />
           </div>
 
-          {/* Password Input */}
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-600"
-            >
+            <label htmlFor="password" className="block text-sm font-medium text-gray-600">
               Password
             </label>
             <input

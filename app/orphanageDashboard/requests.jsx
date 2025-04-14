@@ -10,6 +10,7 @@ import {
   getDocs,
   updateDoc,
   doc,
+  deleteDoc,
 } from "firebase/firestore";
 import { Poppins } from "next/font/google";
 
@@ -19,8 +20,8 @@ const Request = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [isEditing, setIsEditing] = useState(false); // Flag for edit modal visibility
-  const [editRequest, setEditRequest] = useState(null); // Store the request being edited
+  const [isEditing, setIsEditing] = useState(false);
+  const [editRequest, setEditRequest] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -57,22 +58,20 @@ const Request = () => {
     fetchRequests();
   }, []);
 
+  // 🔹 Handle Edit Request
   const handleEditClick = (request) => {
-    setEditRequest(request); // Set the request to be edited
-    setIsEditing(true); // Show the edit modal
+    setEditRequest(request);
+    setIsEditing(true);
   };
 
+  // 🔹 Save Updated Request
   const handleSaveChanges = async (e) => {
     e.preventDefault();
     const { title, description, status } = editRequest;
 
     try {
       const requestRef = doc(firestore, "requests", editRequest.id);
-      await updateDoc(requestRef, {
-        title,
-        description,
-        status,
-      });
+      await updateDoc(requestRef, { title, description, status });
 
       setRequests((prevRequests) =>
         prevRequests.map((req) =>
@@ -82,15 +81,15 @@ const Request = () => {
         )
       );
 
-      setIsEditing(false); // Close the modal after saving
+      setIsEditing(false);
     } catch (err) {
       setError("Failed to update request: " + err.message);
     }
   };
 
+  // 🔹 Handle Delete Request
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this request?"))
-      return;
+    if (!window.confirm("Are you sure you want to delete this request?")) return;
 
     try {
       await deleteDoc(doc(firestore, "requests", id));
@@ -103,11 +102,10 @@ const Request = () => {
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
       <div className="container mx-auto p-8">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl text-black font-bold">Requests</h1>
 
-          {/* Add a Request Button */}
+          {/* ✅ Add a Request Button */}
           <button
             type="button"
             className="bg-green-600 text-white font-medium py-2 px-4 rounded-md mt-12"
@@ -117,27 +115,20 @@ const Request = () => {
           </button>
         </div>
 
-        {/* Error Message */}
+        {/* 🔹 Error Message */}
         {error && <p className="text-red-500 text-center mt-4">{error}</p>}
 
-        {/* Loading State */}
-        {loading && (
-          <p className="text-gray-500 text-center mt-4">Loading...</p>
-        )}
+        {/* 🔹 Loading State */}
+        {loading && <p className="text-gray-500 text-center mt-4">Loading...</p>}
 
-        {/* Requests List */}
+        {/* 🔹 Requests List */}
         <div className="mt-6">
           {requests.length === 0 && !loading ? (
-            <p className="text-center text-xl text-gray-500">
-              No requests yet.
-            </p>
+            <p className="text-center text-xl text-gray-500">No requests yet.</p>
           ) : (
             <div className="space-y-4">
               {requests.map((request) => (
-                <div
-                  key={request.id}
-                  className="bg-gray-100 p-4 rounded-lg shadow-md"
-                >
+                <div key={request.id} className="bg-gray-100 p-4 rounded-lg shadow-md">
                   <h2 className="text-lg font-bold">{request.title}</h2>
                   <p className="text-gray-700">{request.description}</p>
                   <p className="mt-2 text-sm">
@@ -147,23 +138,36 @@ const Request = () => {
                     <strong>Status:</strong>{" "}
                     <span
                       className={`px-2 py-1 rounded-md ${
-                        request.status === "Pending"
-                          ? "bg-yellow-400"
-                          : "bg-green-500"
+                        request.status === "Pending" ? "bg-yellow-400" : "bg-green-500"
                       } text-white`}
                     >
                       {request.status}
                     </span>
                   </p>
 
-                  {/* Edit & Delete Buttons */}
+                  {/* ✅ Buttons */}
                   <div className="flex space-x-4 mt-4">
+                    {/* ✅ View Chat Button */}
+                    <button
+                      onClick={() =>
+                        router.push(
+                          `/chat?orphanageId=${auth.currentUser?.uid}&requestId=${request.id}&orphanageEmail=${auth.currentUser?.email}`
+                        )
+                      }
+                      className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-400"
+                    >
+                      View Chat
+                    </button>
+
+                    {/* ✅ Edit Button */}
                     <button
                       onClick={() => handleEditClick(request)}
                       className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-500"
                     >
                       Edit
                     </button>
+
+                    {/* ✅ Delete Button */}
                     <button
                       onClick={() => handleDelete(request.id)}
                       className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-500"
@@ -177,18 +181,16 @@ const Request = () => {
           )}
         </div>
 
-        {/* Modal for Editing Request */}
+        {/* ✅ Edit Request Modal */}
         {isEditing && (
           <div className="fixed inset-0 flex justify-center items-center bg-gray-800 bg-opacity-50">
             <div className="bg-white p-8 rounded-lg shadow-lg w-[400px]">
               <h2 className="text-2xl font-bold mb-4">Edit Request</h2>
 
-              {/* Edit Form */}
+              {/* ✅ Edit Form */}
               <form onSubmit={handleSaveChanges}>
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">
-                    Title
-                  </label>
+                  <label className="block text-sm font-semibold mb-2">Title</label>
                   <input
                     type="text"
                     value={editRequest.title}
@@ -200,25 +202,20 @@ const Request = () => {
                   />
                 </div>
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">
-                    Description
-                  </label>
+                  <label className="block text-sm font-semibold mb-2">Description</label>
                   <textarea
                     value={editRequest.description}
                     onChange={(e) =>
-                      setEditRequest({
-                        ...editRequest,
-                        description: e.target.value,
-                      })
+                      setEditRequest({ ...editRequest, description: e.target.value })
                     }
                     className="w-full px-4 py-2 border border-gray-300 rounded-md"
                     required
                   />
                 </div>
+
+                {/* ✅ Status Change Dropdown */}
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">
-                    Status
-                  </label>
+                  <label className="block text-sm font-semibold mb-2">Status</label>
                   <select
                     value={editRequest.status}
                     onChange={(e) =>
@@ -232,21 +229,9 @@ const Request = () => {
                   </select>
                 </div>
 
-                <div className="flex justify-end space-x-4">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditing(false)}
-                    className="px-4 py-2 bg-gray-500 text-white rounded-md"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-green-600 text-white rounded-md"
-                  >
-                    Save Changes
-                  </button>
-                </div>
+                <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-md">
+                  Save Changes
+                </button>
               </form>
             </div>
           </div>

@@ -1,22 +1,11 @@
 "use client";
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Poppins } from "next/font/google";
+import withAuth from "@/lib/withAuth"; // 🔹 Import Auth HOC
 import MyAccount from "./myAccount";
 
-// Importing Poppins Font
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-});
+function OrphanageDashboard({ user }) {
 
 
-export default function OrphanDashoard() {
-  return (
-    <div>
-<MyAccount/>
-
-  </div>
-  )
-  
+  return <MyAccount />;
 }
+
+export default withAuth(OrphanageDashboard, ["Orphanage"]); // 🔹 Only "Orphanage" can access
