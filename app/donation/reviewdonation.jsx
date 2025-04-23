@@ -11,9 +11,13 @@ const poppins = Poppins({
   weight: ["400", "600", "700"],
 });
 
-export default function ReviewDonation({ setShowReview, setShowForm, setShowPayment }) {
+export default function ReviewDonation({
+  donationAmount,
+  setShowReview,
+  setShowForm,
+  setShowPayment,
+}) {
   const [includeTransactionFee, setIncludeTransactionFee] = useState(true);
-  const donationAmount = 50;
   const transactionFee = 2;
   const totalAmount = includeTransactionFee ? donationAmount + transactionFee : donationAmount;
 
@@ -95,8 +99,14 @@ export default function ReviewDonation({ setShowReview, setShowForm, setShowPaym
           </div>
         </div>
 
- {/* Proceed to Payment Button */}
- <button
+        {/* Total Amount */}
+        <div className="flex justify-between text-gray-700 mt-4">
+          <span>Total</span>
+          <span className="text-green-600 font-semibold">Rs{totalAmount}</span>
+        </div>
+
+        {/* Proceed to Payment Button */}
+        <button
           onClick={() => {
             setShowReview(false);
             setShowPayment(true); // Move to Proceed Payment Page
@@ -115,8 +125,6 @@ export default function ReviewDonation({ setShowReview, setShowForm, setShowPaym
         >
           BACK TO DONOR DETAILS
         </button>
-
-       
       </motion.div>
     </section>
   );

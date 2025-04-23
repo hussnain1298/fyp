@@ -3,10 +3,17 @@ import { useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { FaArrowLeft } from "react-icons/fa";
-import { Space } from "lucide-react";
-import Footer from "../footer/page";
-export default function DonationStart({ setShowForm }) {
-  const [amount, setAmount] = useState("");
+
+export default function DonationStart({ setShowForm, setShowReview, setDonationAmount }) {
+  const [amount, setAmount] = useState("");  // Store the entered donation amount
+
+  const handleProceed = () => {
+    if (amount && amount > 0) {
+      setDonationAmount(amount);  // Update the amount in the parent state
+      setShowForm(false);  // Hide the donation start form
+      setShowReview(true); // Show the review donation page
+    }
+  };
 
   return (
     <motion.div
@@ -60,7 +67,7 @@ export default function DonationStart({ setShowForm }) {
         </div>
         {/* Proceed to Donor Details Button */}
         <button
-          onClick={() => setShowForm(true)}
+          onClick={handleProceed} // Call handleProceed to navigate to review page
           className="mt-4 w-full bg-green-600 text-white py-2 px-6 font-semibold hover:bg-green-700 transition-all shadow-md  md:w-3/5"
         >
           PROCEED TO DONOR DETAILS

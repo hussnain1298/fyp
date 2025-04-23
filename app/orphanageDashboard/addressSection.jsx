@@ -1,23 +1,43 @@
-"use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { auth, firestore } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { motion } from "framer-motion";
 
 export default function AddressSection() {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: "CareConnect",
-    address: "NTU",
-    city: "Faisalabad",
-    state: "Punjab",
-    zip: "38000",
+    name: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
   });
 
-  // Handle input changes
+  useEffect(() => {
+    const fetchUserAddress = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const userDoc = await getDoc(doc(firestore, "users", user.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setFormData({
+            name: data.orgName || "CareConnect", // Default value if not available
+            address: data.orgAddress || "NTU", // Default value
+            city: data.city || "Faisalabad", // Default value
+            state: data.state || "Punjab", // Default value
+            zip: data.zip || "38000", // Default value
+          });
+        }
+      }
+    };
+
+    fetchUserAddress();
+  }, []);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Handle save action
   const handleSave = () => {
     setIsEditing(false);
   };
