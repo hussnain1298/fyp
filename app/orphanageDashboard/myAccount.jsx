@@ -4,13 +4,13 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Poppins } from "next/font/google";
 import { auth } from "@/lib/firebase"; // ✅ Import auth for logout
-
 import OrphanageDashboard from "./dashboard";
 import Navbar from "../Navbar/page";
 import AccountDetails from "./accountDetails";
 import AddressSection from "./addressSection";
-import LoginPage from "../login/page";
 import Request from "./requests";
+import Services from "./service";
+import FundRaise from "./fundraise";
 
 // Importing Poppins Font
 const poppins = Poppins({
@@ -29,7 +29,7 @@ export default function MyAccount() {
       localStorage.removeItem("userSession"); // 🔹 Remove session data
       router.push("/login"); // 🔹 Redirect to login
     } catch (error) {
-      console.error("🔥 Error Logging Out:", error.message);
+      console.error(" Error Logging Out:", error.message);
     }
   };
 
@@ -43,7 +43,7 @@ export default function MyAccount() {
         {/* Sidebar Navigation */}
         <aside className="w-full lg:w-1/4 bg-white shadow-md p-6 mt-10">
           <ul className="space-y-2">
-            {["Dashboard", "Services", "Requests", "Addresses", "Account details", "Logout"].map((tab) => (
+            {["Dashboard", "Services", "Requests","Fund Raise", "Addresses", "Account details", "Logout"].map((tab) => (
               <li
                 key={tab}
                 onClick={() => {
@@ -80,6 +80,9 @@ export default function MyAccount() {
           {activeTab === "Account details" && <AccountDetails />}
           {activeTab === "Addresses" && <AddressSection />}
           {activeTab === "Requests" && <Request />}
+          {activeTab === "Services" && <Services />}
+          {activeTab === "Fund Raise" && <FundRaise />}
+
         </div>
       </div>
     </section>
