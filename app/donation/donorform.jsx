@@ -8,8 +8,7 @@ const poppins = Poppins({
   weight: ["400", "600", "700"],
 });
 
-export default function DonorForm({ setShowForm, setShowReview }) 
-{
+export default function DonorForm({ setShowForm, setShowReview }) {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
