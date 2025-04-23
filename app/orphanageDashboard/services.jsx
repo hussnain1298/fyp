@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
@@ -104,7 +102,7 @@ const Services = () => {
           <button
             type="button"
             className="bg-green-600 text-white font-medium py-2 px-4 rounded-md mt-12"
-            onClick={() => router.push("/add-service")}
+            onClick={() => router.push("/add-services")}
           >
             + Add a Service
           </button>
