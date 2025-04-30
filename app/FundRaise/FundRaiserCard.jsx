@@ -17,7 +17,7 @@ export default function FundRaiserCard({
 }) {
   return (
     <div className="min-w-[370px]  h-[100px] min-h-[500px] bg-white flex flex-col justify-between rounded-sm shadow-xl">
-      <img src={bgImage} alt="" className="w-[100%] h-1/2 rounded-t-sm" />
+      <img src={bgImage} alt="" className="w-[100%] h-2/3 rounded-t-sm" />
       <div className="text-black h-1/2 flex flex-col gap-6 justify-center px-6">
         <h2 className="text-2xl font-semibold">{title}</h2>
         <p className="text-md text-gray-600">{description}</p>

@@ -1,151 +1,190 @@
-"use client";
-
-import { useState, useEffect } from "react";
+'use client';
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth, firestore } from "@/lib/firebase";
-import { collection, query, where, getDocs, updateDoc, doc, deleteDoc } from "firebase/firestore";
-import { Poppins } from "next/font/google";
+import { firestore } from "@/lib/firebase";
 
-const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
+import { collection, query, getDocs, deleteDoc, doc, updateDoc, where } from "firebase/firestore";
+
+import { auth } from "@/lib/firebase"; 
 
 const FundRaise = () => {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [isEditing, setIsEditing] = useState(false);
-  const [editRequest, setEditRequest] = useState(null);
-  const router = useRouter();
+  const [fundraisers, setFundraisers] = useState([]); // State to store fundraisers data
+  const [loading, setLoading] = useState(true); // State to handle loading state
+  const [error, setError] = useState(""); // State to handle error messages
+  const [isEditing, setIsEditing] = useState(false); // State to control the visibility of the edit modal
+  const [editFundraiser, setEditFundraiser] = useState(null); // Store the fundraiser being edited
+  const router = useRouter(); // Initialize router for navigation
 
+  // Fetch fundraisers data from Firestore
   useEffect(() => {
-    const fetchRequests = async () => {
+    const fetchFundraisers = async () => {
       setLoading(true);
       setError("");
-
-      const user = auth.currentUser;
-      if (!user) {
-        setError("You must be logged in to view requests.");
-        return;
-      }
-
+  
       try {
-        const q = query(
-          collection(firestore, "requests"),
-          where("orphanageId", "==", user.uid)
-        );
+        const userUid = auth.currentUser?.uid; // Get the logged-in user's UID (orphanage ID)
+  
+        // Query to filter fundraisers based on the orphanageId
+        const q = query(collection(firestore, "fundraisers"), where("orphanageId", "==", userUid));
+  
         const querySnapshot = await getDocs(q);
-
-        const requestList = querySnapshot.docs.map((doc) => ({
+  
+        if (querySnapshot.empty) {
+          setError("No fundraisers found.");
+          return;
+        }
+  
+        const fundraiserList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-
-        setRequests(requestList);
+  
+        setFundraisers(fundraiserList); // Update state with fetched fundraisers
       } catch (err) {
-        setError("Failed to load requests: " + err.message);
+        setError("Failed to load fundraisers: " + err.message);
       } finally {
         setLoading(false);
       }
     };
+  
+    fetchFundraisers();
+  }, []); // Fetch data once when the component mounts
+  // Fetch data once when the component mounts
 
-    fetchRequests();
-  }, []);
+  // Delete Fundraiser
+  const handleDelete = async (id) => {
+    const userUid = auth.currentUser?.uid;
+    const fundraiser = fundraisers.find(f => f.id === id);
 
-  // Handle Edit Request
-  const handleEditClick = (request) => {
-    setEditRequest(request);
-    setIsEditing(true);
+    if (!fundraiser) {
+      console.error("Fundraiser not found.");
+      return;
+    }
+
+    // Log the fundraiser ID and the current user UID
+    console.log(`User UID: ${userUid}`);
+    console.log(`Fundraiser Orphanage ID: ${fundraiser?.orphanageId}`);
+    console.log(`Deleting Fundraiser with ID: ${id}`);
+
+    if (window.confirm("Are you sure you want to delete this fundraiser?")) {
+      try {
+        // Ensure the user is allowed to delete the fundraiser
+        if (fundraiser?.orphanageId !== userUid) {
+          alert("You are not authorized to delete this fundraiser.");
+          return;
+        }
+
+        const docRef = doc(firestore, "fundraisers", id);
+        
+        // Log the deletion attempt
+        console.log("Deleting document:", docRef);
+        
+        await deleteDoc(docRef); // Attempt to delete the fundraiser document
+        console.log(`Fundraiser with ID ${id} successfully deleted`);
+
+        // Update the state to reflect the deletion
+        setFundraisers((prev) => prev.filter((fundraiser) => fundraiser.id !== id));
+      } catch (err) {
+        console.error("Failed to delete fundraiser: ", err);
+        alert("Failed to delete fundraiser: " + err.message); // Show error message if deletion fails
+      }
+    }
   };
 
-  // Save Updated Request
+  // Handle View Chat (Assuming chat functionality will be integrated)
+  const handleViewChat = (fundraiserId) => {
+    // Redirect to chat page with fundraiser details
+    router.push(`/chat?fundraiserId=${fundraiserId}`);
+  };
+
+  // Handle Edit Fundraiser
+  const handleEditClick = (fundraiser) => {
+    setEditFundraiser(fundraiser);
+    setIsEditing(true); // Open the edit modal
+  };
+
+  // Save Updated Fundraiser
   const handleSaveChanges = async (e) => {
     e.preventDefault();
-    const { title, description, status } = editRequest;
+    const { title, description, status, raisedAmount, totalAmount } = editFundraiser;
+
+    // Ensure all fields are filled out
+    if (!title || !description || !status || raisedAmount === undefined || totalAmount === undefined) {
+      setError("All fields must be filled out.");
+      return;
+    }
 
     try {
-      const requestRef = doc(firestore, "requests", editRequest.id);
-      await updateDoc(requestRef, { title, description, status });
+      const fundraiserRef = doc(firestore, "fundraisers", editFundraiser.id);
+      await updateDoc(fundraiserRef, { title, description, status, raisedAmount, totalAmount });
 
-      setRequests((prevRequests) =>
-        prevRequests.map((req) =>
-          req.id === editRequest.id
-            ? { ...req, title, description, status }
-            : req
+      setFundraisers((prevFundraisers) =>
+        prevFundraisers.map((fundraiser) =>
+          fundraiser.id === editFundraiser.id
+            ? { ...fundraiser, title, description, status, raisedAmount, totalAmount }
+            : fundraiser
         )
       );
 
-      setIsEditing(false);
+      setIsEditing(false); // Close the modal after saving
     } catch (err) {
-      setError("Failed to update request: " + err.message);
+      setError("Failed to update fundraiser: " + err.message);
     }
   };
 
-  // Handle Delete Request
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this request?")) return;
-
-    try {
-      await deleteDoc(doc(firestore, "requests", id));
-      setRequests((prev) => prev.filter((request) => request.id !== id));
-    } catch (err) {
-      alert("Failed to delete request: " + err.message);
-    }
+  // Close the modal when clicking the X
+  const closeModal = () => {
+    setIsEditing(false);
   };
 
   return (
-    <div className={`${poppins.className} bg-white min-h-screen`}>
-      <div className="container mx-auto p-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl text-black font-bold">Fund Raise Requests</h1>
+    <div className="bg-gray-50 w-full h-[100%]">
+      <div className="text-center py-32 flex flex-col w-4/5 m-auto">
+        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">Fund Raise Requests</h2>
+        <button
+          type="button"
+          className="bg-green-600 text-white font-medium py-2 px-4 rounded-md mt-12"
+          onClick={() => router.push("/fund-raise")}
+        >
+          + Raise Fund
+        </button>
+      </div>
 
-          {/* Fund Raise Button */}
-          <button
-            type="button"
-            className="bg-green-600 text-white font-medium py-2 px-4 rounded-md mt-12"
-            onClick={() => router.push("/fund-raise")}
-          >
-            + Fund Raise
-          </button>
-        </div>
+      {/* Error Handling */}
+      {error && <div className="bg-red-500 text-white text-center py-4">{error}</div>}
 
-        {/* Error Message */}
-        {error && <p className="text-red-500 text-center mt-4">{error}</p>}
-
-        {/* Loading State */}
-        {loading && <p className="text-gray-500 text-center mt-4">Loading...</p>}
-
-        {/* Requests List */}
-        <div className="mt-6">
-          {requests.length === 0 && !loading ? (
-            <p className="text-center text-xl text-gray-500">No requests yet.</p>
+      {/* Loading State */}
+      {loading ? (
+        <div className="text-center text-gray-500">Loading...</div>
+      ) : (
+        <div className="flex w-[98%] m-auto gap-8 pb-32 px-5 overflow-auto scrollbar-hide">
+          {fundraisers.length === 0 ? (
+            <p className="text-center text-xl text-gray-500">No fundraisers found.</p>
           ) : (
-            <div className="space-y-4">
-              {requests.map((request) => (
-                <div key={request.id} className="bg-gray-100 p-4 rounded-lg shadow-md">
-                  <h2 className="text-lg font-bold">{request.title}</h2>
-                  <p className="text-gray-700">{request.description}</p>
+            fundraisers.map((fundraiser) => (
+              <div key={fundraiser.id} className="bg-white p-4 rounded-lg shadow-md w-full">
+                <div className="bg-gray-100 p-4 rounded-lg shadow-md">
+                  <h2 className="text-lg font-bold">{fundraiser.title}</h2>
+                  <p className="text-gray-700">{fundraiser.description}</p>
                   <p className="mt-2 text-sm">
-                    <strong>Request ID:</strong> {request.id}
+                    <strong>Fundraiser ID:</strong> {fundraiser.id}
                   </p>
                   <p className="mt-1 text-sm">
                     <strong>Status:</strong>{" "}
                     <span
                       className={`px-2 py-1 rounded-md ${
-                        request.status === "Pending" ? "bg-yellow-400" : "bg-green-500"
+                        fundraiser.status === "Pending" ? "bg-yellow-400" : "bg-green-500"
                       } text-white`}
                     >
-                      {request.status}
+                      {fundraiser.status}
                     </span>
                   </p>
 
                   {/* Buttons */}
                   <div className="flex space-x-4 mt-4">
-                    {/* View Chat Button */}
+                    {/* View Button */}
                     <button
-                      onClick={() =>
-                        router.push(
-                          `/chat?orphanageId=${auth.currentUser?.uid}&requestId=${request.id}&orphanageEmail=${auth.currentUser?.email}`
-                        )
-                      }
+                      onClick={() => handleViewChat(fundraiser.id)} // Navigate to chat with fundraiser ID
                       className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-400"
                     >
                       View Chat
@@ -153,7 +192,7 @@ const FundRaise = () => {
 
                     {/* Edit Button */}
                     <button
-                      onClick={() => handleEditClick(request)}
+                      onClick={() => handleEditClick(fundraiser)} // Navigate to edit page for fundraiser
                       className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-500"
                     >
                       Edit
@@ -161,74 +200,107 @@ const FundRaise = () => {
 
                     {/* Delete Button */}
                     <button
-                      onClick={() => handleDelete(request.id)}
+                      onClick={() => handleDelete(fundraiser.id)} // Delete the fundraiser
                       className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-500"
                     >
                       Delete
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))
           )}
         </div>
+      )}
 
-        {/* Edit Request Modal */}
-        {isEditing && (
-          <div className="fixed inset-0 flex justify-center items-center bg-gray-800 bg-opacity-50">
-            <div className="bg-white p-8 rounded-lg shadow-lg w-[400px]">
-              <h2 className="text-2xl font-bold mb-4">Edit Request</h2>
+      {/* Edit Fundraiser Modal */}
+      {isEditing && (
+        <div className="fixed inset-0 flex justify-center items-center bg-gray-800 bg-opacity-50">
+          <div className="bg-white p-8 rounded-lg shadow-lg w-[400px] relative">
+            <button
+              onClick={closeModal}
+              className="absolute top-4 right-4 text-xl text-gray-500 hover:text-gray-700"
+            >
+              &times; {/* Close Icon */}
+            </button>
+            <h2 className="text-2xl font-bold mb-4">Edit Fundraiser</h2>
 
-              {/* Edit Form */}
-              <form onSubmit={handleSaveChanges}>
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">Title</label>
-                  <input
-                    type="text"
-                    value={editRequest.title}
-                    onChange={(e) =>
-                      setEditRequest({ ...editRequest, title: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">Description</label>
-                  <textarea
-                    value={editRequest.description}
-                    onChange={(e) =>
-                      setEditRequest({ ...editRequest, description: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
+            {/* Edit Form */}
+            <form onSubmit={handleSaveChanges}>
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-2">Title</label>
+                <input
+                  type="text"
+                  value={editFundraiser.title}
+                  onChange={(e) =>
+                    setEditFundraiser({ ...editFundraiser, title: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-2">Description</label>
+                <textarea
+                  value={editFundraiser.description}
+                  onChange={(e) =>
+                    setEditFundraiser({ ...editFundraiser, description: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
 
-                {/* Status Change Dropdown */}
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">Status</label>
-                  <select
-                    value={editRequest.status}
-                    onChange={(e) =>
-                      setEditRequest({ ...editRequest, status: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                    required
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="Fulfilled">Fulfilled</option>
-                  </select>
-                </div>
+              {/* Status Change Dropdown */}
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-2">Status</label>
+                <select
+                  value={editFundraiser.status}
+                  onChange={(e) =>
+                    setEditFundraiser({ ...editFundraiser, status: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                  required
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Fulfilled">Fulfilled</option>
+                </select>
+              </div>
 
-                <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-md">
-                  Save Changes
-                </button>
-              </form>
-            </div>
+              {/* Amount Fields */}
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-2">Raised Amount</label>
+                <input
+                  type="number"
+                  value={editFundraiser.raisedAmount}
+                  onChange={(e) =>
+                    setEditFundraiser({ ...editFundraiser, raisedAmount: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-2">Total Amount</label>
+                <input
+                  type="number"
+                  value={editFundraiser.totalAmount}
+                  onChange={(e) =>
+                    setEditFundraiser({ ...editFundraiser, totalAmount: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+
+              <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-md">
+                Save Changes
+              </button>
+            </form>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
