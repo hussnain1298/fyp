@@ -103,7 +103,9 @@ const Request = () => {
     <div className={`${poppins.className} bg-white min-h-screen`}>
       <div className="container mx-auto p-8">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl text-black font-bold">Requests</h1>
+        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">
+         REQUESTS
+        </h2>
 
           {/* ✅ Add a Request Button */}
           <button

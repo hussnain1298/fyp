@@ -1,10 +1,14 @@
+"use client";
 import { useState, useEffect } from "react";
 import { auth, firestore } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { motion } from "framer-motion";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export default function AddressSection() {
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);  // Loading state
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -17,16 +21,23 @@ export default function AddressSection() {
     const fetchUserAddress = async () => {
       const user = auth.currentUser;
       if (user) {
-        const userDoc = await getDoc(doc(firestore, "users", user.uid));
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          setFormData({
-            name: data.orgName || "CareConnect", // Default value if not available
-            address: data.orgAddress || "NTU", // Default value
-            city: data.city || "Faisalabad", // Default value
-            state: data.state || "Punjab", // Default value
-            zip: data.zip || "38000", // Default value
-          });
+        try {
+          const userDoc = await getDoc(doc(firestore, "users", user.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            setFormData({
+              name: data.orgName || "CareConnect", // Default value if not available
+              address: data.orgAddress || "NTU", // Default value
+              city: data.city || "Faisalabad", // Default value
+              state: data.state || "Punjab", // Default value
+              zip: data.zip || "38000", // Default value
+            });
+          } else {
+            toast.error("User data not found!");
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          toast.error("Failed to load user address data.");
         }
       }
     };
@@ -38,8 +49,33 @@ export default function AddressSection() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSave = () => {
-    setIsEditing(false);
+  const handleSave = async () => {
+    if (isLoading) return; // Prevent multiple saves
+    setIsLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const userRef = doc(firestore, "users", user.uid);
+        // Update the address data in Firestore
+        await updateDoc(userRef, {
+          orgName: formData.name,
+          orgAddress: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zip,
+        });
+
+        toast.success("Address saved successfully!");
+      } else {
+        toast.error("User is not authenticated.");
+      }
+    } catch (error) {
+      console.error("Error saving address:", error);
+      toast.error("Failed to save address.");
+    } finally {
+      setIsLoading(false);
+      setIsEditing(false);  // Exit edit mode after saving
+    }
   };
 
   return (
@@ -49,6 +85,7 @@ export default function AddressSection() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
+      <ToastContainer />
       <p className="text-gray-700">
         The following addresses will be used on the checkout page by default.
       </p>
@@ -116,9 +153,10 @@ export default function AddressSection() {
           {/* Save Button */}
           <button
             onClick={handleSave}
-            className="mt-3 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition"
+            disabled={isLoading}
+            className={`mt-3 px-4 py-2 ${isLoading ? 'bg-gray-400' : 'bg-green-500'} text-white rounded-md hover:bg-green-600 transition`}
           >
-            Save
+            {isLoading ? "Saving..." : "Save"}
           </button>
         </div>
       )}

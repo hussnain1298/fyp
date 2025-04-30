@@ -66,14 +66,7 @@ export default function MyAccount() {
         {/* Main Content Section */}
         <div className="w-full lg:w-3/4 mt-18">
           {/* Greeting Message - Always Visible */}
-          <p className="text-lg font-medium">
-            Hello <span className="font-bold">CareConnect.</span> (not{" "}
-            <span className="font-bold">careconnect.com</span>?{" "}
-            <button onClick={handleLogout} className="text-blue-500 ml-1">
-              Log out
-            </button>
-            )
-          </p>
+         
 
           {/* Dynamic Content Based on Active Tab */}
           {activeTab === "Dashboard" && <OrphanageDashboard />}
