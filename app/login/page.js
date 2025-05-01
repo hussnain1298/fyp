@@ -1,11 +1,13 @@
-"use client";
-import { useState, useEffect } from "react";
+'use client'; // Ensure that the component is client-side only
+
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation"; // ✅ Get query params
 import { auth, firestore } from "@/lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { getDoc, doc } from "firebase/firestore";
 
-export default function Login() {
+// This is the main Login component
+const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -13,16 +15,17 @@ export default function Login() {
   const router = useRouter();
   const searchParams = useSearchParams(); // ✅ Get query params
 
+  // ✅ useEffect to check if the user came from "Donate"
   useEffect(() => {
-    // ✅ If login page was opened from Donate button, show donor restriction
     if (searchParams.get("redirect") === "donate") {
       setDonorCheck(true);
     }
   }, [searchParams]);
 
+  // ✅ Handle user login
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError(""); // ✅ Reset error before login attempt
+    setError(""); // Reset error before login attempt
 
     try {
       // ✅ Step 1: User Authentication
@@ -118,4 +121,15 @@ export default function Login() {
       </div>
     </div>
   );
-}
+};
+
+// Wrapping the LoginPage component with Suspense boundary for useSearchParams()
+const LoginPageWithSuspense = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginPage />
+    </Suspense>
+  );
+};
+
+export default LoginPageWithSuspense;

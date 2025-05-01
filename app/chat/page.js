@@ -1,9 +1,10 @@
-"use client";
-import { useSearchParams, useRouter } from "next/navigation";
-import ChatBox from "./ChatBox";
-import { useEffect, useState } from "react";
+'use client';  // Ensure that the component is client-side only
 
-export default function ChatPage() {
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState, Suspense } from "react"; // Import Suspense
+import ChatBox from "./ChatBox";
+
+const ChatPage = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -59,4 +60,15 @@ export default function ChatPage() {
       </div>
     </div>
   );
-}
+};
+
+// Wrap the ChatPage component with Suspense
+const ChatPageWithSuspense = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ChatPage />
+    </Suspense>
+  );
+};
+
+export default ChatPageWithSuspense;
