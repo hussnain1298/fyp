@@ -18,8 +18,8 @@ export default function DonateForm() {
   const [foodDescription, setFoodDescription] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [orphanageId, setOrphanageId] = useState(null);  // To store orphanageId from the selected request
-  const [requestType, setRequestType] = useState("");  // Store request type for comparison
+  const [orphanageId, setOrphanageId] = useState(null); // To store orphanageId from the selected request
+  const [requestType, setRequestType] = useState(""); // Store request type for comparison
   const router = useRouter();
 
   useEffect(() => {
@@ -86,6 +86,18 @@ export default function DonateForm() {
       return;
     }
 
+    // Log the donation data for debugging
+    console.log("Donation Data:", {
+      donorId: user.uid,
+      donorEmail: user.email,
+      orphanageId,
+      requestId: selectedRequest,
+      donationType,
+      amount: donationType === "Money" ? amount : null,
+      numClothes: donationType === "Clothes" ? numClothes : null,
+      foodDescription: donationType === "Food" ? foodDescription : null,
+    });
+
     try {
       await addDoc(collection(firestore, "donations"), {
         donorId: user.uid,
@@ -93,9 +105,9 @@ export default function DonateForm() {
         orphanageId,
         requestId: selectedRequest,
         donationType,
-        amount: donationType === "money" ? amount : null,
-        numClothes: donationType === "clothes" ? numClothes : null,
-        foodDescription: donationType === "food" ? foodDescription : null,
+        amount: donationType === "Money" ? amount : null,
+        numClothes: donationType === "Clothes" ? numClothes : null,
+        foodDescription: donationType === "Food" ? foodDescription : null,
         confirmed: false,
         timestamp: new Date(),
       });
