@@ -5,6 +5,9 @@ import { motion } from "framer-motion";
 import { Poppins } from "next/font/google";
 import AddressSection from "./addressSection";
 import AccountDetails from "./accountDetails";
+import FulfillRequests from "./fulfillRequest";
+import FulfillServices from "./fullfillServices";
+import FulfillFundraise from "./fullfillFundraise";
 import Dashboard from "./dashboard";
 import DonationsHistory from "./donationHistory";
 import Navbar from "../Navbar/page";
@@ -31,7 +34,7 @@ export default function MyAccount() {
         {/* Sidebar Navigation */}
         <aside className="w-full lg:w-1/4 bg-white shadow-md p-6 mt-10">
           <ul className="space-y-2">
-            {["Dashboard", "Donations", "Downloads", "Addresses", "Account details", "Logout"].map((tab) => (
+            {["Dashboard","Fulfill Requests","Fulfill Services","Fulfill FundRaise", "Donations", "Addresses", "Account details", "Logout"].map((tab) => (
               <li
                 key={tab}
                 onClick={() => {
@@ -67,6 +70,9 @@ export default function MyAccount() {
           {activeTab === "Dashboard" && <Dashboard />}
           {activeTab === "Addresses" && <AddressSection />}
           {activeTab === "Account details" && <AccountDetails />}
+          {activeTab === "Fulfill Requests" && <FulfillRequests />}
+          {activeTab === "Fulfill Services" && <FulfillServices />}
+          {activeTab === "Fulfill FundRaise" && <FulfillFundraise />}
           {activeTab === "Donations" && <DonationsHistory />}
           {activeTab === "Logout" && <LoginPage />}
         </div>

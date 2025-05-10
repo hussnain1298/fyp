@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { firestore, auth } from "@/lib/firebase";
-import { collection, addDoc, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +41,7 @@ export default function DonateForm() {
     fetchRequests(); // Fetch requests only
   }, []);
 
+  // Function to handle the change of the selected request
   const handleRequestChange = async (e) => {
     const requestId = e.target.value;
     setSelectedRequest(requestId);
@@ -86,20 +87,9 @@ export default function DonateForm() {
       return;
     }
 
-    // Log the donation data for debugging
-    console.log("Donation Data:", {
-      donorId: user.uid,
-      donorEmail: user.email,
-      orphanageId,
-      requestId: selectedRequest,
-      donationType,
-      amount: donationType === "Money" ? amount : null,
-      numClothes: donationType === "Clothes" ? numClothes : null,
-      foodDescription: donationType === "Food" ? foodDescription : null,
-    });
-
     try {
-      await addDoc(collection(firestore, "donations"), {
+      // Add donation document to the "donations" collection
+      const donationRef = await addDoc(collection(firestore, "donations"), {
         donorId: user.uid,
         donorEmail: user.email,
         orphanageId,
@@ -110,6 +100,12 @@ export default function DonateForm() {
         foodDescription: donationType === "Food" ? foodDescription : null,
         confirmed: false,
         timestamp: new Date(),
+      });
+
+      // Update the request document to include the new donation ID
+      const requestRef = doc(firestore, "requests", selectedRequest);
+      await updateDoc(requestRef, {
+        donations: arrayUnion(donationRef.id),  // Add the new donation ID to the donations array
       });
 
       router.push("/donorDashboard");
