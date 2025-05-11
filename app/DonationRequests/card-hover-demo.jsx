@@ -1,21 +1,21 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // ✅ Router for navigation
-import { auth, firestore } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
-import { getDoc, doc } from "firebase/firestore"; // ✅ Fix: Import getDoc
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { auth, firestore } from "@/lib/firebase"
+import { collection, getDocs, addDoc, serverTimestamp } from "firebase/firestore"
+
 export default function RequestsHoverDemo() {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [userRole, setUserRole] = useState(null); // ✅ Track user role
-  const router = useRouter();
+  const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [isProcessing, setIsProcessing] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     const fetchRequests = async () => {
       try {
-        const querySnapshot = await getDocs(collection(firestore, "requests"));
+        const querySnapshot = await getDocs(collection(firestore, "requests"))
         const requestList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           title: doc.data().title,
@@ -23,63 +23,75 @@ export default function RequestsHoverDemo() {
           status: doc.data().status || "Pending",
           orphanageId: doc.data().orphanageId || "",
           orphanageEmail: doc.data().orphanageEmail || "",
-        }));
-
-        setRequests(requestList);
+        }))
+        setRequests(requestList)
       } catch (err) {
-        setError("Failed to load requests: " + err.message);
+        console.error("Error fetching requests:", err)
+        setError("Failed to load requests: " + err.message)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-
-    const checkUserRole = async () => {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        setUserRole(null); // ✅ User not logged in
-        return;
-      }
-
-      // 🔹 Fetch user role from Firestore
-      const userDoc = await getDocs(collection(firestore, "users"));
-      userDoc.forEach((doc) => {
-        if (doc.id === currentUser.uid) {
-          setUserRole(doc.data().userType); // ✅ Set user role
-        }
-      });
-    };
-
-    fetchRequests();
-    checkUserRole();
-  }, []);
-
-  // ✅ Handle "Donate" button click
-  const handleDonate = (request) => {
-    const user = auth.currentUser;
-    if (!user) {
-      // Redirect to login if user is not logged in
-      router.push("/login?redirect=donate");
-      return;
     }
-  
-    // ✅ Fetch user role from Firestore
-    const userRef = doc(firestore, "users", user.uid);
-    getDoc(userRef).then((userDoc) => {
-      if (userDoc.exists() && userDoc.data().userType === "Donor") {
-        // ✅ Redirect to chat only if user is a donor
-        router.push(`/chat?title=${encodeURIComponent(request.title)}&description=${encodeURIComponent(request.description)}&orphanageId=${request.orphanageId}&requestId=${request.id}&orphanageEmail=${request.orphanageEmail}`);
-      } else {
-        alert("❌ Only donors can donate!");
+
+    fetchRequests()
+  }, [])
+
+  // Handle "Chat" button click
+  const handleChat = async (request) => {
+    // Prevent multiple clicks
+    if (isProcessing) return
+    setIsProcessing(true)
+    setError("")
+
+    try {
+      const user = auth.currentUser
+      if (!user) {
+        router.push("/login?redirect=chat")
+        return
       }
-    }).catch((error) => {
-      console.error("🔥 Error fetching user role:", error);
-    });
-  };
-  
+
+      const donorId = user.uid
+      const orphanageId = request.orphanageId
+
+      // Create a new chat document with both donor and orphanage as participants
+      try {
+        const chatDocRef = await addDoc(collection(firestore, "chats"), {
+          createdAt: serverTimestamp(),
+          lastUpdated: serverTimestamp(),
+          createdBy: donorId,
+          participants: {
+            [donorId]: true,
+            [orphanageId]: true,
+          },
+          title: request.title,
+          description: request.description,
+          requestId: request.id,
+        })
+
+        // Navigate to the new chat
+        router.push(
+          `/chat?chatId=${chatDocRef.id}&title=${encodeURIComponent(request.title)}&description=${encodeURIComponent(request.description)}&orphanageId=${orphanageId}&requestId=${request.id}&orphanageEmail=${request.orphanageEmail}`,
+        )
+      } catch (err) {
+        console.error("Error creating chat:", err)
+        setError("Error creating chat: " + err.message)
+        setIsProcessing(false)
+      }
+    } catch (error) {
+      console.error("Error in handleChat:", error)
+      setError("Error: " + error.message)
+      setIsProcessing(false)
+    }
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-8">
-      {error && <p className="text-red-500 text-center">{error}</p>}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <p>{error}</p>
+        </div>
+      )}
+
       {loading && <p className="text-gray-500 text-center">Loading...</p>}
 
       {!loading && requests.length > 0 ? (
@@ -90,10 +102,11 @@ export default function RequestsHoverDemo() {
               <p className="text-gray-600">{request.description}</p>
 
               <button
-                onClick={() => handleDonate(request)}
-                className="mt-2 bg-green-500 text-white px-4 py-2 rounded-md w-full"
+                onClick={() => handleChat(request)}
+                disabled={isProcessing}
+                className={`mt-2 ${isProcessing ? "bg-gray-400" : "bg-green-500"} text-white px-4 py-2 rounded-md w-full transition`}
               >
-                Donate
+                {isProcessing ? "Processing..." : "Chat"}
               </button>
             </div>
           ))}
@@ -102,5 +115,5 @@ export default function RequestsHoverDemo() {
         !loading && <p className="text-center text-gray-500">No requests available.</p>
       )}
     </div>
-  );
+  )
 }
