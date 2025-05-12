@@ -1,74 +1,115 @@
-'use client';  // Ensure that the component is client-side only
+"use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense } from "react"; // Import Suspense
-import ChatBox from "./ChatBox";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation"; // Import the necessary hooks
+import { firestore, auth } from "@/lib/firebase"; // Import Firebase SDK
+import { doc, getDoc, collection, getDocs, query, orderBy } from "firebase/firestore";
+import ChatSidebar from "@/components/chat/chat-sidebar"; // Import sidebar component
+import ChatWindow from "@/components/chat/chat-window"; // Import chat window component
 
-const ChatPage = () => {
-  const searchParams = useSearchParams();
+export default function ChatPage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [activeChatId, setActiveChatId] = useState(null);
+  const [otherUser, setOtherUser] = useState(null);
+  const [chatData, setChatData] = useState(null);
   const router = useRouter();
+  const searchParams = useSearchParams(); // Get query parameters
 
-  const title = searchParams.get("title") || "No Title";
-  const description = searchParams.get("description") || "No Description";
+  // Extract parameters from query
+  const chatId = searchParams.get("chatId");
+  const title = searchParams.get("title");
+  const description = searchParams.get("description");
   const orphanageId = searchParams.get("orphanageId");
   const requestId = searchParams.get("requestId");
   const orphanageEmail = searchParams.get("orphanageEmail");
 
-  const [chatId, setChatId] = useState(null);
-  const [error, setError] = useState("");
-
-  // ✅ Generate a unique chatId using orphanageId and requestId
+  // Fetch chat and user data when the component loads
   useEffect(() => {
-    if (!orphanageId || !requestId) {
-      console.error("❌ Missing orphanageId or requestId!");
-      setError("Invalid chat request. Missing required details.");
+    if (!chatId) {
+      setError("No chat ID provided.");
+      setLoading(false);
       return;
     }
 
-    const generatedChatId = `${orphanageId}_${requestId}`;
-    setChatId(generatedChatId);
+    const fetchChatData = async () => {
+      try {
+        // Fetch chat data
+        const chatRef = doc(firestore, "chats", chatId);
+        const chatDoc = await getDoc(chatRef);
 
-    console.log("📢 Chat Page Loaded!");
-    console.log("🟢 Title:", title);
-    console.log("🟢 Description:", description);
-    console.log("🟢 Orphanage ID:", orphanageId);
-    console.log("🟢 Request ID:", requestId);
-    console.log("🟢 Orphanage Email:", orphanageEmail);
-    console.log("🟢 Generated Chat ID:", generatedChatId);
-  }, [title, description, orphanageId, requestId, orphanageEmail]);
+        if (chatDoc.exists()) {
+          setChatData(chatDoc.data());
+          setActiveChatId(chatId);
+
+          // Check the participants in the chat
+          const participants = chatDoc.data().participants;
+          const currentUser = auth.currentUser;
+
+          // If current user is not a participant, set an error
+          if (!participants[currentUser.uid]) {
+            setError("You are not a participant in this chat.");
+            setLoading(false);
+            return;
+          }
+
+          // Fetch the other participant details (orphanage or donor)
+          const otherUserId = Object.keys(participants).find(
+            (id) => id !== currentUser.uid
+          );
+
+          // Fetch the user details (name, role) for the other participant
+          const userRef = doc(firestore, "users", otherUserId);
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            setOtherUser(userDoc.data());
+          } else {
+            setError("User not found.");
+          }
+
+          setLoading(false);
+        } else {
+          setError("Chat not found.");
+          setLoading(false);
+        }
+      } catch (err) {
+        setError("Error fetching chat data: " + err.message);
+        setLoading(false);
+      }
+    };
+
+    fetchChatData();
+  }, [chatId]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="bg-red-100 p-4 rounded-md">
+          <p className="text-red-500">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gray-100">
-      <div className="w-full max-w-md p-6 bg-white shadow-md rounded-lg">
-        {/* 🔹 Request Title & Description */}
-        <h2 className="text-2xl font-bold text-center text-gray-700">{title}</h2>
-        <p className="text-center text-gray-500">{description}</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-semibold mb-4">{title}</h1>
+        <p className="mb-6">{description}</p>
 
-        {/* 🔹 Request Details */}
-        <div className="bg-gray-100 p-3 rounded-md mt-3">
-          <p><strong>Request ID:</strong> {requestId || "N/A"}</p>
-          <p><strong>Orphanage Email:</strong> {orphanageEmail || "N/A"}</p>
-          <p><strong>Orphanage ID:</strong> {orphanageId || "N/A"}</p>
+        <div className="flex flex-col md:flex-row">
+          <ChatSidebar activeChatId={activeChatId} setActiveChatId={setActiveChatId} />
+          <ChatWindow chatId={activeChatId} otherUser={otherUser} />
         </div>
-
-        {/* 🔹 Error Handling */}
-        {error ? (
-          <p className="text-center text-red-500 mt-4">{error}</p>
-        ) : (
-          chatId && <ChatBox chatId={chatId} />
-        )}
       </div>
     </div>
   );
-};
-
-// Wrap the ChatPage component with Suspense
-const ChatPageWithSuspense = () => {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <ChatPage />
-    </Suspense>
-  );
-};
-
-export default ChatPageWithSuspense;
+}
