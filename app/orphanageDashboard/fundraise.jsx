@@ -1,11 +1,10 @@
 'use client';
+
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { firestore } from "@/lib/firebase";
-
 import { collection, query, getDocs, deleteDoc, doc, updateDoc, where } from "firebase/firestore";
-
-import { auth } from "@/lib/firebase"; 
+import { auth } from "@/lib/firebase";
 
 const FundRaise = () => {
   const [fundraisers, setFundraisers] = useState([]); // State to store fundraisers data
@@ -20,25 +19,25 @@ const FundRaise = () => {
     const fetchFundraisers = async () => {
       setLoading(true);
       setError("");
-  
+
       try {
         const userUid = auth.currentUser?.uid; // Get the logged-in user's UID (orphanage ID)
-  
+
         // Query to filter fundraisers based on the orphanageId
         const q = query(collection(firestore, "fundraisers"), where("orphanageId", "==", userUid));
-  
+
         const querySnapshot = await getDocs(q);
-  
+
         if (querySnapshot.empty) {
           setError("No fundraisers found.");
           return;
         }
-  
+
         const fundraiserList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-  
+
         setFundraisers(fundraiserList); // Update state with fetched fundraisers
       } catch (err) {
         setError("Failed to load fundraisers: " + err.message);
@@ -46,10 +45,9 @@ const FundRaise = () => {
         setLoading(false);
       }
     };
-  
+
     fetchFundraisers();
   }, []); // Fetch data once when the component mounts
-  // Fetch data once when the component mounts
 
   // Delete Fundraiser
   const handleDelete = async (id) => {
@@ -143,7 +141,7 @@ const FundRaise = () => {
         <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">Fund Raise Requests</h2>
         <button
           type="button"
-          className="bg-green-600 text-white font-medium py-2 px-4 rounded-md mt-12"
+          className="bg-green-600 text-white font-medium py-2 px-4 rounded-md mt-12 w-full max-w-[200px] mx-auto" // Matching button size with requests page
           onClick={() => router.push("/fund-raise")}
         >
           + Raise Fund
@@ -157,7 +155,7 @@ const FundRaise = () => {
       {loading ? (
         <div className="text-center text-gray-500">Loading...</div>
       ) : (
-        <div className="flex w-[98%] m-auto gap-8 pb-32 px-5 overflow-auto scrollbar-hide">
+        <div className="flex flex-col w-[98%] m-auto gap-8 pb-32 px-5 overflow-auto scrollbar-hide">
           {fundraisers.length === 0 ? (
             <p className="text-center text-xl text-gray-500">No fundraisers found.</p>
           ) : (
@@ -185,7 +183,7 @@ const FundRaise = () => {
                     {/* View Button */}
                     <button
                       onClick={() => handleViewChat(fundraiser.id)} // Navigate to chat with fundraiser ID
-                      className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-400"
+                      className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-400 w-full max-w-[200px] mx-auto"
                     >
                       View Chat
                     </button>
@@ -193,7 +191,7 @@ const FundRaise = () => {
                     {/* Edit Button */}
                     <button
                       onClick={() => handleEditClick(fundraiser)} // Navigate to edit page for fundraiser
-                      className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-500"
+                      className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-500 w-full max-w-[200px] mx-auto"
                     >
                       Edit
                     </button>
@@ -201,7 +199,7 @@ const FundRaise = () => {
                     {/* Delete Button */}
                     <button
                       onClick={() => handleDelete(fundraiser.id)} // Delete the fundraiser
-                      className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-500"
+                      className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-500 w-full max-w-[200px] mx-auto"
                     >
                       Delete
                     </button>

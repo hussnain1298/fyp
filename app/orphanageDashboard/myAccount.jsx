@@ -42,9 +42,9 @@ export default function MyAccount() {
       {/* Main Account Section */}
       <div className="flex flex-col lg:flex-row mt-8 gap-10">
         {/* Sidebar Navigation */}
-        <aside className="w-full lg:w-1/4 bg-white shadow-md p-6 mt-10">
+        <aside className="w-full lg:w-1/4 bg-white shadow-md p-6 mt-20">
           <ul className="space-y-2">
-            {["Dashboard", "Services", "Requests","Fund Raise", "Addresses", "Donations","Account details", "Logout"].map((tab) => (
+            {["Dashboard", "Services", "Requests", "Fund Raise", "Addresses", "Donations", "Account details", "Logout"].map((tab) => (
               <li
                 key={tab}
                 onClick={() => {
@@ -67,17 +67,73 @@ export default function MyAccount() {
         {/* Main Content Section */}
         <div className="w-full lg:w-3/4 mt-18">
           {/* Greeting Message - Always Visible */}
-         
 
           {/* Dynamic Content Based on Active Tab */}
-          {activeTab === "Dashboard" && <OrphanageDashboard />}
-          {activeTab === "Account details" && <AccountDetails />}
-          {activeTab === "Addresses" && <AddressSection />}
-        {activeTab === "Donations" && <ConfirmedRequests />}   
-          {activeTab === "Requests" && <Request />}
-          {activeTab === "Services" && <Services />}
-          {activeTab === "Fund Raise" && <FundRaise />}
-
+          <div className="mt-8">
+            {activeTab === "Dashboard" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <OrphanageDashboard />
+              </motion.div>
+            )}
+            {activeTab === "Account details" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <AccountDetails />
+              </motion.div>
+            )}
+            {activeTab === "Addresses" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <AddressSection />
+              </motion.div>
+            )}
+            {activeTab === "Donations" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <ConfirmedRequests />
+              </motion.div>
+            )}
+            {activeTab === "Requests" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <Request />
+              </motion.div>
+            )}
+            {activeTab === "Services" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <Services />
+              </motion.div>
+            )}
+            {activeTab === "Fund Raise" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <FundRaise />
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
     </section>

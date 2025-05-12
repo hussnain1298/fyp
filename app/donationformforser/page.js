@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 export default function DonateServiceForm() {
-  const [services, setServices] = useState([]);
+  const [services, setServices] = useState([]); // State to store fundraisers data
   const [selectedService, setSelectedService] = useState("");
   const [serviceDescription, setServiceDescription] = useState("");
   const [error, setError] = useState("");
@@ -38,7 +38,7 @@ export default function DonateServiceForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
+    setError(""); // Reset error message
 
     const user = auth.currentUser;
     if (!user) {
@@ -64,11 +64,13 @@ export default function DonateServiceForm() {
         timestamp: new Date(),
       });
 
+      // Redirect after submission
       router.push("/donorDashboard");
+
     } catch (err) {
       setError("Failed to submit service donation: " + err.message);
     } finally {
-      setLoading(false);
+      setLoading(false); // Disable loading state
     }
   };
 
@@ -76,7 +78,7 @@ export default function DonateServiceForm() {
     <div className="flex justify-center items-start mt-20 min-h-screen">
       <div className="max-w-lg w-full p-6 bg-white rounded-md shadow-md">
         <h2 className="text-2xl font-bold mb-4 text-center">Donate a Service</h2>
-        
+
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -92,7 +94,7 @@ export default function DonateServiceForm() {
               <option value="">-- Select a Service --</option>
               {services.map((service) => (
                 <option key={service.id} value={service.id}>
-                  {service.title}  {/* Change from 'name' to 'title' */}
+                  {service.title}
                 </option>
               ))}
             </select>
