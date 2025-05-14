@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { firestore, auth } from "@/lib/firebase";
-import { collection, addDoc, getDocs, doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, arrayUnion, query, where } from "firebase/firestore";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 export default function DonateForm() {
-  const [requests, setRequests] = useState([]);
+  const [requests, setRequests] = useState([]); // Store all requests
   const [selectedRequest, setSelectedRequest] = useState("");
   const [donationType, setDonationType] = useState("");
   const [amount, setAmount] = useState("");
@@ -20,6 +20,8 @@ export default function DonateForm() {
   const [loading, setLoading] = useState(false);
   const [orphanageId, setOrphanageId] = useState(null); // To store orphanageId from the selected request
   const [requestType, setRequestType] = useState(""); // Store request type for comparison
+  const [needed, setNeeded] = useState(0); // To store the needed amount or number of items
+  const [totalDonated, setTotalDonated] = useState(0); // To store the total amount donated so far
   const router = useRouter();
 
   useEffect(() => {
@@ -56,6 +58,21 @@ export default function DonateForm() {
         const requestData = requestDocSnap.data();
         setOrphanageId(requestData.orphanageId);  // Store orphanageId from request data
         setRequestType(requestData.requestType);  // Store requestType for validation
+        setNeeded(requestData.quantity || 0); // Set needed amount from the request (clothes or money)
+        
+        // Fetch donations related to the selected request
+        const donationQuery = query(
+          collection(firestore, "donations"),
+          where("requestId", "==", requestId)
+        );
+        const donationSnapshot = await getDocs(donationQuery);
+
+        let totalDonatedAmount = 0;
+        donationSnapshot.forEach((donation) => {
+          const donationData = donation.data();
+          totalDonatedAmount += donationData.numClothes || 0; // Add clothes donated
+        });
+        setTotalDonated(totalDonatedAmount); // Set total donated value
       } else {
         setError("Request not found.");
       }
@@ -102,10 +119,12 @@ export default function DonateForm() {
         timestamp: new Date(),
       });
 
-      // Update the request document to include the new donation ID
+      // Update the request document to include the new donation ID and update the totalDonated field
       const requestRef = doc(firestore, "requests", selectedRequest);
+      const updatedTotalDonated = totalDonated + (donationType === "Clothes" ? numClothes : amount);
       await updateDoc(requestRef, {
         donations: arrayUnion(donationRef.id),  // Add the new donation ID to the donations array
+        totalDonated: updatedTotalDonated, // Update the total donated value
       });
 
       router.push("/donorDashboard");

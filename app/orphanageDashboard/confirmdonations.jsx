@@ -52,7 +52,7 @@ const ConfirmedRequests = () => {
               donationId: document.id,
               donationType: donationData.donationType,
               donationAmount: donationData.amount,
-              donationStatus: donationData.confirmed ? "Confirmed" : "Pending",
+              donationStatus: donationData.confirmed ? `${donationData.numClothes || 0} donated` : "Pending",  // Update status with number of donated items
               donationClothesCount: donationData.numClothes, // Assuming donation contains clothes count
               donationFoodDescription: donationData.foodDescription, // Assuming donation contains food description
             };
@@ -71,7 +71,7 @@ const ConfirmedRequests = () => {
   }, []);
 
   // Confirm donation as fulfilled
-  const handleConfirmDonation = async (donationId, requestId) => {
+  const handleConfirmDonation = async (donationId, requestId, donationType, numClothes, amount) => {
     try {
       // Update the donation status to "Confirmed"
       const donationRef = doc(firestore, "donations", donationId);
@@ -79,7 +79,23 @@ const ConfirmedRequests = () => {
 
       // Optionally, update the request status as well
       const requestRef = doc(firestore, "requests", requestId);
-      await updateDoc(requestRef, { status: "Fulfilled" });
+
+      // Fetch the current totalDonated value
+      const requestDocSnap = await getDoc(requestRef);
+      const requestData = requestDocSnap.data();
+      let updatedTotalDonated = requestData.totalDonated || 0;
+
+      // Add the donation value to totalDonated (based on donation type)
+      if (donationType === "Clothes") {
+        updatedTotalDonated += numClothes;
+      } else if (donationType === "Money") {
+        updatedTotalDonated += amount;
+      }
+
+      // Update the request with the new totalDonated value
+      await updateDoc(requestRef, {
+        totalDonated: updatedTotalDonated,
+      });
 
       // Update the UI state with the confirmed donation
       setRequests((prevRequests) =>
@@ -87,7 +103,7 @@ const ConfirmedRequests = () => {
           if (request.donationId === donationId) {
             return {
               ...request,
-              donationStatus: "Confirmed",
+              donationStatus: `${request.donationClothesCount} donated`,  // Update status with donated count
             };
           }
           return request;
@@ -135,7 +151,7 @@ const ConfirmedRequests = () => {
                       <h3 className="font-semibold text-sm">Donation:</h3>
                       <ul>
                         <li className="text-sm text-gray-700">
-                          Donation Type: {request.donationType} - Amount: {request.donationAmount || 'N/A'}
+                          Donation Type: {request.donationType} - Amount: {request.donationAmount || "N/A"}
                         </li>
                         {/* Display donation details based on type */}
                         {request.donationType === "Clothes" && request.donationClothesCount && (
@@ -155,7 +171,9 @@ const ConfirmedRequests = () => {
                   {/* Confirm Donation Button */}
                   {request.donationStatus === "Pending" && (
                     <button
-                      onClick={() => handleConfirmDonation(request.donationId, request.id)}
+                      onClick={() =>
+                        handleConfirmDonation(request.donationId, request.id, request.donationType, request.donationClothesCount, request.donationAmount)
+                      }
                       className="bg-blue-500 text-white py-2 px-4 rounded-md mt-4"
                     >
                       Confirm Donation
