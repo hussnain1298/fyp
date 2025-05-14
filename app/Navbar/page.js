@@ -77,7 +77,7 @@ export default function Navbar() {
         <ul className="hidden md:flex space-x-6 text-sm lg:text-base xl:text-lg">
           {[{ name: "Home", link: "/" },
             { name: "How It Works", link: "./howitworks" },
-            { name: "Donate", link: getDonateLink() },  // Dynamically set the "Donate" link
+            { name: "Donate", link: "./donationform" },  // Dynamically set the "Donate" link
             { name: "Gallery", link: "/gallery" },
             { name: "Contact", link: "/contact" },
             { name: "Login", link: "/login" },

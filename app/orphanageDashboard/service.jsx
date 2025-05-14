@@ -96,9 +96,11 @@ const Services = () => {
 
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
-      <div className="container mx-auto p-8">
+      <div className="container mx-auto p-8 mt-16"> {/* Added margin-top here */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl text-black font-bold">Services</h1>
+          <h1 className="text-4xl font-bold text-gray-800 text-center pb-6"> {/* Adjusted font size */}
+            Services
+          </h1>
           <button
             type="button"
             className="bg-green-600 text-white font-medium py-2 px-4 rounded-md mt-12"

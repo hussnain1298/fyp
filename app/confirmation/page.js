@@ -1,106 +1,129 @@
-"use client";  // Mark the file as client-side
+"use client";
 
 import { useState, useEffect } from "react";
-import { firestore, auth } from "@/lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { useRouter } from "next/navigation";
+import { auth, firestore } from "@/lib/firebase";
+import { collection, query, getDocs, where, updateDoc, doc } from "firebase/firestore";
+import { Poppins } from "next/font/google";
 
-function OrphanageDashboard() {
+const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
+
+const ConfirmDonations = () => {
   const [donations, setDonations] = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const router = useRouter();
+
+  const user = auth.currentUser;
 
   useEffect(() => {
-    async function fetchData() {
+    const fetchDonations = async () => {
+      setLoading(true);
+      setError("");
+
+      if (!user) {
+        setError("You must be logged in to view donations.");
+        setLoading(false);
+        return;
+      }
+
       try {
-        setLoading(true);
+        const q = query(collection(firestore, "donations"), where("orphanageId", "==", user.uid));
+        const querySnapshot = await getDocs(q);
 
-        // Fetch the logged-in user (orphanage)
-        const user = auth.currentUser;
-
-        if (!user) {
-          setError("You must be logged in to view donations.");
-          setLoading(false);
-          return;
-        }
-
-        // Fetch orphanage's requests based on the logged-in user
-        const orphanageId = user.uid; // Get orphanageId from the logged-in user
-
-        // Fetch the orphanage's requests
-        const requestsRef = collection(firestore, "requests");
-        const requestsQuery = query(requestsRef, where("orphanageId", "==", orphanageId));
-        const requestsSnapshot = await getDocs(requestsQuery);
-
-        const fetchedRequests = requestsSnapshot.docs.map((doc) => ({
+        const donationList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-        setRequests(fetchedRequests);
 
-        // Fetch donations related to the orphanage's requests
-        const donationsRef = collection(firestore, "donations");
-        const donationsQuery = query(
-          donationsRef,
-          where("requestId", "in", fetchedRequests.map((request) => request.id))
-        );
-        const querySnapshot = await getDocs(donationsQuery);
-
-        if (querySnapshot.empty) {
-          setError("No donations found.");
-        } else {
-          const donationsData = querySnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-
-          setDonations(donationsData);
-        }
+        setDonations(donationList);
       } catch (err) {
-        setError("Error fetching donations: " + err.message);
+        setError("Failed to load donations: " + err.message);
       } finally {
         setLoading(false);
       }
-    }
+    };
 
-    fetchData();
+    fetchDonations();
   }, []);
 
-  return (
-    <div className="flex justify-center items-start mt-20 min-h-screen">
-      <div className="max-w-lg w-full p-6 bg-white rounded-md shadow-md">
-        <h2 className="text-2xl font-bold mb-4 text-center">Donations for Your Requests/Services</h2>
-        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+  const handleDonationStatusUpdate = async (donationId, status) => {
+    try {
+      const donationRef = doc(firestore, "donations", donationId);
+      await updateDoc(donationRef, {
+        confirmed: status,
+      });
+      setDonations((prevDonations) =>
+        prevDonations.map((donation) =>
+          donation.id === donationId ? { ...donation, confirmed: status } : donation
+        )
+      );
+    } catch (err) {
+      setError("Failed to update donation status: " + err.message);
+    }
+  };
 
-        {loading ? (
-          <p className="text-center">Loading...</p>
-        ) : (
-          <div>
-            {donations.length === 0 ? (
-              <p>No donations found.</p>
-            ) : (
-              donations.map((donation) => (
-                <div key={donation.id} className="p-4 border-b">
-                  <p><strong>Donor:</strong> {donation.donorEmail}</p>
-                  <p><strong>Donation Type:</strong> {donation.donationType}</p>
-                  {donation.donationType === "money" && <p><strong>Amount:</strong> ${donation.amount}</p>}
-                  {donation.donationType === "clothes" && <p><strong>Number of Clothes:</strong> {donation.numClothes}</p>}
-                  {donation.donationType === "food" && <p><strong>Food Description:</strong> {donation.foodDescription}</p>}
-                  {donation.donationType === "services" && (
-                    <>
-                      <p><strong>Service:</strong> {donation.service}</p>
-                      <p><strong>Service Description:</strong> {donation.serviceDescription}</p>
-                    </>
-                  )}
-                  <p><strong>Confirmed:</strong> {donation.confirmed ? "Yes" : "No"}</p>
+  return (
+    <div className={`${poppins.className} bg-white min-h-screen`}>
+      <div className="container mx-auto p-8 mt-16">
+        <div className="flex items-center justify-between">
+          <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">
+            Donations for Your Requests
+          </h2>
+        </div>
+
+        {error && <p className="text-red-500 text-center mt-4">{error}</p>}
+        {loading && <p className="text-gray-500 text-center mt-4">Loading...</p>}
+
+        <div className="mt-6">
+          {donations.length === 0 && !loading ? (
+            <p className="text-center text-xl text-gray-500">No donations yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {donations.map((donation) => (
+                <div key={donation.id} className="bg-gray-100 p-6 rounded-lg shadow-md">
+                  <h3 className="text-lg font-bold">{donation.donationType}</h3>
+                  <p className="text-gray-700">{donation.foodDescription || "No description available"}</p>
+                  <p className="mt-2 text-sm">
+                    <strong>Donor Email:</strong> {donation.donorEmail}
+                  </p>
+                  <p className="mt-1 text-sm">
+                    <strong>Amount:</strong> {donation.amount || "N/A"}
+                  </p>
+                  <p className="mt-1 text-sm">
+                    <strong>Status:</strong>{" "}
+                    <span
+                      className={`px-2 py-1 rounded-md ${
+                        donation.confirmed ? "bg-green-500" : "bg-yellow-400"
+                      } text-white`}
+                    >
+                      {donation.confirmed ? "Confirmed" : "Pending"}
+                    </span>
+                  </p>
+
+                  <div className="flex space-x-4 mt-4">
+                    <button
+                      onClick={() => handleDonationStatusUpdate(donation.id, true)}
+                      className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-500"
+                    >
+                      Yes
+                    </button>
+
+                    <button
+                      onClick={() => handleDonationStatusUpdate(donation.id, false)}
+                      className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-500"
+                    >
+                      No
+                    </button>
+                  </div>
                 </div>
-              ))
-            )}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
-}
+};
 
-export default OrphanageDashboard;
+export default ConfirmDonations;

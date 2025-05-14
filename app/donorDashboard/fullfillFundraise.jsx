@@ -1,14 +1,22 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
-import { collection, query, where, getDocs, updateDoc, doc, deleteDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
+  deleteDoc,
+} from "firebase/firestore";
 import { Poppins } from "next/font/google";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
 
-const Request = () => {
+const FulfillFundraise = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -34,36 +42,12 @@ const Request = () => {
         );
         const querySnapshot = await getDocs(q);
 
-        const requestList = await Promise.all(
-          querySnapshot.docs.map(async (doc) => {
-            const requestData = doc.data();
-            const requestId = doc.id;
+        const requestList = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-            // Query donations related to this request
-            const donationQuery = query(
-              collection(firestore, "donations"),
-              where("requestId", "==", requestId),
-              where("orphanageId", "==", user.uid)
-            );
-            const donationSnapshot = await getDocs(donationQuery);
-
-            // Calculate total donated quantity for the request
-            let totalDonated = 0;
-            donationSnapshot.forEach((donation) => {
-              const donationData = donation.data();
-              // Make sure to treat the donation as a number to add correctly
-              totalDonated += parseInt(donationData.numClothes) || 0; // Add clothes donated (ensure it's a number)
-            });
-
-            return {
-              id: requestId,
-              ...requestData,
-              totalDonated,
-            };
-          })
-        );
-
-        setRequests(requestList); // Set the requests with donations included
+        setRequests(requestList);
       } catch (err) {
         setError("Failed to load requests: " + err.message);
       } finally {
@@ -71,7 +55,7 @@ const Request = () => {
       }
     };
 
-    fetchRequests(); // Fetch donations and related requests
+    fetchRequests();
   }, []);
 
   // 🔹 Handle Edit Request
@@ -117,11 +101,11 @@ const Request = () => {
 
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
-      <div className="container mx-auto p-8 mt-16">
+      <div className="container mx-auto p-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">
-            Requests
-          </h2>
+        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">
+         REQUESTS
+        </h2>
 
           {/* ✅ Add a Request Button */}
           <button
@@ -152,28 +136,32 @@ const Request = () => {
                   <p className="mt-2 text-sm">
                     <strong>Request ID:</strong> {request.id}
                   </p>
-
-                  {/* ✅ Display Quantity for Clothes or Money */}
-                  {request.requestType === "Clothes" && request.quantity && (
-                    <p className="mt-2 text-sm">
-                      <strong>Number of Clothes:</strong> {request.quantity}
-                    </p>
-                  )}
-                  {request.requestType === "Money" && request.quantity && (
-                    <p className="mt-2 text-sm">
-                      <strong>Amount of Money:</strong> ${request.quantity}
-                    </p>
-                  )}
-
-                  {/* ✅ Show total donated */}
-                  {request.totalDonated > 0 && (
-                    <p className="mt-2 text-sm">
-                      <strong>Total Donated:</strong> {request.totalDonated}
-                    </p>
-                  )}
+                  <p className="mt-1 text-sm">
+                    <strong>Status:</strong>{" "}
+                    <span
+                      className={`px-2 py-1 rounded-md ${
+                        request.status === "Pending" ? "bg-yellow-400" : "bg-green-500"
+                      } text-white`}
+                    >
+                      {request.status}
+                    </span>
+                  </p>
 
                   {/* ✅ Buttons */}
                   <div className="flex space-x-4 mt-4">
+                    {/* ✅ View Chat Button */}
+                    <button
+                      onClick={() =>
+                        router.push(
+                          `/chat?orphanageId=${auth.currentUser?.uid}&requestId=${request.id}&orphanageEmail=${auth.currentUser?.email}`
+                        )
+                      }
+                      className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-400"
+                    >
+                      View Chat
+                    </button>
+
+                    {/* ✅ Edit Button */}
                     <button
                       onClick={() => handleEditClick(request)}
                       className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-500"
@@ -181,10 +169,10 @@ const Request = () => {
                       Edit
                     </button>
 
+                    {/* ✅ Delete Button */}
                     <button
                       onClick={() => handleDelete(request.id)}
                       className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-500"
-                      disabled={loading}
                     >
                       Delete
                     </button>
@@ -227,6 +215,22 @@ const Request = () => {
                   />
                 </div>
 
+                {/* ✅ Status Change Dropdown */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold mb-2">Status</label>
+                  <select
+                    value={editRequest.status}
+                    onChange={(e) =>
+                      setEditRequest({ ...editRequest, status: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                    required
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Fulfilled">Fulfilled</option>
+                  </select>
+                </div>
+
                 <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-md">
                   Save Changes
                 </button>
@@ -239,4 +243,4 @@ const Request = () => {
   );
 };
 
-export default Request;
+export default FulfillFundraise;
