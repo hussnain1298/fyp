@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -71,7 +71,7 @@ const ConfirmedRequests = () => {
   }, []);
 
   // Confirm donation as fulfilled
-  const handleConfirmDonation = async (donationId, requestId, donationType, numClothes, amount) => {
+  const handleConfirmDonation = async (donationId, requestId) => {
     try {
       // Update the donation status to "Confirmed"
       const donationRef = doc(firestore, "donations", donationId);
@@ -79,23 +79,7 @@ const ConfirmedRequests = () => {
 
       // Optionally, update the request status as well
       const requestRef = doc(firestore, "requests", requestId);
-
-      // Fetch the current totalDonated value
-      const requestDocSnap = await getDoc(requestRef);
-      const requestData = requestDocSnap.data();
-      let updatedTotalDonated = requestData.totalDonated || 0;
-
-      // Add the donation value to totalDonated (based on donation type)
-      if (donationType === "Clothes") {
-        updatedTotalDonated += numClothes;
-      } else if (donationType === "Money") {
-        updatedTotalDonated += amount;
-      }
-
-      // Update the request with the new totalDonated value
-      await updateDoc(requestRef, {
-        totalDonated: updatedTotalDonated,
-      });
+      await updateDoc(requestRef, { status: "Fulfilled" });
 
       // Update the UI state with the confirmed donation
       setRequests((prevRequests) =>
@@ -151,7 +135,7 @@ const ConfirmedRequests = () => {
                       <h3 className="font-semibold text-sm">Donation:</h3>
                       <ul>
                         <li className="text-sm text-gray-700">
-                          Donation Type: {request.donationType} - Amount: {request.donationAmount || "N/A"}
+                          Donation Type: {request.donationType} - Amount: {request.donationAmount || 'N/A'}
                         </li>
                         {/* Display donation details based on type */}
                         {request.donationType === "Clothes" && request.donationClothesCount && (
@@ -171,9 +155,7 @@ const ConfirmedRequests = () => {
                   {/* Confirm Donation Button */}
                   {request.donationStatus === "Pending" && (
                     <button
-                      onClick={() =>
-                        handleConfirmDonation(request.donationId, request.id, request.donationType, request.donationClothesCount, request.donationAmount)
-                      }
+                      onClick={() => handleConfirmDonation(request.donationId, request.id)}
                       className="bg-blue-500 text-white py-2 px-4 rounded-md mt-4"
                     >
                       Confirm Donation

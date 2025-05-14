@@ -13,7 +13,6 @@ export default function AddRequest() {
   const [description, setDescription] = useState("");
   const [requestType, setRequestType] = useState(""); 
   const [quantity, setQuantity] = useState("");  // For number of clothes or amount of money
-  const [receivedDonation, setReceivedDonation] = useState(0); // Donation received, defaults to zero
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -51,10 +50,14 @@ export default function AddRequest() {
         requestType, // Store the request type (Food, Clothes, Money)
         orphanageId: user.uid, 
         orphanageEmail: user.email, 
+        status: "Pending", 
         timestamp: new Date(),
-        quantity,  // Include quantity or amount required
-        receivedDonation: receivedDonation, // Start with zero, will be updated when donation is received
       };
+
+      // Add the quantity (for Clothes or Money) to the request data.
+      if (requestType === "Clothes" || requestType === "Money") {
+        requestData.quantity = quantity;
+      }
 
       // Save the request in Firebase
       await addDoc(collection(firestore, "requests"), requestData);
@@ -64,7 +67,6 @@ export default function AddRequest() {
       setDescription("");
       setRequestType(""); 
       setQuantity(""); // Reset quantity field
-      setReceivedDonation(0); // Reset received donation field
       router.push("/orphanageDashboard"); // Redirect to orphanage dashboard
     } catch (err) {
       setError("Failed to add request: " + err.message);
