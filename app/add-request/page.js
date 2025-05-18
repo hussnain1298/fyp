@@ -12,6 +12,7 @@ export default function AddRequest() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [requestType, setRequestType] = useState(""); 
+  const [quantity, setQuantity] = useState("");  // For number of clothes or amount of money
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -34,8 +35,16 @@ export default function AddRequest() {
       return;
     }
 
+    // If the user selected 'Clothes' or 'Money', ensure that quantity is entered.
+    if ((requestType === "Clothes" || requestType === "Money") && !quantity) {
+      setError("Please specify the number of clothes or the amount of money required.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      await addDoc(collection(firestore, "requests"), {
+      // Create the request object, including quantity if provided.
+      const requestData = {
         title,
         description,
         requestType, // Store the request type (Food, Clothes, Money)
@@ -43,12 +52,22 @@ export default function AddRequest() {
         orphanageEmail: user.email, 
         status: "Pending", 
         timestamp: new Date(),
-      });
+      };
 
+      // Add the quantity (for Clothes or Money) to the request data.
+      if (requestType === "Clothes" || requestType === "Money") {
+        requestData.quantity = quantity;
+      }
+
+      // Save the request in Firebase
+      await addDoc(collection(firestore, "requests"), requestData);
+
+      // Clear the form after submitting
       setTitle("");
       setDescription("");
       setRequestType(""); 
-      router.push("/orphanageDashboard"); 
+      setQuantity(""); // Reset quantity field
+      router.push("/orphanageDashboard"); // Redirect to orphanage dashboard
     } catch (err) {
       setError("Failed to add request: " + err.message);
     } finally {
@@ -90,6 +109,23 @@ export default function AddRequest() {
             <option value="Money">Money</option>
           </select>
         </div>
+
+        {requestType && (requestType === "Clothes" || requestType === "Money") && (
+          <div className="space-y-2">
+            <Label htmlFor="quantity">
+              {requestType === "Clothes" ? "Number of Clothes" : "Amount of Money"}
+            </Label>
+            <Input
+              id="quantity"
+              type="number"
+              placeholder={requestType === "Clothes" ? "Enter number of clothes" : "Enter amount of money"}
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              required
+              className="w-full p-3 rounded-md border-none shadow-md"
+            />
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="description">Description</Label>

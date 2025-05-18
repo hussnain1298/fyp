@@ -39,7 +39,7 @@ export default function OrphanageDashboard() {
         transition={{ duration: 0.8 }}
       >
         {/* ✅ Display User Name or Email */}
-        <h1 className="mt-2 mb-2 text-2xl font-bold">
+        <h1 className="mt-6 mb-2 text-2xl font-bold"> {/* Added margin-top here */}
           WELCOME {user?.fullName ? user.fullName : user?.email || ""}
         </h1>
         

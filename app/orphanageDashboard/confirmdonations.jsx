@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { firestore, auth } from "@/lib/firebase";
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
 
 const ConfirmedRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -23,18 +23,18 @@ const ConfirmedRequests = () => {
       }
 
       try {
-        // Query donations collection where the orphanageId matches the current user's UID
+        // Query donations collection where orphanageId matches the current user's UID
         const q = query(
           collection(firestore, "donations"),
           where("orphanageId", "==", user.uid) // Fetch donations related to this orphanage
         );
         const querySnapshot = await getDocs(q);
-        
+
         // Create an array of requests (each donation corresponds to a request)
         const requestList = await Promise.all(
           querySnapshot.docs.map(async (document) => {
             const donationData = document.data();
-            
+
             // Fetch the related request for this donation
             const requestDocRef = doc(firestore, "requests", donationData.requestId);
             const requestDocSnap = await getDoc(requestDocRef);
@@ -44,7 +44,7 @@ const ConfirmedRequests = () => {
             }
 
             const requestData = requestDocSnap.data();
-            
+
             // Combine donation and request data
             return {
               id: requestDocSnap.id,
@@ -52,7 +52,7 @@ const ConfirmedRequests = () => {
               donationId: document.id,
               donationType: donationData.donationType,
               donationAmount: donationData.amount,
-              donationStatus: donationData.confirmed ? "Confirmed" : "Pending",
+              donationStatus: donationData.confirmed ? `${donationData.numClothes || 0} donated` : "Pending",  // Update status with number of donated items
               donationClothesCount: donationData.numClothes, // Assuming donation contains clothes count
               donationFoodDescription: donationData.foodDescription, // Assuming donation contains food description
             };
@@ -87,7 +87,7 @@ const ConfirmedRequests = () => {
           if (request.donationId === donationId) {
             return {
               ...request,
-              donationStatus: "Confirmed",
+              donationStatus: `${request.donationClothesCount} donated`,  // Update status with donated count
             };
           }
           return request;

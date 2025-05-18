@@ -47,6 +47,7 @@ export default function AddServiceRequest() {
         timestamp: new Date(),
       });
 
+      // Clear form fields after successful submission
       setTitle("");
       setDescription("");
       setFrequency("Weekend");
@@ -54,6 +55,7 @@ export default function AddServiceRequest() {
       setMode("Onsite");
       setNumStudents("");
 
+      // Redirect to orphanage dashboard
       router.push("/orphanageDashboard");
     } catch (err) {
       setError("Failed to post service request: " + err.message);
@@ -92,7 +94,6 @@ export default function AddServiceRequest() {
             required
           />
         </div>
-
 
         {/* Frequency */}
         <div>
@@ -148,8 +149,8 @@ export default function AddServiceRequest() {
           </div>
         </div>
 
-{/* Duration */}
-<div>
+        {/* Duration */}
+        <div>
           <Label htmlFor="duration">Duration</Label>
           <select
             id="duration"
@@ -162,7 +163,7 @@ export default function AddServiceRequest() {
             <option value="One Month">One Month</option>
           </select>
         </div>
-        
+
         {/* Number of Students */}
         <div>
           <Label htmlFor="numStudents">Number of Students</Label>

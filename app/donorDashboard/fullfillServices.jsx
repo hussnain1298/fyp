@@ -1,119 +1,73 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  updateDoc,
-  doc,
-  deleteDoc,
-} from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { Poppins } from "next/font/google";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
 
 const FulfillServices = () => {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [isEditing, setIsEditing] = useState(false);
-  const [editRequest, setEditRequest] = useState(null);
+  const [services, setServices] = useState([]); // Store services
+  const [loading, setLoading] = useState(true);  // Loading state
+  const [error, setError] = useState("");  // Error state
   const router = useRouter();
 
   useEffect(() => {
-    const fetchRequests = async () => {
+    const fetchServices = async () => {
       setLoading(true);
       setError("");
 
       const user = auth.currentUser;
       if (!user) {
-        setError("You must be logged in to view requests.");
+        setError("You must be logged in to view services.");
+        setLoading(false);
         return;
       }
 
       try {
-        const q = query(
-          collection(firestore, "requests"),
-          where("orphanageId", "==", user.uid)
-        );
-        const querySnapshot = await getDocs(q);
+        // Query to fetch all services from Firestore
+        const serviceSnapshot = await getDocs(collection(firestore, "services"));
 
-        const requestList = querySnapshot.docs.map((doc) => ({
+        if (serviceSnapshot.empty) {
+          setError("No services found.");
+          setLoading(false);
+          return;
+        }
+
+        // Extract services from snapshot
+        const serviceList = serviceSnapshot.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data(),
+          ...doc.data(),  // Get the data of each document
         }));
 
-        setRequests(requestList);
+        setServices(serviceList);  // Store services in state
       } catch (err) {
-        setError("Failed to load requests: " + err.message);
+        setError("Failed to load services: " + err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchRequests();
+    fetchServices();  // Fetch services when the component mounts
   }, []);
-
-  // 🔹 Handle Edit Request
-  const handleEditClick = (request) => {
-    setEditRequest(request);
-    setIsEditing(true);
-  };
-
-  // 🔹 Save Updated Request
-  const handleSaveChanges = async (e) => {
-    e.preventDefault();
-    const { title, description, status } = editRequest;
-
-    try {
-      const requestRef = doc(firestore, "requests", editRequest.id);
-      await updateDoc(requestRef, { title, description, status });
-
-      setRequests((prevRequests) =>
-        prevRequests.map((req) =>
-          req.id === editRequest.id
-            ? { ...req, title, description, status }
-            : req
-        )
-      );
-
-      setIsEditing(false);
-    } catch (err) {
-      setError("Failed to update request: " + err.message);
-    }
-  };
-
-  // 🔹 Handle Delete Request
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this request?")) return;
-
-    try {
-      await deleteDoc(doc(firestore, "requests", id));
-      setRequests((prev) => prev.filter((request) => request.id !== id));
-    } catch (err) {
-      alert("Failed to delete request: " + err.message);
-    }
-  };
 
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
-      <div className="container mx-auto p-8">
+      <div className="container mx-auto p-8 mt-16">
         <div className="flex items-center justify-between">
-        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">
-         REQUESTS
-        </h2>
+          <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">
+            Services
+          </h2>
 
           {/* ✅ Add a Request Button */}
           <button
             type="button"
             className="bg-green-600 text-white font-medium py-2 px-4 rounded-md mt-12"
-            onClick={() => router.push("/add-request")}
+            onClick={() => router.push("/donationformforser")}
           >
-            + Add a Request
+            Provide a Service
           </button>
         </div>
 
@@ -123,55 +77,42 @@ const FulfillServices = () => {
         {/* 🔹 Loading State */}
         {loading && <p className="text-gray-500 text-center mt-4">Loading...</p>}
 
-        {/* 🔹 Requests List */}
+        {/* 🔹 Services List */}
         <div className="mt-6">
-          {requests.length === 0 && !loading ? (
-            <p className="text-center text-xl text-gray-500">No requests yet.</p>
+          {services.length === 0 && !loading ? (
+            <p className="text-center text-xl text-gray-500">No services yet.</p>
           ) : (
             <div className="space-y-4">
-              {requests.map((request) => (
-                <div key={request.id} className="bg-gray-100 p-4 rounded-lg shadow-md">
-                  <h2 className="text-lg font-bold">{request.title}</h2>
-                  <p className="text-gray-700">{request.description}</p>
+              {services.map((service) => (
+                <div key={service.id} className="bg-gray-100 p-6 rounded-lg shadow-md">
+                  <h3 className="text-lg font-bold text-gray-800">{service.title}</h3>
+                  <p className="text-gray-700">{service.description}</p>
                   <p className="mt-2 text-sm">
-                    <strong>Request ID:</strong> {request.id}
+                    <strong>Service ID:</strong> {service.id}
                   </p>
                   <p className="mt-1 text-sm">
                     <strong>Status:</strong>{" "}
                     <span
                       className={`px-2 py-1 rounded-md ${
-                        request.status === "Pending" ? "bg-yellow-400" : "bg-green-500"
+                        service.status === "Pending"
+                          ? "bg-yellow-400"
+                          : "bg-green-500"
                       } text-white`}
                     >
-                      {request.status}
+                      {service.status}
                     </span>
                   </p>
 
-                  {/* ✅ Buttons */}
                   <div className="flex space-x-4 mt-4">
-                    {/* ✅ View Chat Button */}
+                    {/* Buttons for edit, delete, and other actions */}
                     <button
-                      onClick={() =>
-                        router.push(
-                          `/chat?orphanageId=${auth.currentUser?.uid}&requestId=${request.id}&orphanageEmail=${auth.currentUser?.email}`
-                        )
-                      }
-                      className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-400"
-                    >
-                      View Chat
-                    </button>
-
-                    {/* ✅ Edit Button */}
-                    <button
-                      onClick={() => handleEditClick(request)}
+                      onClick={() => console.log(`Edit service: ${service.id}`)} // Placeholder for edit action
                       className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-500"
                     >
                       Edit
                     </button>
-
-                    {/* ✅ Delete Button */}
                     <button
-                      onClick={() => handleDelete(request.id)}
+                      onClick={() => console.log(`Delete service: ${service.id}`)} // Placeholder for delete action
                       className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-500"
                     >
                       Delete
@@ -182,62 +123,6 @@ const FulfillServices = () => {
             </div>
           )}
         </div>
-
-        {/* ✅ Edit Request Modal */}
-        {isEditing && (
-          <div className="fixed inset-0 flex justify-center items-center bg-gray-800 bg-opacity-50">
-            <div className="bg-white p-8 rounded-lg shadow-lg w-[400px]">
-              <h2 className="text-2xl font-bold mb-4">Edit Request</h2>
-
-              {/* ✅ Edit Form */}
-              <form onSubmit={handleSaveChanges}>
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">Title</label>
-                  <input
-                    type="text"
-                    value={editRequest.title}
-                    onChange={(e) =>
-                      setEditRequest({ ...editRequest, title: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">Description</label>
-                  <textarea
-                    value={editRequest.description}
-                    onChange={(e) =>
-                      setEditRequest({ ...editRequest, description: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-
-                {/* ✅ Status Change Dropdown */}
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">Status</label>
-                  <select
-                    value={editRequest.status}
-                    onChange={(e) =>
-                      setEditRequest({ ...editRequest, status: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                    required
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="Fulfilled">Fulfilled</option>
-                  </select>
-                </div>
-
-                <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-md">
-                  Save Changes
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
