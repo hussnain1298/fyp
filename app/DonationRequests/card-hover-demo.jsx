@@ -1,15 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // ✅ Router for navigation
+import { useRouter } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
-import { getDoc, doc } from "firebase/firestore"; // ✅ Fix: Import getDoc
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  addDoc,
+  serverTimestamp,
+  getDoc,
+  doc,
+} from "firebase/firestore";
+
 export default function RequestsHoverDemo() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [userRole, setUserRole] = useState(null); // ✅ Track user role
+  const [userRole, setUserRole] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -36,46 +45,75 @@ export default function RequestsHoverDemo() {
     const checkUserRole = async () => {
       const currentUser = auth.currentUser;
       if (!currentUser) {
-        setUserRole(null); // ✅ User not logged in
+        setUserRole(null);
         return;
       }
 
-      // 🔹 Fetch user role from Firestore
-      const userDoc = await getDocs(collection(firestore, "users"));
-      userDoc.forEach((doc) => {
-        if (doc.id === currentUser.uid) {
-          setUserRole(doc.data().userType); // ✅ Set user role
+      try {
+        const userRef = doc(firestore, "users", currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          setUserRole(userSnap.data().userType);
         }
-      });
+      } catch (err) {
+        console.error("Error checking user role:", err.message);
+        setUserRole(null);
+      }
     };
 
     fetchRequests();
     checkUserRole();
   }, []);
 
-  // ✅ Handle "Donate" button click
-  const handleDonate = (request) => {
+  const handleDonate = async (request) => {
     const user = auth.currentUser;
     if (!user) {
-      // Redirect to login if user is not logged in
       router.push("/login?redirect=donate");
       return;
     }
-  
-    // ✅ Fetch user role from Firestore
+
+    if (!request.orphanageId) {
+      alert("Invalid request. Orphanage not found.");
+      return;
+    }
+
     const userRef = doc(firestore, "users", user.uid);
-    getDoc(userRef).then((userDoc) => {
-      if (userDoc.exists() && userDoc.data().userType === "Donor") {
-        // ✅ Redirect to chat only if user is a donor
-        router.push(`/chat?title=${encodeURIComponent(request.title)}&description=${encodeURIComponent(request.description)}&orphanageId=${request.orphanageId}&requestId=${request.id}&orphanageEmail=${request.orphanageEmail}`);
-      } else {
-        alert("❌ Only donors can donate!");
+    const userDoc = await getDoc(userRef);
+
+    if (!userDoc.exists() || userDoc.data().userType !== "Donor") {
+      alert("❌ Only donors can donate!");
+      return;
+    }
+
+    const chatsRef = collection(firestore, "chats");
+
+    const q = query(
+      chatsRef,
+      where("participants", "array-contains", user.uid),
+      where("requestId", "==", request.id)
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    let chatDoc = null;
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.participants.includes(request.orphanageId)) {
+        chatDoc = doc;
       }
-    }).catch((error) => {
-      console.error("🔥 Error fetching user role:", error);
     });
+
+    if (chatDoc) {
+      router.push(`/chat?chatId=${chatDoc.id}`);
+    } else {
+      const newChat = await addDoc(chatsRef, {
+        participants: [user.uid, request.orphanageId],
+        requestId: request.id,
+        createdAt: serverTimestamp(),
+      });
+      router.push(`/chat?chatId=${newChat.id}`);
+    }
   };
-  
 
   return (
     <div className="max-w-5xl mx-auto px-8">
@@ -85,7 +123,10 @@ export default function RequestsHoverDemo() {
       {!loading && requests.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {requests.map((request) => (
-            <div key={request.id} className="p-4 border rounded-lg shadow-md bg-white">
+            <div
+              key={request.id}
+              className="p-4 border rounded-lg shadow-md bg-white"
+            >
               <h3 className="text-lg font-semibold">{request.title}</h3>
               <p className="text-gray-600">{request.description}</p>
 
@@ -99,7 +140,9 @@ export default function RequestsHoverDemo() {
           ))}
         </div>
       ) : (
-        !loading && <p className="text-center text-gray-500">No requests available.</p>
+        !loading && (
+          <p className="text-center text-gray-500">No requests available.</p>
+        )
       )}
     </div>
   );

@@ -101,7 +101,7 @@ const ConfirmedRequests = () => {
   return (
     <div className="bg-white min-h-screen">
       <div className="container mx-auto p-8">
-        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6 mt-10">Fulfilled Requests</h2>
+        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6 mt-10">Fulfilled Donations</h2>
 
         {error && <p className="text-red-500 text-center mt-4">{error}</p>}
         {loading && <p className="text-gray-500 text-center mt-4">Loading...</p>}
