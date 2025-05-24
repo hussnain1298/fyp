@@ -1,43 +1,184 @@
-import React from "react";
-import Orphanages from "./Orphanages";
+"use client";
+
+import { useEffect, useState } from "react";
+import { firestore } from "@/lib/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+
+const generateColor = (name) => {
+  if (!name) return "#4CAF50";
+
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  let color = "#";
+  for (let i = 0; i < 3; i++) {
+    const val = (hash >> (i * 8)) & 0xff;
+    color += ("00" + val.toString(16)).slice(-2);
+  }
+  return color;
+};
+
+const getInitial = (name) => {
+  if (!name) return "O";
+  return name.charAt(0).toUpperCase();
+};
 
 export default function OurOrphanages() {
+  const [orphanages, setOrphanages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    const fetchOrphanages = async () => {
+      try {
+        const q = query(
+          collection(firestore, "users"),
+          where("userType", "==", "Orphanage")
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setOrphanages(data);
+      } catch (error) {
+        console.error("Error fetching orphanages:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrphanages();
+  }, []);
+
+  const handleMoreClick = () => {
+    // TODO: implement load more or navigate to another page
+    alert("Load more functionality coming soon!");
+  };
+
   return (
-    <div className="w-[80%] m-auto mt-24">
-      <h1 className="capitalize text-4xl font-semibold mb-16 underline">
-        Our orphanages
+    <div className="max-w-7xl mx-auto px-4 py-12">
+      <h1 className="text-4xl font-extrabold text-center mb-12 mt-20  text-gray-900">
+        Registered Orphanages
       </h1>
-      <div className="grid grid-cols-1 lg:grid-cols-2">
-        <Orphanages
-          logo="https://donate.edhi.org/wp-content/uploads/2021/11/logo-2.png"
-          orgName="Edhi Foundation"
-          location="C3GF+FV9, Liaqat Rd, Faisalabad, Punjab"
-          orgLink="https://donate.edhi.org/"
-        />
-        <Orphanages
-          logo="https://alkhidmat.org/images/logo-nav.svg"
-          orgName="Al Khidmat Foundation"
-          location="Headoffice, 3km Khayaban-e-Jinnah, Lahore"
-          orgLink="https://donate.edhi.org/"
-        />
-        <Orphanages
-          logo="https://www.worldcarefoundation.org/wp-content/uploads/2022/07/WCF-Logo-White-Text.png"
-          orgName="Agosh Orphanage"
-          location="17A Haddington Place Edinburgh EH7 4AF"
-          orgLink="https://donate.edhi.org/"
-        />
-      </div>
+
+      {loading ? (
+        <p className="text-center text-gray-500 text-lg">Loading orphanages...</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+            {orphanages.map((orp) => (
+              <div
+                key={orp.id}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer flex flex-col"
+                onClick={() => router.push(`/chat?chatId=auto&orphanageId=${orp.id}`)}
+              >
+                <div className="flex items-center px-6 py-5 border-b border-gray-200">
+                  {/* Avatar */}
+                  {orp.profilePhoto ? (
+                    <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0">
+                      <Image
+                        src={orp.profilePhoto}
+                        alt={orp.orgName || "Orphanage"}
+                        width={64}
+                        height={64}
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="w-16 h-16 rounded-full flex items-center justify-center text-white text-3xl font-semibold flex-shrink-0"
+                      style={{ backgroundColor: generateColor(orp.orgName) }}
+                    >
+                      {getInitial(orp.orgName)}
+                    </div>
+                  )}
+
+                  {/* Name & Location */}
+                  <div className="ml-5 flex-1">
+                    <h2 className="text-xl font-semibold text-gray-900 truncate">
+                      {orp.orgName || "Unnamed Orphanage"}
+                    </h2>
+                    <p className="text-gray-600 text-sm mt-1 truncate">
+                      {orp.orgAddress || "No address provided"}
+                    </p>
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      {orp.city || "City not set"}, {orp.province || "Province not set"}
+                    </p>
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      Contact: {orp.contactNumber || "Not provided"}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/chat?chatId=auto&orphanageId=${orp.id}`);
+                  }}
+                  className="
+                    mt-auto
+                    w-full
+                    py-3
+                    rounded-b-xl
+                    font-semibold
+                    text-white
+                    bg-gradient-to-r
+                    from-green-400
+                    to-blue-500
+                    shadow-md
+                    hover:from-blue-500
+                    hover:to-green-400
+                    transition
+                    duration-300
+                    transform
+                    hover:scale-105
+                    focus:outline-none
+                    focus:ring-2
+                    focus:ring-offset-2
+                    focus:ring-blue-400
+                  "
+                >
+                  Message
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* MORE Button */}
+          <div className="flex justify-center mt-12">
+            <button
+              onClick={handleMoreClick}
+              className="
+                px-8
+                py-3
+                font-semibold
+                rounded-full
+                bg-gradient-to-r
+                from-purple-600
+                to-indigo-600
+                text-white
+                shadow-lg
+                hover:from-indigo-600
+                hover:to-purple-600
+                transition
+                duration-300
+                transform
+                hover:scale-105
+                focus:outline-none
+                focus:ring-2
+                focus:ring-offset-2
+                focus:ring-indigo-400
+              "
+            >
+              MORE
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
-}
-{
-  /* <img
-  width="800"
-  height="211"
-  src=""
-  class="attachment-full size-full wp-image-51090"
-  alt=""
-  srcset="https://www.worldcarefoundation.org/wp-content/uploads/2022/07/WCF-Logo-White-Text.png 800w, https://www.worldcarefoundation.org/wp-content/uploads/2022/07/WCF-Logo-White-Text-300x79.png 300w, https://www.worldcarefoundation.org/wp-content/uploads/2022/07/WCF-Logo-White-Text-768x203.png 768w, https://www.worldcarefoundation.org/wp-content/uploads/2022/07/WCF-Logo-White-Text-705x186.png 705w, https://www.worldcarefoundation.org/wp-content/uploads/2022/07/WCF-Logo-White-Text-600x158.png 600w"
-  sizes="(max-width: 800px) 100vw, 800px"
-></img>; */
 }

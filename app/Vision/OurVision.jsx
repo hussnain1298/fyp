@@ -21,7 +21,7 @@ export default function OurVision() {
         their background, can thrive and make a positive impact on humanity.
         This is our commitment to hope, equality, and collective progress.
       </p>
-      <div className="flex flex-wrap justify-center max-w-[90%] m-auto mt-32  gap-10 md:w-[80%]">
+      <div className="flex flex-wrap justify-center max-w-[90%] m-auto mt-28  gap-10 md:w-[80%]">
         <OurVisionCard
           bgImg="/ak2.jpg"
           title="Orphan Care"

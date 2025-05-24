@@ -3,6 +3,9 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Poppins } from "next/font/google";
 import OurOrphanages from "./OurOrphanages";
+import Navbar from "../Navbar/navbar";
+import Footer from "../footer/page";
+import Nav from "../Navbar/page";
 
 // Importing Poppins Font
 const poppins = Poppins({
@@ -14,8 +17,9 @@ const poppins = Poppins({
 export default function Orphanages() {
   return (
     <div>
-
+<Navbar/>
 <OurOrphanages/>
+<Footer/>
   </div>
   )
   
