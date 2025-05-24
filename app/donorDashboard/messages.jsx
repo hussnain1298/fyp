@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { firestore, auth } from "@/lib/firebase";
 import {
   collection,
@@ -8,84 +8,77 @@ import {
   orderBy,
   onSnapshot,
   where,
-  limit,
-  startAfter,
-  getDocs,
+  doc,
+  setDoc,
+  getDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
-export default function Messages() {
+const formatRelativeTime = (date) => {
+  if (!date) return "Unknown";
+  const now = new Date();
+  const diff = (now.getTime() - date.getTime()) / 1000;
+  if (diff < 60) return `${Math.floor(diff)} seconds ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+  return `${Math.floor(diff / 86400)} days ago`;
+};
+
+const getInitials = (name) => {
+  if (!name) return "U";
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+};
+
+export default function DonorMessages() {
   const [user, setUser] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [chats, setChats] = useState([]);
-  const [messagesByChat, setMessagesByChat] = useState({}); // chatId => messages[]
-  const [lastVisibleByChat, setLastVisibleByChat] = useState({}); // chatId => lastVisible doc for pagination
-  const [loadingMoreByChat, setLoadingMoreByChat] = useState({}); // chatId => loading status
+  const [orphanageProfiles, setOrphanageProfiles] = useState({});
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      console.log("Auth state changed:", currentUser);
       setUser(currentUser);
     });
-    return () => unsubscribeAuth();
+    return () => unsubscribe();
   }, []);
 
-  // Fetch notifications for donor user
-  useEffect(() => {
-    if (!user) {
-      setNotifications([]);
-      return;
-    }
-
-    const notificationsRef = collection(
-      firestore,
-      "notifications",
-      user.uid,
-      "userNotifications"
-    );
-    const notifQuery = query(notificationsRef, orderBy("timestamp", "desc"));
-
-    const unsubscribe = onSnapshot(
-      notifQuery,
-      (snapshot) => {
-        const notifs = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          chatId: doc.data().chatId,
-          lastMessage: doc.data().lastMessage,
-          read: doc.data().read,
-          timestamp: doc.data().timestamp?.toDate(),
-          orphanageId: doc.data().orphanageId,
-        }));
-        setNotifications(notifs);
-      },
-      (error) => {
-        console.error("Failed to listen to notifications:", error);
-        setNotifications([]);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [user]);
-
-  // Fetch chats where current user (donor) is participant
+  // Fetch chats where donor is participant, persist orphanageId if missing
   useEffect(() => {
     if (!user) {
       setChats([]);
       return;
     }
+
     const chatsRef = collection(firestore, "chats");
-    const chatsQuery = query(
-      chatsRef,
-      where("participants", "array-contains", user.uid)
-    );
+    const chatsQuery = query(chatsRef, where("participants", "array-contains", user.uid));
 
     const unsubscribe = onSnapshot(
       chatsQuery,
-      (snapshot) => {
-        const fetchedChats = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+      async (snapshot) => {
+        const fetchedChats = await Promise.all(
+          snapshot.docs.map(async (docSnap) => {
+            const chatData = docSnap.data();
+            // Infer orphanageId if missing and persist it
+            if (!chatData.orphanageId && chatData.participants) {
+              const inferredOrphanageId = chatData.participants.find((p) => p !== user.uid);
+              if (inferredOrphanageId) {
+                await setDoc(doc(firestore, "chats", docSnap.id), { orphanageId: inferredOrphanageId }, { merge: true });
+                console.log(`Set orphanageId ${inferredOrphanageId} for chat ${docSnap.id}`);
+                return { id: docSnap.id, ...chatData, orphanageId: inferredOrphanageId };
+              }
+            }
+            return { id: docSnap.id, ...chatData };
+          })
+        );
+
+        console.log("Chats fetched:", fetchedChats);
         setChats(fetchedChats);
       },
       (error) => {
@@ -97,109 +90,128 @@ export default function Messages() {
     return () => unsubscribe();
   }, [user]);
 
-  // Subscribe real-time to the first page (10) messages of each chat
+  // Fetch orphanage profiles after chats are loaded and orphanageIds are known
   useEffect(() => {
-    if (chats.length === 0) {
-      setMessagesByChat({});
-      setLastVisibleByChat({});
-      return;
-    }
+    const orphanageIds = chats
+      .map((chat) => chat.orphanageId)
+      .filter((id) => id && !orphanageProfiles[id]);
 
-    const unsubscribes = chats.map((chat) => {
-      const messagesRef = collection(firestore, "chats", chat.id, "messages");
-      const messagesQuery = query(messagesRef, orderBy("timestamp", "desc"), limit(10));
+    if (orphanageIds.length === 0) return;
 
-      return onSnapshot(messagesQuery, (snapshot) => {
-        const msgs = snapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .reverse(); // ascending order for display
-        setMessagesByChat((prev) => ({ ...prev, [chat.id]: msgs }));
-
-        if (snapshot.docs.length > 0) {
-          setLastVisibleByChat((prev) => ({
-            ...prev,
-            [chat.id]: snapshot.docs[snapshot.docs.length - 1],
-          }));
+    const fetchProfiles = async () => {
+      const updates = {};
+      for (const id of orphanageIds) {
+        try {
+          console.log(`Fetching profile for orphanageId: ${id}`);
+          const docSnap = await getDoc(doc(firestore, "users", id));
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            console.log(`Profile data for ${id}:`, data);
+            updates[id] = {
+              name: data.orgName || "Unknown Orphanage",
+              profilePhoto: data.profilePhoto || null,
+            };
+          } else {
+            console.warn(`No profile found for orphanageId: ${id}`);
+            updates[id] = { name: "Unknown Orphanage", profilePhoto: null };
+          }
+        } catch (error) {
+          console.error(`Error fetching profile for orphanageId ${id}:`, error);
+          updates[id] = { name: "Unknown Orphanage", profilePhoto: null };
         }
-      });
-    });
-
-    return () => unsubscribes.forEach((unsub) => unsub());
-  }, [chats]);
-
-  // Load more messages paginated for a chat
-  const loadMoreMessages = useCallback(
-    async (chatId) => {
-      if (loadingMoreByChat[chatId]) return;
-      if (!lastVisibleByChat[chatId]) return;
-
-      setLoadingMoreByChat((prev) => ({ ...prev, [chatId]: true }));
-
-      try {
-        const messagesRef = collection(firestore, "chats", chatId, "messages");
-        const nextQuery = query(
-          messagesRef,
-          orderBy("timestamp", "desc"),
-          startAfter(lastVisibleByChat[chatId]),
-          limit(10)
-        );
-
-        const snapshot = await getDocs(nextQuery);
-        const newMessages = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        if (newMessages.length > 0) {
-          setMessagesByChat((prev) => ({
-            ...prev,
-            [chatId]: [...newMessages.reverse(), ...(prev[chatId] || [])],
-          }));
-
-          setLastVisibleByChat((prev) => ({
-            ...prev,
-            [chatId]: snapshot.docs[snapshot.docs.length - 1],
-          }));
-        }
-      } catch (err) {
-        console.error("Failed to load more messages for chat", chatId, err);
-      } finally {
-        setLoadingMoreByChat((prev) => ({ ...prev, [chatId]: false }));
       }
-    },
-    [lastVisibleByChat, loadingMoreByChat]
-  );
+      setOrphanageProfiles((prev) => ({ ...prev, ...updates }));
+    };
 
-  const openChat = (chatId) => {
+    fetchProfiles();
+  }, [chats, orphanageProfiles]);
+
+  // Mark notification read and open chat
+  const openChat = async (chatId) => {
     if (!chatId) return;
+    try {
+      const notifRef = doc(firestore, "notifications", user.uid, "userNotifications", chatId);
+      await setDoc(notifRef, { read: true }, { merge: true });
+    } catch (error) {
+      console.error("Failed to mark notification as read", error);
+    }
     router.push(`/chat?chatId=${chatId}`);
   };
 
-  if (!user) return <p>Loading user...</p>;
+  // Delete chat handler
+  const handleDeleteChat = async (chatId) => {
+    if (!confirm("Are you sure you want to delete this chat? This action cannot be undone.")) return;
+    try {
+      await deleteDoc(doc(firestore, "chats", chatId));
+      alert("Chat deleted successfully.");
+    } catch (error) {
+      console.error("Failed to delete chat:", error);
+      alert("Failed to delete chat. Please try again.");
+    }
+  };
+
+  if (!user)
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p className="text-gray-700 text-xl">Loading user...</p>
+      </div>
+    );
 
   return (
-    <div>
-      <h2 className="font-bold mb-4 mt-20 text-3xl">Chat with Orphanages</h2>
+    <div className="max-w-4xl mx-auto px-6 py-10 mt-20 bg-gray-50 min-h-screen rounded-lg shadow-lg">
+      <h2 className="text-4xl font-extrabold mb-8 text-center text-gray-900">
+        Chat with Orphanages
+      </h2>
+
       {chats.length === 0 ? (
-        <p>No chats available.</p>
+        <p className="text-center text-gray-600 text-lg">No chats available.</p>
       ) : (
-        <ul>
+        <ul className="bg-white shadow-md rounded-lg divide-y divide-gray-200">
           {chats.map((chat) => {
             const notif = notifications.find((n) => n.chatId === chat.id);
-            const orgName = chat.orgName || "Unknown Orphanage";
+            const orphanageId = chat.orphanageId || null;
+            const orphanageProfile = orphanageProfiles[orphanageId] || { name: "Loading...", profilePhoto: null };
+            const lastMsg = notif?.lastMessage || "No message";
+            const timestamp = notif?.timestamp || null;
 
             return (
               <li
                 key={chat.id}
+                className={`cursor-pointer px-6 py-4 flex justify-between items-center hover:bg-green-50 transition ${
+                  notif?.read ? "bg-white" : "bg-green-100"
+                }`}
                 onClick={() => openChat(chat.id)}
-                className="cursor-pointer p-2 border-b hover:bg-gray-100"
+                title={`Last updated: ${timestamp ? timestamp.toLocaleString() : "Unknown"}`}
               >
-                <p>
-                  <strong>Chat with:</strong> {orgName}
-                </p>
-                <p>
-                  <strong>Last message:</strong> {notif?.lastMessage || "No message"}
-                </p>
+                <div className="flex items-center space-x-4 flex-1">
+                  {orphanageProfile.profilePhoto ? (
+                    <img
+                      src={orphanageProfile.profilePhoto}
+                      alt={`${orphanageProfile.name} profile`}
+                      className="w-12 h-12 rounded-full object-cover shadow-md"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
+                      {getInitials(orphanageProfile.name)}
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-semibold text-lg text-gray-900">{orphanageProfile.name}</p>
+                    <p className="text-gray-700 mt-1 truncate max-w-xl">{lastMsg}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-end min-w-[120px] justify-end space-y-1">
+                  <span className="text-sm text-gray-500">
+                    {formatRelativeTime(timestamp)}
+                  </span>
+
+                  {!notif?.read && (
+                    <span className="inline-block bg-green-500 text-white text-xs px-3 py-1 rounded-full font-semibold select-none">
+                      New
+                    </span>
+                  )}
+                </div>
               </li>
             );
           })}

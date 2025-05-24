@@ -1,4 +1,5 @@
 import CardHoverDemo from "./card-hover-demo";
+import Locat from "./location";
 
 export default function DonationRequest() {
   return (
@@ -10,10 +11,9 @@ export default function DonationRequest() {
         <p className="text-gray-500  text-center text-sm md:text-base lg:text-lg xl:text-xl">
           Serving Humanity is the Spirit of All Religions
         </p>
-        
+
         <CardHoverDemo />
-       
-        
+        <Locat />
       </div>
     </main>
   );

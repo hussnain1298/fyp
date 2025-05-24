@@ -1,110 +1,84 @@
-'use client'; // Ensure that the component is client-side only
-
+// ✅ LoginPage.jsx
+"use client";
 import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation"; // ✅ Get query params
+import { useRouter, useSearchParams } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { getDoc, doc } from "firebase/firestore";
+import Loading from "./loading";
 
-// This is the main Login component
 const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [donorCheck, setDonorCheck] = useState(false); // ✅ Track if user came from Donate
+  const [loading, setLoading] = useState(false);
+  const [donorCheck, setDonorCheck] = useState(false);
   const router = useRouter();
-  const searchParams = useSearchParams(); // ✅ Get query params
+  const searchParams = useSearchParams();
 
-  // ✅ useEffect to check if the user came from "Donate"
   useEffect(() => {
     if (searchParams.get("redirect") === "donate") {
       setDonorCheck(true);
     }
   }, [searchParams]);
 
-  // ✅ Handle user login
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError(""); // Reset error before login attempt
+    setError("");
+    setLoading(true);
 
     try {
-      // ✅ Step 1: User Authentication
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // ✅ Step 2: Fetch User Role from Firestore
       const userDocRef = doc(firestore, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        const role = userData.userType || null; // ✅ Ensure userType exists
+        const role = userData.userType || null;
 
-        // ✅ If coming from Donate button, enforce Donor restriction
         if (donorCheck && role !== "Donor") {
           setError("Only donors can proceed with donations.");
+          setLoading(false);
           return;
         }
 
-        // ✅ Redirect based on user role
         if (role === "Donor") {
           router.push("/donorDashboard");
         } else if (role === "Orphanage") {
           router.push("/orphanageDashboard");
         } else {
           setError("User role is missing. Please contact support.");
+          setLoading(false);
         }
       } else {
         setError("User data not found in Firestore.");
+        setLoading(false);
       }
     } catch (err) {
       setError("Login failed: " + err.message);
+      setLoading(false);
     }
   };
 
+  if (loading) return <Loading />;
+
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50">
-      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-lg">
+    <div className="flex justify-center items-center min-h-screen bg-gray-50 px-4 sm:px-8">
+      <div className="w-full max-w-md p-6 sm:p-8 bg-white shadow-lg rounded-lg">
         <h2 className="text-2xl font-bold text-center text-gray-700 mb-6">Login</h2>
 
-        {/* ✅ Show Donor Restriction Message Only When Required */}
-        {donorCheck && <p className="text-red-500 text-center mb-4">Only donors can proceed with donations.</p>}
-        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+        {donorCheck && <p className="text-red-500 text-center text-sm sm:text-base mb-4">Only donors can proceed with donations.</p>}
+        {error && <p className="text-red-500 text-center text-sm sm:text-base mb-4">{error}</p>}
 
         <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-600">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-600">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <FormInput label="Email" type="email" value={email} onChange={setEmail} required />
+          <FormInput label="Password" type="password" value={password} onChange={setPassword} required />
 
           <button
             type="submit"
-            className="w-full py-3 bg-green-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full py-3 bg-green-600 text-white text-sm sm:text-base rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             Login
           </button>
@@ -112,7 +86,7 @@ const LoginPage = () => {
 
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
-            Don't have an account?{" "}
+            Don't have an account?{' '}
             <a href="/signup" className="text-blue-600 hover:underline">
               Sign up
             </a>
@@ -123,13 +97,26 @@ const LoginPage = () => {
   );
 };
 
-// Wrapping the LoginPage component with Suspense boundary for useSearchParams()
 const LoginPageWithSuspense = () => {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<Loading />}>
       <LoginPage />
     </Suspense>
   );
 };
+
+const FormInput = ({ label, type = "text", value, onChange, required = false }) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-600">{label}</label>
+    <input
+      type={type}
+      placeholder={`Enter ${label.toLowerCase()}`}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      required={required}
+      className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+  </div>
+);
 
 export default LoginPageWithSuspense;

@@ -15,6 +15,7 @@ import DonationsHistory from "./donationHistory";
 import Navbar from "../Navbar/page";
 import LoginPage from "../login/page";
 import Messages from "./messages";
+import Footer from "../footer/page";
 
 // Importing Poppins Font
 const poppins = Poppins({
@@ -42,9 +43,9 @@ export default function MyAccount() {
       <Navbar />
 
       {/* Main Account Section */}
-      <div className="flex flex-col lg:flex-row mt-8 gap-10">
+      <div className="flex flex-col lg:flex-row mt-24 gap-10">
         {/* Sidebar Navigation */}
-        <aside className="w-full lg:w-1/4 bg-white shadow-md p-6 mt-10">
+        <aside className="w-full lg:w-1/4 bg-white shadow-md p-6 mt-22">
           <ul className="space-y-2">
             {[
               "Dashboard",
@@ -89,6 +90,7 @@ export default function MyAccount() {
           {activeTab === "Logout" && <LoginPage />}
         </div>
       </div>
+      <Footer/>
     </section>
   );
 }
