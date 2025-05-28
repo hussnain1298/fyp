@@ -57,11 +57,16 @@ const Request = () => {
 
             let totalDonated = 0;
             donationSnapshot.forEach((donationDoc) => {
-              const donationData = donationDoc.data();
-              if (donationData.confirmed) {
-                totalDonated += parseInt(donationData.numClothes) || 0;
-              }
-            });
+  const donationData = donationDoc.data();
+  if (donationData.confirmed) {
+    if (requestData.requestType === "Clothes") {
+      totalDonated += parseInt(donationData.numClothes) || 0;
+    } else if (requestData.requestType === "Money") {
+      totalDonated += parseInt(donationData.amount) || 0;
+    }
+  }
+});
+
 
             return {
               id: requestId,

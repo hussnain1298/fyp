@@ -86,7 +86,7 @@ const FulfillRequests = () => {
                   <p className="mt-1 text-sm text-gray-600">
                     <strong>Total Donated:</strong>{" "}
                     {Array.isArray(request.totalDonated)
-                      ? request.totalDonated.reduce((acc, val) => acc + val, 0)
+                      ? request.totalDonated.reduce((acc, val) => parseInt(acc) + parseInt(val), 0)
                       : Number(request.totalDonated) || 0}
                   </p>
 
