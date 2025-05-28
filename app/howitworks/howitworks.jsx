@@ -9,13 +9,12 @@ export default function HowItWorks() {
       {/* Background Image */}
       <div className="absolute inset-0">
         <Image
-          src="/com.jpg"
-          alt="How It Works"
-          layout="fill"
-          objectFit="cover"
-          className="z-0"
-          priority
-        />
+  src="/com.jpg"
+  alt="..."
+  fill
+  style={{ objectFit: "cover" }}
+/>
+
         <div className="absolute inset-0 bg-black opacity-20" />
       </div>
 

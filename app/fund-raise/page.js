@@ -1,183 +1,230 @@
-'use client';
+"use client";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
-import { collection, addDoc } from "firebase/firestore"; // Firestore functions
-import { storage } from "@/lib/firebase"; // Firebase Storage
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Firebase Storage functions
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // Import useRouter to handle navigation
+import {
+  collection,
+  addDoc,
+  doc,
+  getDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 
-const FundRaiserForm = ({ onSave }) => {
+const FundRaiserForm = ({ fundraiserId = null, onSave }) => {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     title: "",
+    customTitle: "",
     description: "",
-    raisedAmount: 0,
     totalAmount: 0,
-    filledhr: "50%", // Default value for progress
-    image: null, // Image state
+    filledhr: "0%",
+    orphanageName: "",
   });
 
-  const router = useRouter(); // Initialize router for navigation
-
-  // Update the progress percentage when raisedAmount or totalAmount changes
   useEffect(() => {
-    if (formData.totalAmount > 0) {
-      const filledPercentage = (formData.raisedAmount / formData.totalAmount) * 100;
-      const cappedFilledPercentage = Math.min(filledPercentage, 100); // Cap the percentage at 100
-      setFormData((prevData) => ({
-        ...prevData,
-        filledhr: `${cappedFilledPercentage}%`, // Ensure progress doesn't exceed 100%
-      }));
+    if (fundraiserId) {
+      const fetchFundraiser = async () => {
+        const docRef = doc(firestore, "fundraisers", fundraiserId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setFormData((prev) => ({
+            ...prev,
+            ...docSnap.data(),
+          }));
+        }
+      };
+      fetchFundraiser();
     }
-  }, [formData.raisedAmount, formData.totalAmount]);
+  }, [fundraiserId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prevData) => ({
-      ...prevData,
+    setFormData((prev) => ({
+      ...prev,
       [name]: value,
     }));
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData((prevData) => ({
-        ...prevData,
-        image: file,
-      }));
-    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    let imageUrl = "";
-    if (formData.image) {
-      // Upload image to Firebase Storage
-      const imageRef = ref(storage, `fundraisers/${formData.image.name}`);
-      try {
-        await uploadBytes(imageRef, formData.image);
-        imageUrl = await getDownloadURL(imageRef); // Get image URL from Firebase Storage
-      } catch (err) {
-        console.error("Error uploading image: ", err);
-        imageUrl = ""; // Fallback if image upload fails
-      }
-    }
+    const userId = auth.currentUser?.uid;
+    if (!userId) return alert("Login required.");
+
+    const userSnap = await getDoc(doc(firestore, "users", userId));
+    if (!userSnap.exists()) return alert("User not found.");
+
+    const user = userSnap.data();
 
     try {
-      // Add form data to Firestore in a separate collection 'fundraisers'
-      const docRef = await addDoc(collection(firestore, "fundraisers"), {
-        ...formData,
-        image: imageUrl || "", // Store the image URL or empty string if upload failed
-        orphanageId: auth.currentUser.uid, // Add the orphanage's ID to associate the request
-      });
+      if (fundraiserId) {
+        // Donor flow
+        if (user.userType !== "Donor") return alert("Only donors can donate.");
 
-      // Pass the saved data to the parent component, if needed
-      if (onSave && typeof onSave === "function") {
-        onSave(formData); // Call only if onSave is a valid function
+        await addDoc(
+          collection(firestore, "fundraisers", fundraiserId, "donations"),
+          {
+            donorId: userId,
+            amount: Number(formData.totalAmount),
+            status: "pending",
+            timestamp: serverTimestamp(),
+          }
+        );
+
+        alert(
+          "✅ Donation submitted successfully!\n\nYour contribution is pending approval by the orphanage."
+        );
+      } else {
+        // Orphanage fundraiser creation
+        if (user.userType !== "Orphanage")
+          return alert("Only orphanages can create fundraisers.");
+
+        // Use customTitle if "Other" selected, else selected title
+        const finalTitle =
+          formData.title === "Other"
+            ? formData.customTitle.trim()
+            : formData.title;
+
+        if (!finalTitle) return alert("Please enter a valid title.");
+
+        const fundraiserRef = await addDoc(collection(firestore, "fundraisers"), {
+          ...formData,
+          title: finalTitle,
+          orphanageId: userId,
+          orphanageName: user.name || "",
+          image: "/raise.jpg", // universal image
+          raisedAmount: 0,
+        });
+
+        console.log("✅ Fundraiser created:", fundraiserRef.id);
+        router.push("/orphanageDashboard");
       }
 
-      // Reset the form after saving
+      onSave?.(formData);
       setFormData({
         title: "",
+        customTitle: "",
         description: "",
-        raisedAmount: 0,
         totalAmount: 0,
-        filledhr: "50%",
-        image: null, // Reset the image
+        filledhr: "0%",
+        orphanageName: "",
       });
-
-      console.log("Fundraiser Document written with ID: ", docRef.id);
-
-      // Redirect to the orphanage dashboard
-      router.push("/orphanageDashboard");
     } catch (err) {
-      console.error("Error adding document: ", err);
+      console.error("❌ Error:", err);
     }
   };
 
+  const titleOptions = [
+    "Books",
+    "School Uniforms",
+    "Nutrition",
+    "Medical Aid",
+    "Other",
+  ];
+
   return (
-    <div className="flex justify-center items-center min-h-screen">
+    <div className="flex justify-center items-center min-h-screen bg-gray-50 px-4">
       <form
         onSubmit={handleSubmit}
-        className="p-6 bg-white rounded-lg shadow-lg w-[400px]"
+        className="p-8 bg-white rounded-xl shadow-lg w-full max-w-md space-y-6"
       >
-        <h2 className="text-2xl font-bold mb-4">Create Fund Raise</h2>
+        <h2 className="text-3xl font-extrabold text-center text-gray-900">
+          {fundraiserId ? "Donate to Fundraiser" : "Create Fundraiser"}
+        </h2>
 
-        <div className="mb-4">
-          <label className="block text-sm font-semibold mb-2">Title</label>
-          <input
-            type="text"
-            name="title"
-            value={formData.title}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-            required
-          />
-        </div>
+        {!fundraiserId && (
+          <>
+            <div>
+              <label
+                htmlFor="title"
+                className="block text-sm font-semibold text-gray-700 mb-2"
+              >
+                Title
+              </label>
+              <select
+                id="title"
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                className="w-full border border-gray-300 px-4 py-3 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                required
+              >
+                <option value="">Select a title</option>
+                {titleOptions.map((title) => (
+                  <option key={title} value={title}>
+                    {title}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div className="mb-4">
-          <label className="block text-sm font-semibold mb-2">Description</label>
-          <textarea
-            name="description"
-            value={formData.description}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-            required
-          />
-        </div>
+            {formData.title === "Other" && (
+              <div>
+                <label
+                  htmlFor="customTitle"
+                  className="block text-sm font-semibold text-gray-700 mb-2"
+                >
+                  Custom Title
+                </label>
+                <input
+                  type="text"
+                  id="customTitle"
+                  name="customTitle"
+                  value={formData.customTitle}
+                  onChange={handleChange}
+                  placeholder="Enter your custom fundraiser title"
+                  className="w-full border border-gray-300 px-4 py-3 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  required
+                />
+              </div>
+            )}
 
-        <div className="mb-4">
-          <label className="block text-sm font-semibold mb-2">Raised Amount</label>
+            <div>
+              <label
+                htmlFor="description"
+                className="block text-sm font-semibold text-gray-700 mb-2"
+              >
+                Description
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows={4}
+                placeholder="Describe the fundraiser"
+                className="w-full border border-gray-300 px-4 py-3 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                required
+              />
+            </div>
+          </>
+        )}
+
+        <div>
+          <label
+            htmlFor="totalAmount"
+            className="block text-sm font-semibold text-gray-700 mb-2"
+          >
+            {fundraiserId ? "Donation Amount" : "Total Fund Goal"}
+          </label>
           <input
             type="number"
-            name="raisedAmount"
-            value={formData.raisedAmount}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-            required
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm font-semibold mb-2">Total Amount</label>
-          <input
-            type="number"
+            id="totalAmount"
             name="totalAmount"
             value={formData.totalAmount}
             onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
+            min="1"
+            placeholder={fundraiserId ? "Enter donation amount" : "Enter fund goal"}
+            className="w-full border border-gray-300 px-4 py-3 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
             required
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm font-semibold mb-2">Progress (Filled)</label>
-          <input
-            type="text"
-            name="filledhr"
-            value={formData.filledhr}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
-            required
-          />
-        </div>
-
-        {/* Image Upload */}
-        <div className="mb-4">
-          <label className="block text-sm font-semibold mb-2">Upload Image</label>
-          <input
-            type="file"
-            onChange={handleFileChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-md"
           />
         </div>
 
         <button
           type="submit"
-          className="px-4 py-2 bg-green-600 text-white rounded-md"
+          className="w-full bg-green-600 text-white font-semibold py-3 rounded-md hover:bg-green-700 transition"
         >
-          Save Fund Raise
+          {fundraiserId ? "Donate Now" : "Save Fundraiser"}
         </button>
       </form>
     </div>

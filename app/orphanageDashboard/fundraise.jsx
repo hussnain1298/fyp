@@ -182,10 +182,7 @@ const FundRaise = () => {
                     </span>
                   </p>
 
-                 
-                   
 
-                 
 
 
  {/* ✅ Buttons */}
@@ -205,44 +202,6 @@ const FundRaise = () => {
                       Delete
                     </button>
                   </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
                 </div>
@@ -290,22 +249,7 @@ const FundRaise = () => {
                 />
               </div>
 
-              {/* Status Change Dropdown */}
-              <div className="mb-4">
-                <label className="block text-sm font-semibold mb-2">Status</label>
-                <select
-                  value={editFundraiser.status}
-                  onChange={(e) =>
-                    setEditFundraiser({ ...editFundraiser, status: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                  required
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Fulfilled">Fulfilled</option>
-                </select>
-              </div>
-
+        
               {/* Amount Fields */}
               <div className="mb-4">
                 <label className="block text-sm font-semibold mb-2">Raised Amount</label>

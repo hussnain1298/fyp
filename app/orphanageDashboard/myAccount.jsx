@@ -20,6 +20,7 @@ import Services from "./service";
 import FundRaise from "./fundraise";
 import ConfirmedRequests from "./confirmdonations";
 import Messages from "./messages";
+import ConfirmFund from "./confirmFund";
 
 // Importing Poppins Font
 const poppins = Poppins({
@@ -87,7 +88,7 @@ export default function MyAccount() {
         {/* Sidebar Navigation */}
         <aside className="w-full lg:w-1/4 bg-white shadow-md p-6 mt-20">
           <ul className="space-y-2">
-            {["Dashboard","Account details","Messages", "Requests", "Services", "Fund Raise", "Donations", "Logout"].map((tab) => (
+            {["Dashboard","Account details","Messages", "Requests", "Services", "Fund Raise","Confirm Fund" ,"Donations", "Logout"].map((tab) => (
               <li
                 key={tab}
                 onClick={() => {
@@ -138,6 +139,17 @@ export default function MyAccount() {
                 <AccountDetails />
               </motion.div>
             )}
+
+              {activeTab === "Confirm Fund" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <ConfirmFund />
+              </motion.div>
+            )}
+            
             {activeTab === "Messages" && (
   <motion.div
     initial={{ opacity: 0, y: -20 }}
