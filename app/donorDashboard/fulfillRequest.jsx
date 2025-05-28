@@ -3,15 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
-import { collection, query, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, query, getDocs } from "firebase/firestore";
 import { Poppins } from "next/font/google";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
 
 const FulfillRequests = () => {
-  const [requests, setRequests] = useState([]); // Store all requests
-  const [loading, setLoading] = useState(true);  // Loading state
-  const [error, setError] = useState("");  // Error state
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -27,7 +27,6 @@ const FulfillRequests = () => {
       }
 
       try {
-        // Fetch all requests for the donor, regardless of orphanageId
         const q = query(collection(firestore, "requests"));
         const querySnapshot = await getDocs(q);
 
@@ -36,7 +35,7 @@ const FulfillRequests = () => {
           ...doc.data(),
         }));
 
-        setRequests(requestList); // Set requests state
+        setRequests(requestList);
       } catch (err) {
         setError("Failed to load requests: " + err.message);
       } finally {
@@ -44,18 +43,17 @@ const FulfillRequests = () => {
       }
     };
 
-    fetchRequests(); // Fetch requests on component mount
+    fetchRequests();
   }, []);
 
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
-      <div className="container mx-auto p-8 mt-16"> {/* Adjusted margin-top */}
+      <div className="container mx-auto p-8 mt-16">
         <div className="flex items-center justify-between">
           <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">
             Requests
           </h2>
 
-          {/* ✅ Donate Now Button */}
           <button
             type="button"
             className="bg-green-600 text-white font-medium py-2 px-4 rounded-md mt-12"
@@ -65,44 +63,44 @@ const FulfillRequests = () => {
           </button>
         </div>
 
-        {/* 🔹 Error Message */}
         {error && <p className="text-red-500 text-center mt-4">{error}</p>}
-
-        {/* 🔹 Loading State */}
         {loading && <p className="text-gray-500 text-center mt-4">Loading...</p>}
 
-        {/* 🔹 Requests List */}
         <div className="mt-6">
           {requests.length === 0 && !loading ? (
             <p className="text-center text-xl text-gray-500">No requests yet.</p>
           ) : (
             <div className="space-y-4">
               {requests.map((request) => (
-                <div key={request.id} className="bg-gray-100 p-6 rounded-lg shadow-md">
+                <div
+                  key={request.id}
+                  className="bg-gray-100 p-6 rounded-lg shadow-md"
+                >
                   <h3 className="text-lg font-bold">{request.title}</h3>
                   <p className="text-gray-700">{request.description}</p>
+
+                  <p className="mt-2 text-sm text-gray-600">
+                    <strong>Quantity Requested:</strong> {request.quantity}
+                  </p>
+
+                  <p className="mt-1 text-sm text-gray-600">
+                    <strong>Total Donated:</strong>{" "}
+                    {Array.isArray(request.totalDonated)
+                      ? request.totalDonated.reduce((acc, val) => acc + val, 0)
+                      : Number(request.totalDonated) || 0}
+                  </p>
+
                   <p className="mt-2 text-sm">
                     <strong>Request ID:</strong> {request.id}
                   </p>
-                  <p className="mt-1 text-sm">
-                    <strong>Status:</strong>{" "}
-                    <span
-                      className={`px-2 py-1 rounded-md ${
-                        request.status === "Pending"
-                          ? "bg-yellow-400"
-                          : "bg-green-500"
-                      } text-white`}
-                    >
-                      {request.status}
-                    </span>
-                  </p>
 
-                  {/* Buttons for View, Edit, Delete */}
                   <div className="flex space-x-4 mt-4">
                     <button
                       className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-400"
                       onClick={() =>
-                        router.push(`/chat?requestId=${request.id}&userEmail=${auth.currentUser?.email}`)
+                        router.push(
+                          `/chat?requestId=${request.id}&userEmail=${auth.currentUser?.email}`
+                        )
                       }
                     >
                       View Chat

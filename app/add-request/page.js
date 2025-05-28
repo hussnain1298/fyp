@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState } from "react"; 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
 import { addDoc, collection } from "firebase/firestore";
@@ -11,8 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 export default function AddRequest() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [requestType, setRequestType] = useState(""); 
-  const [quantity, setQuantity] = useState("");  // For number of clothes or amount of money
+  const [requestType, setRequestType] = useState("");
+  const [quantity, setQuantity] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -35,7 +35,6 @@ export default function AddRequest() {
       return;
     }
 
-    // If the user selected 'Clothes' or 'Money', ensure that quantity is entered.
     if ((requestType === "Clothes" || requestType === "Money") && !quantity) {
       setError("Please specify the number of clothes or the amount of money required.");
       setLoading(false);
@@ -43,31 +42,26 @@ export default function AddRequest() {
     }
 
     try {
-      // Create the request object, including quantity if provided.
       const requestData = {
         title,
         description,
-        requestType, // Store the request type (Food, Clothes, Money)
-        orphanageId: user.uid, 
-        orphanageEmail: user.email, 
-        status: "Pending", 
+        requestType,
+        orphanageId: user.uid,
+        orphanageEmail: user.email,
         timestamp: new Date(),
       };
 
-      // Add the quantity (for Clothes or Money) to the request data.
       if (requestType === "Clothes" || requestType === "Money") {
         requestData.quantity = quantity;
       }
 
-      // Save the request in Firebase
       await addDoc(collection(firestore, "requests"), requestData);
 
-      // Clear the form after submitting
       setTitle("");
       setDescription("");
-      setRequestType(""); 
-      setQuantity(""); // Reset quantity field
-      router.push("/orphanageDashboard"); // Redirect to orphanage dashboard
+      setRequestType("");
+      setQuantity("");
+      router.push("/orphanageDashboard");
     } catch (err) {
       setError("Failed to add request: " + err.message);
     } finally {
@@ -110,7 +104,7 @@ export default function AddRequest() {
           </select>
         </div>
 
-        {requestType && (requestType === "Clothes" || requestType === "Money") && (
+        {(requestType === "Clothes" || requestType === "Money") && (
           <div className="space-y-2">
             <Label htmlFor="quantity">
               {requestType === "Clothes" ? "Number of Clothes" : "Amount of Money"}
