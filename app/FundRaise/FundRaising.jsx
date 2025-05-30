@@ -134,7 +134,7 @@ const FundRaising = () => {
 
       <Slider {...settings}>
         {fundraisers.map((fundraiser) => (
-          <div key={fundraiser.id} className="px-6">
+          <div key={fundraiser.id} className="px-16">
             <FundRaiserCard
               id={fundraiser.id}
               bgImage={fundraiser.image || "/raise.jpg"}

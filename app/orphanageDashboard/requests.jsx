@@ -1,9 +1,22 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
-import { collection, query, where, getDocs, updateDoc, doc, deleteDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
+  deleteDoc,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Poppins } from "next/font/google";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
@@ -14,18 +27,19 @@ const Request = () => {
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editRequest, setEditRequest] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const [description, setDescription] = useState("");
+  const [requestType, setRequestType] = useState("");
+  const [quantity, setQuantity] = useState("");
+
   const router = useRouter();
 
   useEffect(() => {
     const fetchRequests = async () => {
       setLoading(true);
-      setError("");
-
       const user = auth.currentUser;
-      if (!user) {
-        setError("You must be logged in to view requests.");
-        return;
-      }
+      if (!user) return;
 
       try {
         const q = query(
@@ -34,36 +48,30 @@ const Request = () => {
         );
         const querySnapshot = await getDocs(q);
 
-        const requestList = await Promise.all(
-          querySnapshot.docs.map(async (doc) => {
-            const requestData = doc.data();
-            const requestId = doc.id;
-
-            // Query donations related to this request
+        const list = await Promise.all(
+          querySnapshot.docs.map(async (docRef) => {
+            const data = docRef.data();
             const donationQuery = query(
               collection(firestore, "donations"),
-              where("requestId", "==", requestId),
+              where("requestId", "==", docRef.id),
               where("orphanageId", "==", user.uid)
             );
             const donationSnapshot = await getDocs(donationQuery);
 
-            // Calculate total donated quantity for the request
             let totalDonated = 0;
-            donationSnapshot.forEach((donation) => {
-              const donationData = donation.data();
-              // Make sure to treat the donation as a number to add correctly
-              totalDonated += parseInt(donationData.numClothes) || 0; // Add clothes donated (ensure it's a number)
+            donationSnapshot.forEach((d) => {
+              totalDonated += parseInt(d.data().numClothes) || 0;
             });
 
             return {
-              id: requestId,
-              ...requestData,
+              id: docRef.id,
+              ...data,
               totalDonated,
             };
           })
         );
 
-        setRequests(requestList); // Set the requests with donations included
+        setRequests(list);
       } catch (err) {
         setError("Failed to load requests: " + err.message);
       } finally {
@@ -71,165 +79,225 @@ const Request = () => {
       }
     };
 
-    fetchRequests(); // Fetch donations and related requests
+    fetchRequests();
   }, []);
 
-  // 🔹 Handle Edit Request
-  const handleEditClick = (request) => {
-    setEditRequest(request);
-    setIsEditing(true);
-  };
-
-  // 🔹 Save Updated Request
-  const handleSaveChanges = async (e) => {
+  const handleAddRequest = async (e) => {
     e.preventDefault();
-    const { title, description, status } = editRequest;
+    const user = auth.currentUser;
+    if (!user) return;
 
     try {
-      const requestRef = doc(firestore, "requests", editRequest.id);
-      await updateDoc(requestRef, { title, description, status });
+      const type = requestType === "Other" ? quantity.trim() : requestType;
 
-      setRequests((prevRequests) =>
-        prevRequests.map((req) =>
-          req.id === editRequest.id
-            ? { ...req, title, description, status }
-            : req
-        )
-      );
+      const requestData = {
+        requestType: type,
+        description: description.trim(),
+        orphanageId: user.uid,
+        orphanageEmail: user.email,
+        status: "Pending",
+        timestamp: serverTimestamp(),
+      };
 
-      setIsEditing(false);
+      if (["Clothes", "Money"].includes(requestType)) {
+        requestData.quantity = Number(quantity);
+      }
+
+      await addDoc(collection(firestore, "requests"), requestData);
+      setIsModalOpen(false);
+      setDescription(""); setRequestType(""); setQuantity("");
+      location.reload();
     } catch (err) {
-      setError("Failed to update request: " + err.message);
+      setError("Add failed: " + err.message);
     }
   };
 
-  // 🔹 Handle Delete Request
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this request?")) return;
+  const handleEditClick = (req) => {
+    setEditRequest(req);
+    setIsEditing(true);
+  };
 
+  const handleSaveChanges = async (e) => {
+    e.preventDefault();
+    try {
+      const ref = doc(firestore, "requests", editRequest.id);
+      await updateDoc(ref, {
+        requestType: editRequest.requestType,
+        description: editRequest.description,
+        status: editRequest.status,
+      });
+
+      setRequests((prev) =>
+        prev.map((r) => (r.id === editRequest.id ? editRequest : r))
+      );
+      setIsEditing(false);
+    } catch (err) {
+      setError("Update failed: " + err.message);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Confirm delete?")) return;
     try {
       await deleteDoc(doc(firestore, "requests", id));
-      setRequests((prev) => prev.filter((request) => request.id !== id));
+      setRequests((prev) => prev.filter((r) => r.id !== id));
     } catch (err) {
-      alert("Failed to delete request: " + err.message);
+      setError("Delete failed: " + err.message);
     }
   };
 
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
       <div className="container mx-auto p-8 mt-16">
-        <div className="flex items-center justify-between">
-          <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">
-            Requests
-          </h2>
-
-          {/* ✅ Add a Request Button */}
+        <div className="flex justify-between">
+          <h2 className="text-4xl font-bold">Requests</h2>
           <button
-            type="button"
-            className="bg-green-600 text-white font-medium py-2 px-4 rounded-md mt-12"
-            onClick={() => router.push("/add-request")}
+            className="bg-green-600 text-white py-2 px-4 rounded"
+            onClick={() => setIsModalOpen(true)}
           >
             + Add a Request
           </button>
         </div>
 
-        {/* 🔹 Error Message */}
-        {error && <p className="text-red-500 text-center mt-4">{error}</p>}
+        {error && <p className="text-red-500 mt-4">{error}</p>}
+        {loading && <p className="text-gray-500 mt-4">Loading...</p>}
 
-        {/* 🔹 Loading State */}
-        {loading && <p className="text-gray-500 text-center mt-4">Loading...</p>}
-
-        {/* 🔹 Requests List */}
-        <div className="mt-6">
-          {requests.length === 0 && !loading ? (
-            <p className="text-center text-xl text-gray-500">No requests yet.</p>
-          ) : (
-            <div className="space-y-4">
-              {requests.map((request) => (
-                <div key={request.id} className="bg-gray-100 p-4 rounded-lg shadow-md">
-                  <h2 className="text-lg font-bold">{request.title}</h2>
-                  <p className="text-gray-700">{request.description}</p>
-                  <p className="mt-2 text-sm">
-                    <strong>Request ID:</strong> {request.id}
-                  </p>
-
-                  {/* ✅ Display Quantity for Clothes or Money */}
-                  {request.requestType === "Clothes" && request.quantity && (
-                    <p className="mt-2 text-sm">
-                      <strong>Number of Clothes:</strong> {request.quantity}
-                    </p>
-                  )}
-                  {request.requestType === "Money" && request.quantity && (
-                    <p className="mt-2 text-sm">
-                      <strong>Amount of Money:</strong> ${request.quantity}
-                    </p>
-                  )}
-
-                  {/* ✅ Show total donated */}
-                  {request.totalDonated > 0 && (
-                    <p className="mt-2 text-sm">
-                      <strong>Total Donated:</strong> {request.totalDonated}
-                    </p>
-                  )}
-
-                  {/* ✅ Buttons */}
-                  <div className="flex space-x-4 mt-4">
-                    <button
-                      onClick={() => handleEditClick(request)}
-                      className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-500"
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      onClick={() => handleDelete(request.id)}
-                      className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-500"
-                      disabled={loading}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
+        <div className="mt-6 space-y-4">
+          {requests.map((r) => (
+            <div key={r.id} className="bg-gray-100 p-4 rounded shadow">
+              <div className="flex justify-between items-center">
+                <h2 className="font-bold text-lg">{r.requestType}</h2>
+                <span className={`inline-block px-2 py-1 rounded text-white text-xs ${
+                  r.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
+                }`}>
+                  {r.status}
+                </span>
+              </div>
+              <p>{r.description}</p>
+              {r.quantity && (
+                <p className="text-sm mt-1">
+                  {r.requestType === "Clothes"
+                    ? `Clothes Needed: ${r.quantity}`
+                    : `Money Needed: $${r.quantity}`}
+                </p>
+              )}
+              {r.totalDonated > 0 && (
+                <p className="text-sm text-green-700 mt-1">
+                  Total Donated: {r.totalDonated}
+                </p>
+              )}
+              <div className="flex gap-3 mt-4">
+                <button
+                  className="bg-green-600 text-white px-3 py-1 rounded"
+                  onClick={() => handleEditClick(r)}
+                >
+                  Edit
+                </button>
+                <button
+                  className="bg-red-600 text-white px-3 py-1 rounded"
+                  onClick={() => handleDelete(r.id)}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-          )}
+          ))}
         </div>
 
-        {/* ✅ Edit Request Modal */}
+        {/* Add Request Modal */}
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-[400px]">
+              <h2 className="text-2xl font-bold mb-4">New Request</h2>
+              <form onSubmit={handleAddRequest} className="space-y-4">
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} required />
+                </div>
+                <div>
+                  <Label htmlFor="requestType">Type</Label>
+                  <select
+                    id="requestType"
+                    value={requestType}
+                    onChange={(e) => setRequestType(e.target.value)}
+                    required
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Select Type</option>
+                    <option value="Food">Food</option>
+                    <option value="Clothes">Clothes</option>
+                    <option value="Money">Money</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                {requestType === "Other" && (
+                  <div>
+                    <Label htmlFor="customType">Custom Type</Label>
+                    <Input
+                      id="customType"
+                      placeholder="Enter custom request type"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+
+                {["Clothes", "Money"].includes(requestType) && (
+                  <div>
+                    <Label htmlFor="quantity">
+                      {requestType === "Clothes" ? "Clothes Needed" : "Money Amount"}
+                    </Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">Submit</button>
+                  <button onClick={() => setIsModalOpen(false)} className="text-gray-600 hover:text-black">Cancel</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Modal */}
         {isEditing && (
-          <div className="fixed inset-0 flex justify-center items-center bg-gray-800 bg-opacity-50">
-            <div className="bg-white p-8 rounded-lg shadow-lg w-[400px]">
-              <h2 className="text-2xl font-bold mb-4">Edit Request</h2>
-
-              {/* ✅ Edit Form */}
-              <form onSubmit={handleSaveChanges}>
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">Title</label>
-                  <input
-                    type="text"
-                    value={editRequest.title}
-                    onChange={(e) =>
-                      setEditRequest({ ...editRequest, title: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                    required
-                  />
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="bg-white p-6 rounded w-[400px] shadow-xl">
+              <h2 className="text-xl font-bold mb-4">Edit Request</h2>
+              <form onSubmit={handleSaveChanges} className="space-y-4">
+                <input
+                  value={editRequest.requestType}
+                  onChange={(e) =>
+                    setEditRequest({ ...editRequest, requestType: e.target.value })
+                  }
+                  className="w-full border p-2 rounded"
+                  required
+                />
+                <textarea
+                  value={editRequest.description}
+                  onChange={(e) =>
+                    setEditRequest({ ...editRequest, description: e.target.value })
+                  }
+                  className="w-full border p-2 rounded"
+                  required
+                />
+                <div className="flex justify-between">
+                  <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
+                    Save
+                  </button>
+                  <button onClick={() => setIsEditing(false)} className="text-gray-500">
+                    Cancel
+                  </button>
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2">Description</label>
-                  <textarea
-                    value={editRequest.description}
-                    onChange={(e) =>
-                      setEditRequest({ ...editRequest, description: e.target.value })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-
-                <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-md">
-                  Save Changes
-                </button>
               </form>
             </div>
           </div>

@@ -13,6 +13,7 @@ import Fund from "./FundRaise/page";
 import Nav from "./Navbar/page";
 import LowerHeader from "./Header/page";
 import PublicDonationsList from "./public-donation/page";
+import ServicesDisplay from "./servicesRequests/page";
 
 export default function Page() {
   const [isReady, setIsReady] = useState(false);
@@ -32,8 +33,10 @@ export default function Page() {
       <LowerHeader />
       <HeroSection />
       <Vision />
+ <DonationRequest />
       <SponsorAnOrphan />
-      <DonationRequest />
+      <ServicesDisplay/>
+     
      
       <Services />
       <Fund />

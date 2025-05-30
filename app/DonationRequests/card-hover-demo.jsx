@@ -11,137 +11,206 @@ import {
   doc,
   addDoc,
   serverTimestamp,
+  onSnapshot,
+  orderBy,
+  setDoc,
 } from "firebase/firestore";
-import { useRouter } from "next/navigation";
+import ChatModal from "../chat/chatmodal";
 import { FaUtensils, FaTshirt, FaMoneyBillWave } from "react-icons/fa";
 
 export default function RequestsHoverDemo() {
-  const [requests, setRequests] = useState([]);
+  const [cityFilteredRequests, setCityFilteredRequests] = useState([]);
+  const [filteredRequests, setFilteredRequests] = useState([]);
   const [city, setCity] = useState("Detecting...");
-  const [loading, setLoading] = useState(true);
+  const [userCityFilter, setUserCityFilter] = useState("");
   const [selectedType, setSelectedType] = useState("All");
-  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const pageSize = 6;
+
+  const effectiveCity = userCityFilter.trim() || city.trim();
+
+  const [chatModalOpen, setChatModalOpen] = useState(false);
+  const [chatId, setChatId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [user, setUser] = useState(null);
+  const [userType, setUserType] = useState(null);
+  const [orphanageId, setOrphanageId] = useState(null);
+  const [orphanageName, setOrphanageName] = useState(null);
+  const [donorId, setDonorId] = useState(null);
+  const [donorName, setDonorName] = useState(null);
+  const [profilesCache, setProfilesCache] = useState({});
 
   useEffect(() => {
-    navigator.geolocation?.getCurrentPosition(async (pos) => {
-      const { latitude, longitude } = pos.coords;
-      try {
-        const res = await fetch(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-        );
-        const data = await res.json();
-        setCity(data.city || data.locality || data.principalSubdivision || "Unknown");
-      } catch {
-        setCity("Unknown");
-      }
+    navigator.geolocation?.getCurrentPosition(async ({ coords }) => {
+      const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${coords.latitude}&longitude=${coords.longitude}&localityLanguage=en`);
+      const data = await res.json();
+      setCity(data.city || data.locality || data.principalSubdivision || "Unknown");
     });
   }, []);
 
   useEffect(() => {
     const fetchRequests = async () => {
-      if (city === "Detecting..." || city === "Unknown") return;
-      try {
-        const orphanQuery = query(
-          collection(firestore, "users"),
-          where("userType", "==", "Orphanage"),
-          where("city", "==", city)
-        );
-        const orphanSnapshot = await getDocs(orphanQuery);
-        const orphanMap = {};
-        orphanSnapshot.docs.forEach(doc => {
-          orphanMap[doc.id] = doc.data();
-        });
+      setLoading(true);
+      const orphanSnap = await getDocs(query(collection(firestore, "users"), where("userType", "==", "Orphanage")));
+      const normalizedCity = effectiveCity.toLowerCase();
 
-        const reqSnap = await getDocs(collection(firestore, "requests"));
-        const filtered = reqSnap.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(req => orphanMap[req.orphanageId]);
+      const orphanMap = {};
+      orphanSnap.forEach((doc) => {
+        const data = doc.data();
+        const cityMatch = (data.city || "").trim().toLowerCase();
+        if (!normalizedCity || ["detecting...", "unknown"].includes(normalizedCity) || cityMatch === normalizedCity) {
+          orphanMap[doc.id] = data;
+        }
+      });
 
-        setRequests(filtered.map(req => ({
-          ...req,
-          orphanInfo: orphanMap[req.orphanageId]
-        })));
-      } finally {
-        setLoading(false);
-      }
+      const reqSnap = await getDocs(collection(firestore, "requests"));
+      const requests = reqSnap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((r) => orphanMap[r.orphanageId])
+        .map((r) => ({ ...r, orphanInfo: orphanMap[r.orphanageId] }));
+
+      setCityFilteredRequests(requests);
+      setLoading(false);
     };
-
     fetchRequests();
-  }, [city]);
+  }, [effectiveCity]);
+
+  useEffect(() => {
+    const start = (page - 1) * pageSize;
+    const filtered = selectedType === "All"
+      ? cityFilteredRequests
+      : cityFilteredRequests.filter(r => r.requestType.toLowerCase() === selectedType.toLowerCase());
+    setFilteredRequests(filtered.slice(start, start + pageSize));
+  }, [selectedType, cityFilteredRequests, page]);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (u) => {
+      setUser(u);
+      if (!u) return;
+      const snap = await getDoc(doc(firestore, "users", u.uid));
+      const data = snap.exists() ? snap.data() : {};
+      setUserType(data.userType || null);
+      setDonorId(data.userType === "Donor" ? u.uid : null);
+    });
+    return unsubscribe;
+  }, []);
 
   const handleChat = async (req) => {
-    const user = auth.currentUser;
-    if (!user) return router.push("/login?redirect=donate");
-
-    const userRef = doc(firestore, "users", user.uid);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists() || userSnap.data().userType !== "Donor") {
-      return alert("Only donors can chat.");
-    }
-
+    if (!user || userType !== "Donor") return alert("Please login as a donor to chat.");
     const chatsRef = collection(firestore, "chats");
-    const q = query(
-      chatsRef,
-      where("participants", "array-contains", user.uid),
-      where("requestId", "==", req.id)
-    );
-
+    const q = query(chatsRef, where("participants", "array-contains", user.uid), where("requestId", "==", req.id));
     const snapshot = await getDocs(q);
-    let chatId = null;
-    snapshot.forEach(doc => {
-      if (doc.data().participants.includes(req.orphanageId)) {
-        chatId = doc.id;
-      }
-    });
 
-    if (!chatId) {
-      const chatDoc = await addDoc(chatsRef, {
+    let chat = snapshot.docs.find((d) => d.data().participants.includes(req.orphanageId));
+    let id = chat?.id;
+
+    if (!id) {
+      const newChat = await addDoc(chatsRef, {
         participants: [user.uid, req.orphanageId],
         requestId: req.id,
-        createdAt: serverTimestamp()
+        orphanageId: req.orphanageId,
+        donorId: user.uid,
+        createdAt: serverTimestamp(),
       });
-      chatId = chatDoc.id;
+      id = newChat.id;
     }
 
-    router.push(`/chat?chatId=${chatId}`);
+    setChatId(id);
+    setOrphanageId(req.orphanageId);
+    setChatModalOpen(true);
+
+    const unsub = onSnapshot(
+      query(collection(firestore, "chats", id, "messages"), orderBy("timestamp", "asc")),
+      (snap) => {
+        const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setMessages(msgs);
+        const senderIds = [...new Set(msgs.map((m) => m.senderId))];
+        senderIds.forEach(async (sid) => {
+          if (!profilesCache[sid]) {
+            const userDoc = await getDoc(doc(firestore, "users", sid));
+            setProfilesCache(prev => ({
+              ...prev,
+              [sid]: userDoc.exists() ? userDoc.data() : null
+            }));
+          }
+        });
+      }
+    );
+    return () => unsub();
   };
 
-  const filteredRequests = selectedType === "All"
-    ? requests
-    : requests.filter((r) => r.requestType === selectedType);
+  const sendMessage = async () => {
+    if (!newMessage.trim()) return;
+    await addDoc(collection(firestore, "chats", chatId, "messages"), {
+      senderId: user.uid,
+      text: newMessage.trim(),
+      timestamp: serverTimestamp(),
+    });
+
+    if (userType === "Donor" && orphanageId) {
+      const notifRef = doc(firestore, "notifications", orphanageId, "userNotifications", chatId);
+      await setDoc(notifRef, {
+        chatId,
+        donorId: user.uid,
+        lastMessage: newMessage.trim(),
+        timestamp: serverTimestamp(),
+        read: false,
+      });
+    }
+
+    setNewMessage("");
+  };
+
+  const closeChatModal = () => {
+    setChatModalOpen(false);
+    setMessages([]);
+    setChatId(null);
+    setNewMessage("");
+  };
 
   const typeIcon = (type) => {
-    switch (type) {
-      case "Food":
-        return <FaUtensils className="inline mr-1 text-orange-500" />;
-      case "Money":
-        return <FaMoneyBillWave className="inline mr-1 text-green-500" />;
-      case "Clothes":
-        return <FaTshirt className="inline mr-1 text-blue-500" />;
-      default:
-        return null;
-    }
+    const iconMap = {
+      Food: <FaUtensils className="text-orange-500" />,
+      Money: <FaMoneyBillWave className="text-green-500" />,
+      Clothes: <FaTshirt className="text-blue-500" />,
+      Other: <span className="text-purple-500 font-bold">•</span>,
+    };
+    return type in iconMap ? iconMap[type] : iconMap.Other;
   };
 
+  const totalPages = Math.ceil(
+    (selectedType === "All"
+      ? cityFilteredRequests.length
+      : cityFilteredRequests.filter(r => r.requestType.toLowerCase() === selectedType.toLowerCase()).length
+    ) / pageSize
+  );
+
   return (
-    <div className="w-full flex justify-center px-4 sm:px-6 lg:px-8 py-10">
-      <div className="w-full max-w-7xl">
-        <div className="flex justify-end mb-6">
-          <p className="text-lg font-medium text-green-700 bg-green-100 px-4 py-2 rounded-md shadow-sm">
-            📍 Showing requests near <span className="font-semibold">{city}</span>
+    <>
+      <div className="w-full max-w-7xl mx-auto p-6">
+        <div className="flex justify-between items-center mb-6">
+          <p className="bg-green-100 text-green-700 font-medium px-4 py-2 rounded shadow">
+            📍 Showing requests near <strong>{effectiveCity}</strong>
           </p>
+          <input
+            type="text"
+            value={userCityFilter}
+            onChange={(e) => setUserCityFilter(e.target.value)}
+            placeholder="Filter by city"
+            className="border-b border-gray-300 focus:outline-none focus:border-green-600 px-2 py-1"
+          />
         </div>
 
-        <div className="flex justify-center gap-4 mb-8 flex-wrap">
-          {["All", "Food", "Money", "Clothes"].map(type => (
+        <div className="flex gap-4 mb-6">
+          {"All,Food,Money,Clothes".split(",").map(type => (
             <button
               key={type}
-              className={`px-4 py-2 border rounded-md text-sm ${
-                selectedType === type
-                  ? "bg-green-600 text-white"
-                  : "border-gray-300 text-gray-700"
+              onClick={() => { setSelectedType(type); setPage(1); }}
+              className={`px-4 py-2 rounded border ${
+                selectedType === type ? "bg-green-600 text-white" : "border-gray-300"
               }`}
-              onClick={() => setSelectedType(type)}
             >
               {type}
             </button>
@@ -155,46 +224,65 @@ export default function RequestsHoverDemo() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredRequests.map((req) => (
-              <div
-                key={req.id}
-                className="p-5 border rounded-lg shadow bg-white flex flex-col justify-between"
-              >
-                <div>
-                  <h3 className="font-semibold text-lg text-gray-800 mb-1">{req.title}</h3>
-                  <p className="text-sm text-gray-600 mb-2">{req.description}</p>
-
-                  <div className="flex items-center gap-2 text-sm mb-1">
-                    <span className="font-medium text-gray-600">Type:</span>
-                    <span className="flex items-center text-gray-800">
-                      {typeIcon(req.requestType)} {req.requestType}
-                    </span>
-                  </div>
-
-                  {req.orphanInfo && (
-                    <>
-                      <p className="text-sm text-gray-500">
-                        <strong>Orphanage:</strong> {req.orphanInfo.orgName || "N/A"}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        <strong>Location:</strong> {req.orphanInfo.city || "N/A"}
-                      </p>
-                    </>
-                  )}
+              <div key={req.id} className="p-5 border rounded-lg shadow bg-white">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-semibold text-lg">
+                    {req.requestType === "Other" && req.quantity ? req.quantity : req.requestType}
+                  </h3>
+                  <span className={`inline-block px-2 py-1 rounded text-white text-xs ${
+                    req.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
+                  }`}>
+                    {req.status}
+                  </span>
                 </div>
-
-                <div className="flex justify-between mt-4">
-                  <button
-                    onClick={() => handleChat(req)}
-                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-                  >
-                    Chat Now
-                  </button>
-                </div>
+                <p className="text-gray-600 mb-2">{req.description}</p>
+                
+                <p className="text-sm text-gray-500">
+                  Orphanage: {req.orphanInfo?.orgName || "N/A"}
+                </p>
+                <p className="text-sm text-gray-500 mb-4">
+                  Location: {req.orphanInfo?.city || "N/A"}
+                </p>
+                <button
+                  onClick={() => handleChat(req)}
+                  className="bg-green-500 hover:bg-green-600 text-white py-1 px-4 rounded"
+                >
+                  Chat Now
+                </button>
               </div>
             ))}
           </div>
         )}
+
+        <div className="flex justify-center mt-8 gap-2">
+          {[...Array(totalPages)].map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setPage(i + 1)}
+              className={`px-3 py-1 rounded ${
+                page === i + 1 ? "bg-green-600 text-white" : "bg-gray-100"
+              }`}
+            >
+              {i + 1}
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+
+      {chatModalOpen && (
+        <ChatModal
+          messages={messages}
+          user={user}
+          orphanageId={orphanageId}
+          orphanageName={orphanageName}
+          donorName={donorName}
+          newMessage={newMessage}
+          setNewMessage={setNewMessage}
+          sendMessage={sendMessage}
+          closeChatModal={closeChatModal}
+          profilesCache={profilesCache}
+        />
+      )}
+    </>
   );
 }
