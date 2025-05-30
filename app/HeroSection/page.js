@@ -1,8 +1,10 @@
 "use client";
 import React from "react";
 import Image from "next/image";
-import Header from "../Header/page";
+import DonationButton from "../donation-button/page";
+
 import { IoPlayCircleOutline } from "react-icons/io5";
+
 
 export default function HeroSection() {
   return (
@@ -16,7 +18,6 @@ export default function HeroSection() {
   className="z-[-1]"
 />
 
-        <Header />
         <div className="w-[90%] md:w-[80%] m-auto items-center flex flex-col gap-10 justify-center h-screen text-center z-10 relative">
           <h1 className="font-semibold text-4xl md:text-6xl lg:text-7xl">
             Bring Hope to Their World
@@ -32,6 +33,7 @@ export default function HeroSection() {
               <span className="text-lg lg:text-xl">Watch Video</span>
             </a>
           </div>
+           <DonationButton/>
         </div>
       </div>
     </div>

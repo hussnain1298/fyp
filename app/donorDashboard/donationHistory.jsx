@@ -7,11 +7,7 @@ import Link from "next/link";
 const donations = [
   { id: "#166653", date: "January 30, 2025", status: "Cancelled", total: "Rs1,539", items: "1 item" },
   { id: "#166652", date: "January 30, 2025", status: "Cancelled", total: "Rs513", items: "1 item" },
-  { id: "#166651", date: "January 30, 2025", status: "Cancelled", total: "Rs564", items: "2 items" },
-  { id: "#166650", date: "January 30, 2025", status: "Cancelled", total: "Rs51", items: "1 item" },
-  { id: "#166649", date: "January 28, 2025", status: "Cancelled", total: "Rs1,129", items: "3 items" },
-  { id: "#166648", date: "January 28, 2025", status: "Cancelled", total: "Rs103", items: "2 items" },
-  { id: "#166647", date: "January 28, 2025", status: "Cancelled", total: "Rs51", items: "1 item" },
+ 
 ];
 
 export default function DonationsHistory() {
