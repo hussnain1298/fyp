@@ -38,8 +38,19 @@ export default function ServicesDisplay() {
         });
 
         const svcSnap = await getDocs(collection(firestore, "services"));
+        const now = Date.now();
+
         const allServices = svcSnap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
+          // Filter out fulfilled services older than 24 hours
+          .filter((svc) => {
+            if (svc.status !== "Fulfilled") return true;
+            if (!svc.fulfilledAt) return true; // fallback if no timestamp
+            const fulfilledTime = svc.fulfilledAt.toMillis
+              ? svc.fulfilledAt.toMillis()
+              : new Date(svc.fulfilledAt).getTime();
+            return now - fulfilledTime < 24 * 60 * 60 * 1000; // less than 24 hours ago
+          })
           .filter((svc) => orphanMap[svc.orphanageId])
           .map((svc) => ({
             ...svc,
@@ -72,12 +83,17 @@ export default function ServicesDisplay() {
   const handleFulfill = async () => {
     try {
       await updateDoc(doc(firestore, "services", modalService.id), {
-        status: "In Progress",
+        status: "Fulfilled",
         lastFulfillmentNote: donationNote || "",
+        fulfilledAt: new Date(),
       });
       alert(`Service "${modalService.title}" fulfilled!`);
       setModalService(null);
       setDonationNote("");
+      // Optionally, refetch services or update local state here
+      setServices((prev) =>
+        prev.filter((svc) => svc.id !== modalService.id)
+      );
     } catch (err) {
       console.error("Fulfillment failed:", err);
       alert("Failed to fulfill the service. Please try again.");
@@ -85,13 +101,14 @@ export default function ServicesDisplay() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 min-h-screen flex flex-col">
-      <div className="flex justify-between items-center mb-2 mt-4">
-       <h2 className="text-2xl font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl">
-          REQUESTS
-        </h2>
+    <div className="max-w-7xl mx-auto px-6 min-h-screen flex flex-col justify-center">
+      <h2 className="text-2xl font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl ">
+        SERVICES
+      </h2>
+
+      <div className="flex justify-end items-center mb-2 mt-4">
         <select
-          className="border border-gray-300 rounded px-4 py-2 text-sm hover:border-green-600"
+          className="border border-gray-300 rounded px-4 py-2 text-sm hover:border-green-600 "
           value={selectedCategory}
           onChange={(e) => {
             setSelectedCategory(e.target.value);
@@ -100,7 +117,9 @@ export default function ServicesDisplay() {
         >
           <option value="All">All Categories</option>
           {workshopCategories.map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
+            <option key={cat} value={cat}>
+              {cat}
+            </option>
           ))}
         </select>
       </div>
@@ -112,28 +131,43 @@ export default function ServicesDisplay() {
       ) : filteredServices.length === 0 ? (
         <p className="text-center text-gray-600 font-semibold">No services found.</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
           {filteredServices.map((svc) => (
-            <div key={svc.id} className="relative bg-white rounded-lg shadow-md p-6 flex flex-col justify-between min-h-[250px]">
-              <span className={`absolute top-4 right-4 px-3 py-1 text-xs font-semibold rounded-full ${
-                svc.status === "Pending"
-                  ? "bg-yellow-400 text-yellow-900"
-                  : svc.status === "In Progress"
-                  ? "bg-blue-600 text-white"
-                  : "bg-green-700 text-white"
-              }`}>
+            <div
+              key={svc.id}
+              className="relative bg-white rounded-lg shadow-md p-6 flex flex-col justify-between min-h-[200px]"
+            >
+              <span
+                className={`absolute top-4 right-4 px-3 py-1 text-xs font-semibold rounded-full ${
+                  svc.status === "Pending"
+                    ? "bg-yellow-400 text-yellow-900"
+                    : svc.status === "In Progress"
+                    ? "bg-blue-600 text-white"
+                    : "bg-green-700 text-white"
+                }`}
+              >
                 {svc.status || "Pending"}
               </span>
-              <div className="flex flex-col gap-2 flex-grow">
+
+              <div className="flex flex-col flex-grow gap-2">
                 <h3 className="text-xl font-bold text-green-800">{svc.title}</h3>
-                <p className="text-gray-700 text-sm flex-grow min-h-[40px]">{svc.description}</p>
-                <p className="text-sm text-gray-500">
-                  <strong>Orphanage:</strong> {svc.orphanInfo?.orgName || "N/A"}
+
+               
+
+                <div className="mt-auto"
+                >
+                   <p className="text-gray-700 text-md flex-grow min-h-[10px] pb-6">
+                  {svc.description}
                 </p>
-                <p className="text-sm text-gray-500">
-                  <strong>Location:</strong> {svc.orphanInfo?.city || "N/A"}
-                </p>
+                  <p className="text-sm text-gray-500">
+                    <strong>Orphanage:</strong> {svc.orphanInfo?.orgName || "N/A"}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    <strong>Location:</strong> {svc.orphanInfo?.city || "N/A"}
+                  </p>
+                </div>
               </div>
+
               <div className="pt-4">
                 <button
                   onClick={() => setModalService(svc)}
@@ -173,7 +207,8 @@ export default function ServicesDisplay() {
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
             <h2 className="text-xl font-bold mb-4 text-green-900">Confirm Fulfillment</h2>
             <p className="mb-2">
-              Are you sure you want to fulfill the service: <strong>{modalService.title}</strong> for orphanage: <strong>{modalService.orphanInfo?.orgName || "N/A"}</strong>?
+              Are you sure you want to fulfill the service: <strong>{modalService.title}</strong> for orphanage:{" "}
+              <strong>{modalService.orphanInfo?.orgName || "N/A"}</strong>?
             </p>
             <p className="mb-4">
               Location: <strong>{modalService.orphanInfo?.city || "N/A"}</strong>

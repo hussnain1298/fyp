@@ -1,11 +1,13 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import { useRouter } from "next/navigation";
 import { firestore, auth } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, increment } from "firebase/firestore";
-import withAuth from "@/lib/withAuth";
+import { withAuth } from "@/lib/withAuth";
 
-export default function FundRaiserCard({
+function FundRaiserCard({
   id,
   bgImage,
   title,
@@ -14,29 +16,20 @@ export default function FundRaiserCard({
   totalAmount,
   filledhr,
   orphanageName,
+  user, // injected by withAuth HOC
 }) {
   const router = useRouter();
   const [showDonateModal, setShowDonateModal] = useState(false);
   const [donationAmount, setDonationAmount] = useState("");
   const [donating, setDonating] = useState(false);
 
-  const checkDonorAccess = async () => {
-    try {
-      await withAuth();
-
-      const userRef = doc(firestore, "users", auth.currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      const user = userSnap.data();
-
-      if (user?.userType !== "Donor") {
-        alert("Only donors are allowed to donate.");
-        return;
-      }
-
-      setShowDonateModal(true);
-    } catch {
-      alert("Please log in to continue.");
+  // Show modal only if user role is Donor
+  const checkDonorAccess = () => {
+    if (!user || user.role !== "Donor") {
+      alert("Only donors are allowed to donate.");
+      return;
     }
+    setShowDonateModal(true);
   };
 
   const closeModal = () => {
@@ -174,3 +167,5 @@ export default function FundRaiserCard({
     </>
   );
 }
+
+export default withAuth(FundRaiserCard, ["Donor"]);

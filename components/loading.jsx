@@ -1,24 +1,14 @@
-// components/Loading.jsx
-import React from "react";
-import { CircularProgress } from "@heroui/react";
+import {CircularProgress} from "@heroui/react";
 
 export default function Loading() {
-  const [value, setValue] = React.useState(0);
-
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setValue((v) => (v >= 100 ? 0 : v + 10));
-    }, 500);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
-    <CircularProgress
-      aria-label="Loading..."
-      color="warning"
-      showValueLabel={true}
-      size="lg"
-      value={value}
-    />
+    <div className="flex gap-4">
+      <CircularProgress aria-label="Loading..." color="default" />
+      <CircularProgress aria-label="Loading..." color="primary" />
+      <CircularProgress aria-label="Loading..." color="secondary" />
+      <CircularProgress aria-label="Loading..." color="success" />
+      <CircularProgress aria-label="Loading..." color="warning" />
+      <CircularProgress aria-label="Loading..." color="danger" />
+    </div>
   );
 }

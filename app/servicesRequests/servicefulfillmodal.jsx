@@ -40,6 +40,7 @@ function ServiceFulfillModal({ service, user, onFulfill }) {
       await updateDoc(serviceRef, {
         status: "In Progress",
         lastFulfillmentNote: donationNote,
+        lastFulfillmentTime: new Date().toISOString(), // track timestamp for status update logic
       });
 
       alert("Service fulfillment submitted successfully!");
@@ -138,6 +139,19 @@ export default function ServiceDetail() {
       }
       const serviceData = { id: docSnap.id, ...docSnap.data() };
 
+      // Remove services with status 'Fulfilled' older than 24 hours (cleanup logic)
+      if (serviceData.status === "Fulfilled" && serviceData.lastFulfillmentTime) {
+        const fulfillmentDate = new Date(serviceData.lastFulfillmentTime);
+        const now = new Date();
+        const hoursPassed = (now - fulfillmentDate) / (1000 * 60 * 60);
+        if (hoursPassed > 24) {
+          // Optionally delete document or exclude from display by returning early
+          setService(null);
+          setLoading(false);
+          return;
+        }
+      }
+
       // Fetch orphanage info
       if (serviceData.orphanageId) {
         const orphanRef = doc(firestore, "users", serviceData.orphanageId);
@@ -167,7 +181,7 @@ export default function ServiceDetail() {
 
   if (loading) return <p className="text-center mt-10">Loading...</p>;
   if (error) return <p className="text-center mt-10 text-red-600">{error}</p>;
-  if (!service) return null;
+  if (!service) return <p className="text-center mt-10 text-gray-600">No service to display.</p>;
 
   return (
     <main className="max-w-3xl mx-auto p-6 bg-white rounded-lg shadow-lg mt-10 relative">

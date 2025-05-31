@@ -1,41 +1,107 @@
-"use client";
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { auth, firestore } from "@/lib/firebase";
-import {
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-} from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
-import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { useForm } from "react-hook-form";
-import Loading from "@/components/loading";
+"use client"
+
+import React, { useState } from "react"
+import { useRouter } from "next/navigation"
+import { auth, firestore } from "@/lib/firebase"
+import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
+import { doc, setDoc, getDoc } from "firebase/firestore"
+import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai"
+import { toast, ToastContainer } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
+import { useForm } from "react-hook-form"
+import Loading from "@/components/loading"
+
+const FormInput = React.forwardRef(({ label, type = "text", error, name, ...rest }, ref) => {
+  const inputId = name || label.replace(/\s+/g, "")
+  return (
+    <div>
+      <label htmlFor={inputId} className="block text-sm font-medium text-gray-600">
+        {label}
+      </label>
+      <input
+        id={inputId}
+        name={name}
+        type={type}
+        placeholder={`Enter ${label.toLowerCase()}`}
+        className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+          error ? "border-red-500" : "border-gray-300"
+        }`}
+        aria-invalid={error ? "true" : "false"}
+        aria-describedby={error ? `${inputId}-error` : undefined}
+        {...rest}
+        ref={ref}
+      />
+      {error && (
+        <p id={`${inputId}-error`} className="text-red-600 text-sm mt-1" role="alert">
+          {error.message}
+        </p>
+      )}
+    </div>
+  )
+})
+FormInput.displayName = "FormInput"
+
+const PasswordInput = React.forwardRef(
+  ({ label = "Password", error, showPassword, toggleShow, name, ...rest }, ref) => {
+    const inputId = name || "password"
+    return (
+      <div>
+        <label htmlFor={inputId} className="block text-sm font-medium text-gray-600">
+          {label}
+        </label>
+        <div className="relative">
+          <input
+            id={inputId}
+            name={name}
+            type={showPassword ? "text" : "password"}
+            placeholder="Minimum 6 characters"
+            className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+              error ? "border-red-500" : "border-gray-300"
+            }`}
+            aria-invalid={error ? "true" : "false"}
+            aria-describedby={error ? `${inputId}-error` : undefined}
+            {...rest}
+            ref={ref}
+          />
+          <button
+            type="button"
+            onClick={toggleShow}
+            className="absolute right-3 top-3"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? <AiFillEyeInvisible /> : <AiFillEye />}
+          </button>
+        </div>
+        {error && (
+          <p id={`${inputId}-error`} className="text-red-600 text-sm mt-1" role="alert">
+            {error.message}
+          </p>
+        )}
+      </div>
+    )
+  },
+)
+PasswordInput.displayName = "PasswordInput"
 
 export default function SignUp() {
-  const [userType, setUserType] = useState("Donor");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [userType, setUserType] = useState("Donor")
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
-  } = useForm();
+  } = useForm()
 
   const onSubmit = async (data) => {
-    console.log("Form data:", data); // Debug log to verify values
-    setLoading(true);
+    setLoading(true)
     try {
-      if (!data.email || !data.password) {
-        throw new Error("Email and password are required");
-      }
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      const user = userCredential.user;
+      if (!data.email || !data.password) throw new Error("Email and password are required")
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password)
+      const user = userCredential.user
 
       const userDoc = {
         uid: user.uid,
@@ -48,54 +114,68 @@ export default function SignUp() {
         city: data.city || "",
         userType,
         createdAt: new Date(),
-      };
+      }
 
-      await setDoc(doc(firestore, "users", user.uid), userDoc);
+      await setDoc(doc(firestore, "users", user.uid), userDoc)
 
-      toast.success("🎉 User Successfully Signed Up!", { position: "top-right" });
+      toast.success("🎉 User Successfully Signed Up!", { position: "top-right" })
 
-      setLoading(false);
-      reset();
+      reset()
+      setLoading(false)
 
       setTimeout(() => {
-        router.push(userType === "Donor" ? "/donorDashboard" : "/orphanageDashboard");
-      }, 2000);
+        router.push(userType === "Donor" ? "/donorDashboard" : "/orphanageDashboard")
+      }, 2000)
     } catch (error) {
-      toast.error("❌ Error: " + error.message, { position: "top-right" });
-      setLoading(false);
+      toast.error("❌ Error: " + error.message, { position: "top-right" })
+      setLoading(false)
     }
-  };
+  }
 
   const handleGoogleSignUp = async () => {
-    setLoading(true);
+    setLoading(true)
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+      const provider = new GoogleAuthProvider()
+      provider.addScope("profile")
+      provider.addScope("email")
 
-      await setDoc(doc(firestore, "users", user.uid), {
-        uid: user.uid,
-        email: user.email,
-        fullName: user.displayName || "",
-        contactNumber: "",
-        userType: "Donor",
-        createdAt: new Date(),
-      });
+      const result = await signInWithPopup(auth, provider)
+      const user = result.user
 
-      toast.success("🎉 Signed Up with Google!", { position: "top-right" });
+      const userRef = doc(firestore, "users", user.uid)
+      const userDoc = await getDoc(userRef)
 
-      setLoading(false);
+      if (!userDoc.exists()) {
+        await setDoc(userRef, {
+          uid: user.uid,
+          email: user.email,
+          fullName: user.displayName || "",
+          contactNumber: "",
+          userType: "Donor",
+          createdAt: new Date(),
+        })
+      }
+
+      toast.success("🎉 Signed Up with Google!", { position: "top-right" })
+      setLoading(false)
 
       setTimeout(() => {
-        router.push("/donorDashboard");
-      }, 2000);
+        router.push("/donorDashboard")
+      }, 2000)
     } catch (error) {
-      toast.error("❌ Error: " + error.message, { position: "top-right" });
-      setLoading(false);
-    }
-  };
+      let errorMessage = error.message
+      if (error.code === "auth/popup-closed-by-user") {
+        errorMessage = "Sign-in popup was closed before completing the sign-in."
+      } else if (error.code === "auth/cancelled-popup-request") {
+        errorMessage = "Sign-in popup was cancelled."
+      }
 
-  if (loading) return <Loading />;
+      toast.error("❌ Error: " + errorMessage, { position: "top-right" })
+      setLoading(false)
+    }
+  }
+
+  
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50 px-4 sm:px-8">
@@ -103,16 +183,17 @@ export default function SignUp() {
       <div className="w-full max-w-md p-6 sm:p-8 bg-white shadow-lg rounded-lg">
         <h2 className="text-2xl font-bold text-center text-gray-700 mb-6">Sign Up</h2>
 
-        <div className="flex justify-center mb-4 flex-wrap">
+        <div className="flex justify-center mb-4 flex-wrap" role="tablist" aria-label="User Type">
           <button
             onClick={() => setUserType("Donor")}
             type="button"
             className={`w-24 py-2 text-sm sm:text-base font-medium rounded-l-md ${
-              userType === "Donor"
-                ? "bg-green-500 text-white"
-                : "bg-gray-200 text-gray-600"
+              userType === "Donor" ? "bg-green-500 text-white" : "bg-gray-200 text-gray-600"
             }`}
-            aria-pressed={userType === "Donor"}
+            aria-selected={userType === "Donor"}
+            role="tab"
+            id="donor-tab"
+            aria-controls="donor-panel"
           >
             Donor
           </button>
@@ -120,11 +201,12 @@ export default function SignUp() {
             onClick={() => setUserType("Orphanage")}
             type="button"
             className={`w-24 py-2 text-sm sm:text-base font-medium rounded-r-md ${
-              userType === "Orphanage"
-                ? "bg-green-500 text-white"
-                : "bg-gray-200 text-gray-600"
+              userType === "Orphanage" ? "bg-green-500 text-white" : "bg-gray-200 text-gray-600"
             }`}
-            aria-pressed={userType === "Orphanage"}
+            aria-selected={userType === "Orphanage"}
+            role="tab"
+            id="orphanage-tab"
+            aria-controls="orphanage-panel"
           >
             Orphanage
           </button>
@@ -149,10 +231,7 @@ export default function SignUp() {
             label="Password"
             {...register("password", {
               required: "Password is required",
-              minLength: {
-                value: 6,
-                message: "Password must be at least 6 characters",
-              },
+              minLength: { value: 6, message: "Password must be at least 6 characters" },
             })}
             error={errors.password}
             showPassword={showPassword}
@@ -217,7 +296,13 @@ export default function SignUp() {
               />
               <FormInput
                 label="License ID"
-                {...register("licenseId", { required: "License ID is required" })}
+                {...register("licenseId", {
+                  required: "License ID is required",
+                  pattern: {
+                    value: /^[A-Z0-9]{6,12}$/,
+                    message: "License ID must be 6-12 characters (uppercase letters and numbers only)",
+                  },
+                })}
                 error={errors.licenseId}
                 name="licenseId"
               />
@@ -243,79 +328,5 @@ export default function SignUp() {
         )}
       </div>
     </div>
-  );
+  )
 }
-
-const FormInput = React.forwardRef(({ label, type = "text", error, name, ...rest }, ref) => {
-  const inputId = name || label.replace(/\s+/g, "");
-  return (
-    <div>
-      <label htmlFor={inputId} className="block text-sm font-medium text-gray-600">
-        {label}
-      </label>
-      <input
-        id={inputId}
-        name={name}
-        type={type}
-        placeholder={`Enter ${label.toLowerCase()}`}
-        className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-          error ? "border-red-500" : "border-gray-300"
-        }`}
-        aria-invalid={error ? "true" : "false"}
-        aria-describedby={error ? `${inputId}-error` : undefined}
-        {...rest}
-        ref={ref}
-      />
-      {error && (
-        <p
-          id={`${inputId}-error`}
-          className="text-red-600 text-sm mt-1"
-          role="alert"
-        >
-          {error.message}
-        </p>
-      )}
-    </div>
-  );
-});
-
-const PasswordInput = React.forwardRef(
-  ({ label = "Password", error, showPassword, toggleShow, name, ...rest }, ref) => {
-    const inputId = name || "password";
-    return (
-      <div>
-        <label htmlFor={inputId} className="block text-sm font-medium text-gray-600">
-          {label}
-        </label>
-        <div className="relative">
-          <input
-            id={inputId}
-            name={name}
-            type={showPassword ? "text" : "password"}
-            placeholder="Minimum 6 characters"
-            className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-              error ? "border-red-500" : "border-gray-300"
-            }`}
-            aria-invalid={error ? "true" : "false"}
-            aria-describedby={error ? `${inputId}-error` : undefined}
-            {...rest}
-            ref={ref}
-          />
-          <button
-            type="button"
-            onClick={toggleShow}
-            className="absolute right-3 top-3"
-            aria-label={showPassword ? "Hide password" : "Show password"}
-          >
-            {showPassword ? <AiFillEyeInvisible /> : <AiFillEye />}
-          </button>
-        </div>
-        {error && (
-          <p id={`${inputId}-error`} className="text-red-600 text-sm mt-1" role="alert">
-            {error.message}
-          </p>
-        )}
-      </div>
-    );
-  }
-);
