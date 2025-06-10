@@ -2,30 +2,54 @@
 
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
-import { useRouter } from "next/navigation";
-import { firestore, auth } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, increment } from "firebase/firestore";
-import { withAuth } from "@/lib/withAuth";
+import { firestore } from "@/lib/firebase";
+import {
+  doc,
+  collection,
+  addDoc,
+  onSnapshot,
+  serverTimestamp,
+  getDoc,
+} from "firebase/firestore";
 
-function FundRaiserCard({
+const FundRaiserCard = ({
   id,
   bgImage,
   title,
   description,
-  raisedAmount,
+  raisedAmount: initialRaised,
   totalAmount,
-  filledhr,
   orphanageName,
-  user, // injected by withAuth HOC
-}) {
-  const router = useRouter();
+  user,
+}) => {
   const [showDonateModal, setShowDonateModal] = useState(false);
   const [donationAmount, setDonationAmount] = useState("");
   const [donating, setDonating] = useState(false);
+  const [userRole, setUserRole] = useState(user?.role);
+  const [raisedAmount, setRaisedAmount] = useState(initialRaised);
+  const [amountError, setAmountError] = useState("");
 
-  // Show modal only if user role is Donor
+  useEffect(() => {
+    if (!user?.uid || user?.role) return;
+    getDoc(doc(firestore, "users", user.uid)).then((snap) => {
+      if (snap.exists()) {
+        setUserRole(snap.data().userType);
+      }
+    });
+  }, [user]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(firestore, "fundraisers", id), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setRaisedAmount(data.raisedAmount || 0);
+      }
+    });
+    return () => unsub();
+  }, [id]);
+
   const checkDonorAccess = () => {
-    if (!user || user.role !== "Donor") {
+    if (!user || userRole !== "Donor") {
       alert("Only donors are allowed to donate.");
       return;
     }
@@ -35,34 +59,47 @@ function FundRaiserCard({
   const closeModal = () => {
     setShowDonateModal(false);
     setDonationAmount("");
+    setAmountError("");
   };
 
-  useEffect(() => {
-    if (showDonateModal) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [showDonateModal]);
-
   const handleDonate = async () => {
-    if (!donationAmount || Number(donationAmount) <= 0) {
-      alert("Please enter a valid donation amount.");
+    const trimmed = donationAmount.trim();
+    const amountNum = Number(trimmed);
+
+    if (!trimmed || isNaN(amountNum)) {
+      setAmountError("Please enter a valid numeric amount.");
       return;
     }
+
+    if (amountNum <= 0 || /^0\d+/.test(trimmed)) {
+      setAmountError("Amount must be greater than zero, no leading zeros.");
+      return;
+    }
+
+    if (amountNum > 1000000) {
+      setAmountError("Amount must be ≤ 1,000,000.");
+      return;
+    }
+
+    setAmountError("");
     setDonating(true);
+
     try {
-      const donationRef = doc(firestore, "fundraisers", id);
-      await updateDoc(donationRef, {
-        raisedAmount: increment(Number(donationAmount)),
+      const donorId = user?.uid;
+      if (!donorId) throw new Error("User not authenticated");
+
+      await addDoc(collection(firestore, "fundraisers", id, "donations"), {
+        donorId,
+        amount: amountNum,
+        status: "pending",
+        timestamp: serverTimestamp(),
       });
-      alert("Thank you for your donation!");
+
+      alert("✅ Thank you! Awaiting orphanage confirmation.");
       closeModal();
-    } catch (error) {
-      alert("Donation failed: " + error.message);
+    } catch (err) {
+      console.error("Donation failed:", err);
+      setAmountError("Donation failed: " + err.message);
     } finally {
       setDonating(false);
     }
@@ -73,9 +110,6 @@ function FundRaiserCard({
     return ReactDOM.createPortal(
       <div
         className="fixed inset-0 z-[9999] bg-black bg-opacity-50 flex items-center justify-center p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="donate-modal-title"
         onClick={closeModal}
       >
         <div
@@ -85,26 +119,33 @@ function FundRaiserCard({
           <button
             onClick={closeModal}
             aria-label="Close Modal"
-            className="absolute top-3 right-3 text-gray-700 hover:text-gray-900 text-xl font-bold leading-none"
+            className="absolute top-3 right-3 text-gray-700 hover:text-gray-900 text-xl font-bold"
           >
             &times;
           </button>
 
-          <h2 id="donate-modal-title" className="text-xl font-bold mb-4">
-            Donate to Fundraiser
-          </h2>
+          <h2 className="text-xl font-bold mb-4">Donate to Fundraiser</h2>
 
-          <label htmlFor="donationAmount" className="block mb-1 font-semibold">
+          <label className="block mb-1 font-semibold" htmlFor="donationAmount">
             Donation Amount
           </label>
           <input
             id="donationAmount"
-            type="number"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder="Enter amount (₹1 to ₹1,000,000)"
             value={donationAmount}
-            onChange={(e) => setDonationAmount(e.target.value)}
-            placeholder="Enter amount"
-            className="w-full border border-gray-300 rounded px-3 py-2 mb-4"
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              setDonationAmount(val);
+              setAmountError("");
+            }}
+            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500"
           />
+          {amountError && (
+            <p className="text-sm text-red-600 mt-1">{amountError}</p>
+          )}
 
           <button
             onClick={handleDonate}
@@ -118,6 +159,8 @@ function FundRaiserCard({
       document.body
     );
   };
+
+  const filledhr = Math.min((raisedAmount / totalAmount) * 100, 100);
 
   return (
     <>
@@ -133,7 +176,6 @@ function FundRaiserCard({
 
         <div className="p-6 flex flex-col gap-3">
           <h2 className="text-2xl font-extrabold text-gray-900 line-clamp-2">{title}</h2>
-
           <p className="text-sm text-gray-600 line-clamp-3">{description}</p>
 
           {orphanageName && (
@@ -144,7 +186,7 @@ function FundRaiserCard({
 
           <div className="w-full h-3 bg-gray-300 rounded-full overflow-hidden shadow-inner">
             <div
-              className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-width duration-500 ease-in-out"
+              className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-all duration-500 ease-in-out"
               style={{ width: `${filledhr}%` }}
             />
           </div>
@@ -153,19 +195,20 @@ function FundRaiserCard({
             Raised <span className="text-green-700">Rs. {raisedAmount}</span> of Rs. {totalAmount}
           </div>
 
-          <button
-            type="button"
-            onClick={checkDonorAccess}
-            className="mt-4 w-full py-3 rounded-xl text-white font-semibold bg-green-600 hover:bg-green-700 active:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors duration-200"
-          >
-            Donate
-          </button>
+          {user?.uid && userRole === "Donor" && (
+            <button
+              onClick={checkDonorAccess}
+              className="mt-4 w-full py-3 rounded-xl text-white font-semibold bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
+            >
+              Donate
+            </button>
+          )}
         </div>
       </div>
 
       {showDonateModal && <DonateModal />}
     </>
   );
-}
+};
 
-export default withAuth(FundRaiserCard, ["Donor"]);
+export default FundRaiserCard;

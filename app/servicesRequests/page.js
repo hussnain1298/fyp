@@ -42,14 +42,13 @@ export default function ServicesDisplay() {
 
         const allServices = svcSnap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
-          // Filter out fulfilled services older than 24 hours
           .filter((svc) => {
             if (svc.status !== "Fulfilled") return true;
-            if (!svc.fulfilledAt) return true; // fallback if no timestamp
+            if (!svc.fulfilledAt) return true;
             const fulfilledTime = svc.fulfilledAt.toMillis
               ? svc.fulfilledAt.toMillis()
               : new Date(svc.fulfilledAt).getTime();
-            return now - fulfilledTime < 24 * 60 * 60 * 1000; // less than 24 hours ago
+            return now - fulfilledTime < 24 * 60 * 60 * 1000;
           })
           .filter((svc) => orphanMap[svc.orphanageId])
           .map((svc) => ({
@@ -81,19 +80,29 @@ export default function ServicesDisplay() {
   }, [filtered, page]);
 
   const handleFulfill = async () => {
+    if (!modalService || !modalService.id) {
+      alert("Invalid service. Please refresh and try again.");
+      console.error("Missing modalService or ID", modalService);
+      return;
+    }
+
+    if (!donationNote.trim()) {
+      alert("Please enter a valid note.");
+      return;
+    }
+
     try {
-      await updateDoc(doc(firestore, "services", modalService.id), {
-        status: "Fulfilled",
-        lastFulfillmentNote: donationNote || "",
-        fulfilledAt: new Date(),
-      });
+      console.log("Fulfilling service:", modalService.id, donationNote);
+   await updateDoc(doc(firestore, "services", modalService.id), {
+  status: "In Progress", // ✅ allowed by rules
+  lastFulfillmentNote: donationNote.trim(),
+  lastFulfillmentTime: new Date().toISOString(),
+});
+
       alert(`Service "${modalService.title}" fulfilled!`);
       setModalService(null);
       setDonationNote("");
-      // Optionally, refetch services or update local state here
-      setServices((prev) =>
-        prev.filter((svc) => svc.id !== modalService.id)
-      );
+      setServices((prev) => prev.filter((svc) => svc.id !== modalService.id));
     } catch (err) {
       console.error("Fulfillment failed:", err);
       alert("Failed to fulfill the service. Please try again.");
@@ -151,14 +160,10 @@ export default function ServicesDisplay() {
 
               <div className="flex flex-col flex-grow gap-2">
                 <h3 className="text-xl font-bold text-green-800">{svc.title}</h3>
-
-               
-
-                <div className="mt-auto"
-                >
-                   <p className="text-gray-700 text-md flex-grow min-h-[10px] pb-6">
-                  {svc.description}
-                </p>
+                <div className="mt-auto">
+                  <p className="text-gray-700 text-md flex-grow min-h-[10px] pb-6">
+                    {svc.description}
+                  </p>
                   <p className="text-sm text-gray-500">
                     <strong>Orphanage:</strong> {svc.orphanInfo?.orgName || "N/A"}
                   </p>
@@ -207,7 +212,7 @@ export default function ServicesDisplay() {
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
             <h2 className="text-xl font-bold mb-4 text-green-900">Confirm Fulfillment</h2>
             <p className="mb-2">
-              Are you sure you want to fulfill the service: <strong>{modalService.title}</strong> for orphanage:{" "}
+              Are you sure you want to fulfill the service: <strong>{modalService.title}</strong> for orphanage: {" "}
               <strong>{modalService.orphanInfo?.orgName || "N/A"}</strong>?
             </p>
             <p className="mb-4">

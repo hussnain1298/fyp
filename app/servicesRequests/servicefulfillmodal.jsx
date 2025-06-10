@@ -1,11 +1,11 @@
+// ServiceFulfillModal.jsx
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useState } from "react";
 import { firestore } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, addDoc, collection } from "firebase/firestore";
+import { updateDoc, doc, addDoc, collection } from "firebase/firestore";
 
-function ServiceFulfillModal({ service, user, onFulfill }) {
+export default function ServiceFulfillModal({ service, user, onFulfill }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [donationNote, setDonationNote] = useState("");
@@ -20,11 +20,16 @@ function ServiceFulfillModal({ service, user, onFulfill }) {
       return;
     }
 
+    if (!donationNote.trim()) {
+      setError("Please enter a donation note.");
+      return;
+    }
+
     setProcessing(true);
     setError("");
 
     try {
-      // Create a donation linked to this service and orphanage
+      // Create donation linked to this service and orphanage
       await addDoc(collection(firestore, "donations"), {
         donorId: user.uid,
         donorEmail: user.email,
@@ -35,12 +40,11 @@ function ServiceFulfillModal({ service, user, onFulfill }) {
         timestamp: new Date(),
       });
 
-      // Update service status to In Progress (donor fulfillment initiated)
-      const serviceRef = doc(firestore, "services", service.id);
-      await updateDoc(serviceRef, {
+      // Update service status to In Progress with only allowed fields
+      await updateDoc(doc(firestore, "services", service.id), {
         status: "In Progress",
         lastFulfillmentNote: donationNote,
-        lastFulfillmentTime: new Date().toISOString(), // track timestamp for status update logic
+        lastFulfillmentTime: new Date().toISOString(),
       });
 
       alert("Service fulfillment submitted successfully!");
@@ -83,7 +87,7 @@ function ServiceFulfillModal({ service, user, onFulfill }) {
             </p>
 
             <textarea
-              placeholder="Add a donation note (optional)"
+              placeholder="Add a donation note (required)"
               className="w-full p-2 border border-gray-300 rounded mb-4 resize-none"
               rows={3}
               value={donationNote}
@@ -115,103 +119,5 @@ function ServiceFulfillModal({ service, user, onFulfill }) {
         </div>
       )}
     </>
-  );
-}
-
-export default function ServiceDetail() {
-  const { id } = useParams();
-  const [service, setService] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [user, setUser] = useState(null);
-
-  // Fetch service and orphanage info
-  const fetchService = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const docRef = doc(firestore, "services", id);
-      const docSnap = await getDoc(docRef);
-      if (!docSnap.exists()) {
-        setError("Service not found.");
-        setLoading(false);
-        return;
-      }
-      const serviceData = { id: docSnap.id, ...docSnap.data() };
-
-      // Remove services with status 'Fulfilled' older than 24 hours (cleanup logic)
-      if (serviceData.status === "Fulfilled" && serviceData.lastFulfillmentTime) {
-        const fulfillmentDate = new Date(serviceData.lastFulfillmentTime);
-        const now = new Date();
-        const hoursPassed = (now - fulfillmentDate) / (1000 * 60 * 60);
-        if (hoursPassed > 24) {
-          // Optionally delete document or exclude from display by returning early
-          setService(null);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Fetch orphanage info
-      if (serviceData.orphanageId) {
-        const orphanRef = doc(firestore, "users", serviceData.orphanageId);
-        const orphanSnap = await getDoc(orphanRef);
-        serviceData.orphanInfo = orphanSnap.exists() ? orphanSnap.data() : null;
-      }
-
-      setService(serviceData);
-    } catch (e) {
-      console.error(e);
-      setError("Failed to load service.");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    fetchService();
-  }, [fetchService]);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("userSession");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
-
-  if (loading) return <p className="text-center mt-10">Loading...</p>;
-  if (error) return <p className="text-center mt-10 text-red-600">{error}</p>;
-  if (!service) return <p className="text-center mt-10 text-gray-600">No service to display.</p>;
-
-  return (
-    <main className="max-w-3xl mx-auto p-6 bg-white rounded-lg shadow-lg mt-10 relative">
-      <h1 className="text-4xl font-bold mb-6 text-green-900">{service.title}</h1>
-      <p className="mb-6 text-lg text-green-800">{service.description}</p>
-
-      <div className="mb-6 text-green-700 space-y-2">
-        <p>
-          <span className="font-semibold">Orphanage:</span> {service.orphanInfo?.orgName || "N/A"}
-        </p>
-        <p>
-          <span className="font-semibold">Location:</span> {service.orphanInfo?.city || "N/A"}
-        </p>
-        <p>
-          <span className="font-semibold">Status:</span>{" "}
-          <span
-            className={`inline-block px-3 py-1 rounded-full text-white ${
-              service.status === "Pending"
-                ? "bg-yellow-500"
-                : service.status === "In Progress"
-                ? "bg-blue-600"
-                : "bg-green-600"
-            }`}
-          >
-            {service.status}
-          </span>
-        </p>
-      </div>
-
-      <ServiceFulfillModal service={service} user={user} onFulfill={fetchService} />
-    </main>
   );
 }
