@@ -49,6 +49,25 @@ export default function DonorMessages() {
     return () => unsubscribe();
   }, []);
 
+  // Listen to notifications for donor
+useEffect(() => {
+  if (!user) return;
+
+  const notifRef = collection(firestore, "notifications", user.uid, "userNotifications");
+  const notifQuery = query(notifRef, orderBy("timestamp", "desc"));
+
+  const unsubscribe = onSnapshot(notifQuery, (snapshot) => {
+    const updated = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate(),
+    }));
+    setNotifications(updated);
+  });
+
+  return () => unsubscribe();
+}, [user]);
+
   // Fetch chats where donor is participant, persist orphanageId if missing
   useEffect(() => {
     if (!user) {

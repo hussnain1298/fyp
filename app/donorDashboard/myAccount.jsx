@@ -9,7 +9,7 @@ import { signOut } from "firebase/auth";
 import AccountDetails from "./accountDetails";
 import FulfillRequests from "./fulfillRequest";
 import FulfillServices from "./fullfillServices";
-import FulfillFundraise from "./fullfillFundraise";
+
 import Dashboard from "./dashboard";
 import DonationsHistory from "./donationHistory";
 import Navbar from "../Navbar/page";
@@ -53,7 +53,7 @@ export default function MyAccount() {
               "Messages",
               "Fulfill Requests",
               "Fulfill Services",
-              "Fulfill FundRaise",
+             
               "Donations",
               "Logout",
             ].map((tab) => (
@@ -84,7 +84,7 @@ export default function MyAccount() {
           {activeTab === "Account details" && <AccountDetails />}
           {activeTab === "Fulfill Requests" && <FulfillRequests />}
           {activeTab === "Fulfill Services" && <FulfillServices />}
-          {activeTab === "Fulfill FundRaise" && <FulfillFundraise />}
+         
           {activeTab === "Donations" && <DonationsHistory />}
           {activeTab === "Profile " && <ProfilePage />}
           {activeTab === "Logout" && <LoginPage />}

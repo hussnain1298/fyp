@@ -1,41 +1,21 @@
-[debug] [2025-04-30T16:50:45.419Z] ----------------------------------------------------------------------
-[debug] [2025-04-30T16:50:45.422Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Ali\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js login
-[debug] [2025-04-30T16:50:45.423Z] CLI Version:   13.30.0
-[debug] [2025-04-30T16:50:45.423Z] Platform:      win32
-[debug] [2025-04-30T16:50:45.423Z] Node Version:  v22.12.0
-[debug] [2025-04-30T16:50:45.423Z] Time:          Wed Apr 30 2025 21:50:45 GMT+0500 (Pakistan Standard Time)
-[debug] [2025-04-30T16:50:45.424Z] ----------------------------------------------------------------------
+[debug] [2025-05-28T14:33:59.914Z] ----------------------------------------------------------------------
+[debug] [2025-05-28T14:33:59.917Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Ali\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js login
+[debug] [2025-05-28T14:33:59.918Z] CLI Version:   14.4.0
+[debug] [2025-05-28T14:33:59.918Z] Platform:      win32
+[debug] [2025-05-28T14:33:59.918Z] Node Version:  v22.12.0
+[debug] [2025-05-28T14:33:59.918Z] Time:          Wed May 28 2025 19:33:59 GMT+0500 (Pakistan Standard Time)
+[debug] [2025-05-28T14:33:59.918Z] ----------------------------------------------------------------------
 [debug] 
+[debug] [2025-05-28T14:33:59.921Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
 [info] i  Firebase optionally collects CLI and Emulator Suite usage and error reporting information to help improve our products. Data is collected in accordance with Google's privacy policy (https://policies.google.com/privacy) and is not used to identify you.
  
 [info] i  To change your data collection preference at any time, run `firebase logout` and log in again. 
 [info] 
 [info] Visit this URL on this device to log in:
-[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=1016564818&redirect_uri=http%3A%2F%2Flocalhost%3A9005
+[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=677142233&redirect_uri=http%3A%2F%2Flocalhost%3A9005
 [info] 
 [info] Waiting for authentication...
-[debug] [2025-04-30T16:50:50.366Z] Error: spawn cmd ENOENT
-    at ChildProcess._handle.onexit (node:internal/child_process:285:19)
-    at onErrorNT (node:internal/child_process:483:16)
-    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
-[error] 
-[error] Error: An unexpected error has occurred.
-[debug] [2025-04-30T16:52:42.960Z] ----------------------------------------------------------------------
-[debug] [2025-04-30T16:52:42.965Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Ali\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js login
-[debug] [2025-04-30T16:52:42.965Z] CLI Version:   14.2.1
-[debug] [2025-04-30T16:52:42.966Z] Platform:      win32
-[debug] [2025-04-30T16:52:42.966Z] Node Version:  v22.12.0
-[debug] [2025-04-30T16:52:42.966Z] Time:          Wed Apr 30 2025 21:52:42 GMT+0500 (Pakistan Standard Time)
-[debug] [2025-04-30T16:52:42.966Z] ----------------------------------------------------------------------
-[debug] 
-[info] i  Firebase optionally collects CLI and Emulator Suite usage and error reporting information to help improve our products. Data is collected in accordance with Google's privacy policy (https://policies.google.com/privacy) and is not used to identify you.
- 
-[info] 
-[info] Visit this URL on this device to log in:
-[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=614533185&redirect_uri=http%3A%2F%2Flocalhost%3A9005
-[info] 
-[info] Waiting for authentication...
-[debug] [2025-04-30T16:53:05.304Z] Error: spawn cmd ENOENT
+[debug] [2025-05-28T14:34:00.045Z] Error: spawn cmd ENOENT
     at ChildProcess._handle.onexit (node:internal/child_process:285:19)
     at onErrorNT (node:internal/child_process:483:16)
     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)

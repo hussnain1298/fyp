@@ -41,18 +41,24 @@ export default function ChatPage() {
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [loadingUserData, setLoadingUserData] = useState(true);
+
   const [chatExists, setChatExists] = useState(false);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [userType, setUserType] = useState(null);
+
   const [orphanageId, setOrphanageId] = useState(null);
   const [orphanageName, setOrphanageName] = useState(null);
+  const [loadingOrphanageName, setLoadingOrphanageName] = useState(false);
+
   const [donorId, setDonorId] = useState(null);
   const [donorName, setDonorName] = useState(null);
+  const [loadingDonorName, setLoadingDonorName] = useState(false);
+
   const [profilesCache, setProfilesCache] = useState({});
   const messagesEndRef = useRef(null);
 
-  // Listen for auth changes and fetch userType + IDs
+  // Auth + user data fetch
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
       setUser(currentUser);
@@ -87,69 +93,108 @@ export default function ChatPage() {
     return unsubscribe;
   }, []);
 
-  // Fetch orphanage name when orphanageId changes
+  // Fetch chat participants and set orphanage and donor IDs
+  useEffect(() => {
+    if (!chatId) return;
+
+    const fetchChatParticipants = async () => {
+      try {
+        const chatRef = doc(firestore, "chats", chatId);
+        const chatSnap = await getDoc(chatRef);
+        if (chatSnap.exists()) {
+          const chatData = chatSnap.data();
+          console.log("Chat data fetched:", chatData);  // Debug log
+
+          if (chatData.orphanageId) {
+            console.log("Setting orphanageId:", chatData.orphanageId);
+            setOrphanageId(chatData.orphanageId);
+          }
+
+          const donorIdFromChat =
+            chatData.donorId ||
+            (chatData.participants?.find((p) => p !== chatData.orphanageId) || null);
+
+          if (donorIdFromChat) {
+            console.log("Setting donorId:", donorIdFromChat);
+            setDonorId(donorIdFromChat);
+          }
+
+          setChatExists(true);
+        } else {
+          setChatExists(false);
+        }
+      } catch (error) {
+        console.error("Error fetching chat info:", error);
+        setChatExists(false);
+      }
+    };
+
+    fetchChatParticipants();
+  }, [chatId]);
+
+  // Fetch orphanage name whenever orphanageId changes
   useEffect(() => {
     if (!orphanageId) {
       setOrphanageName(null);
       return;
     }
+    setLoadingOrphanageName(true);
 
     const fetchOrphanageName = async () => {
       try {
+        console.log("Fetching orphanage user data for:", orphanageId);  // Debug log
         const orphanageRef = doc(firestore, "users", orphanageId);
         const orphanageDoc = await getDoc(orphanageRef);
         if (orphanageDoc.exists()) {
-          setOrphanageName(orphanageDoc.data().orgName || orphanageId);
+          const data = orphanageDoc.data();
+          console.log("Orphanage user data:", data);  // Debug log
+          setOrphanageName(data.orgName || orphanageId);
         } else {
+          console.warn("No orphanage user document found for ID:", orphanageId);
           setOrphanageName(orphanageId);
         }
       } catch (error) {
         console.error("Failed to fetch orphanage name:", error);
         setOrphanageName(orphanageId);
+      } finally {
+        setLoadingOrphanageName(false);
       }
     };
 
     fetchOrphanageName();
   }, [orphanageId]);
 
-  // Fetch donor name once chatId or orphanageId changes
+  // Fetch donor name when donorId changes
   useEffect(() => {
-    if (!chatId) return;
+    if (!donorId) {
+      setDonorName(null);
+      return;
+    }
+    setLoadingDonorName(true);
 
-    const fetchDonor = async () => {
+    const fetchDonorName = async () => {
       try {
-        const chatRef = doc(firestore, "chats", chatId);
-        const chatSnap = await getDoc(chatRef);
-        if (chatSnap.exists()) {
-          const chatData = chatSnap.data();
-          // If orphanageId missing, set it from chat data
-          if (!orphanageId && chatData.orphanageId) setOrphanageId(chatData.orphanageId);
-
-          // donorId is either in chatData.donorId or is the participant not orphanage
-          const donorIdFromChat = chatData.donorId || (chatData.participants?.find(p => p !== (orphanageId || null)) || null);
-
-          if (donorIdFromChat) {
-            setDonorId(donorIdFromChat);
-            const donorRef = doc(firestore, "users", donorIdFromChat);
-            const donorSnap = await getDoc(donorRef);
-            if (donorSnap.exists()) {
-              setDonorName(donorSnap.data().name || donorSnap.data().orgName || donorIdFromChat);
-            } else {
-              setDonorName("Unknown Donor");
-            }
-          }
-          setChatExists(true);
+        console.log("Fetching donor user data for:", donorId);  // Debug log
+        const donorRef = doc(firestore, "users", donorId);
+        const donorSnap = await getDoc(donorRef);
+        if (donorSnap.exists()) {
+          const data = donorSnap.data();
+          console.log("Donor user data:", data);  // Debug log
+          setDonorName(data.name || data.orgName || donorId);
         } else {
-          setChatExists(false);
+          console.warn("No donor user document found for ID:", donorId);
+          setDonorName("Unknown Donor");
         }
       } catch (error) {
-        console.error("Error fetching chat or donor info:", error);
-        setChatExists(false);
+        console.error("Failed to fetch donor name:", error);
+        setDonorName("Unknown Donor");
+      } finally {
+        setLoadingDonorName(false);
       }
     };
 
-    fetchDonor();
-  }, [chatId, orphanageId]);
+    fetchDonorName();
+  }, [donorId]);
 
   // Subscribe to messages
   useEffect(() => {
@@ -159,23 +204,23 @@ export default function ChatPage() {
     const q = query(messagesRef, orderBy("timestamp", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({
+      const msgs = snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
       setMessages(msgs);
       scrollToBottom();
 
       // Cache profiles for senders
-      const senderIds = Array.from(new Set(msgs.map(m => m.senderId)));
+      const senderIds = Array.from(new Set(msgs.map((m) => m.senderId)));
       senderIds.forEach(async (id) => {
         if (!profilesCache[id]) {
           try {
             const profileDoc = await getDoc(doc(firestore, "users", id));
             if (profileDoc.exists()) {
-              setProfilesCache(prev => ({ ...prev, [id]: profileDoc.data() }));
+              setProfilesCache((prev) => ({ ...prev, [id]: profileDoc.data() }));
             } else {
-              setProfilesCache(prev => ({ ...prev, [id]: null }));
+              setProfilesCache((prev) => ({ ...prev, [id]: null }));
             }
           } catch (err) {
             console.error("Failed to fetch profile for", id, err);
@@ -192,40 +237,52 @@ export default function ChatPage() {
   };
 
   // Send message handler
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !chatId || !user) return;
-    if (loadingUserData || !userType) {
-      console.warn("User data loading or userType unknown, cannot send message.");
-      return;
-    }
+const sendMessage = async () => {
+  if (!newMessage.trim() || !chatId || !user) return;
+  if (loadingUserData || !userType) {
+    console.warn("User data loading or userType unknown, cannot send message.");
+    return;
+  }
 
-    const messagesRef = collection(firestore, "chats", chatId, "messages");
-    await addDoc(messagesRef, {
-      senderId: user.uid,
-      text: newMessage.trim(),
-      timestamp: serverTimestamp(),
-    });
+  const messagesRef = collection(firestore, "chats", chatId, "messages");
+  await addDoc(messagesRef, {
+    senderId: user.uid,
+    text: newMessage.trim(),
+    timestamp: serverTimestamp(),
+  });
 
-    // Notify orphanage on donor message
-    if (userType === "Donor" && orphanageId) {
-      const notificationRef = doc(
-        firestore,
-        "notifications",
-        orphanageId,
-        "userNotifications",
-        chatId
-      );
-      await setDoc(notificationRef, {
-        chatId,
-        donorId: user.uid,
-        lastMessage: newMessage.trim(),
-        timestamp: serverTimestamp(),
-        read: false,
-      });
-    }
-
-    setNewMessage("");
+  const messagePayload = {
+    chatId,
+    lastMessage: newMessage.trim(),
+    timestamp: serverTimestamp(),
+    read: false,
   };
+
+  if (userType === "Donor" && orphanageId) {
+    await setDoc(
+      doc(firestore, "notifications", orphanageId, "userNotifications", chatId),
+      { ...messagePayload, donorId: user.uid },
+      { merge: true }
+    );
+  }
+
+if (userType === "Donor" && orphanageId) {
+  await setDoc(
+    doc(firestore, "notifications", orphanageId, "userNotifications", chatId),
+    {
+      chatId,
+      lastMessage: newMessage.trim(),
+      timestamp: serverTimestamp(),
+      read: false,
+      donorId: user.uid,
+    },
+    { merge: true }
+  );
+}
+
+
+  setNewMessage("");
+};
 
   // Mark notifications read for orphanage users
   useEffect(() => {
@@ -249,8 +306,8 @@ export default function ChatPage() {
     markNotificationRead();
   }, [chatId, user, orphanageId, userType]);
 
-  if (loadingAuth) {
-    return <p className="p-6 text-center">Loading authentication...</p>;
+  if (loadingAuth || loadingUserData || loadingOrphanageName || loadingDonorName) {
+    return <p className="p-6 text-center">Loading chat data...</p>;
   }
 
   if (!user) {
@@ -268,8 +325,19 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col max-w-3xl mx-auto h-screen">
       <header className="p-4 border-b bg-green-600 text-white font-semibold">
-        Orphanage: {orphanageName || orphanageId || "Unknown"}<br />
-        Donor: {donorName || donorId || "Unknown"}
+        Orphanage:{" "}
+        {loadingOrphanageName ? (
+          <span>Loading...</span>
+        ) : (
+          orphanageName || orphanageId || "Unknown"
+        )}
+        <br />
+        Donor:{" "}
+        {loadingDonorName ? (
+          <span>Loading...</span>
+        ) : (
+          donorName || donorId || "Unknown"
+        )}
       </header>
 
       <div className="flex-grow overflow-y-auto p-4 bg-gray-50">

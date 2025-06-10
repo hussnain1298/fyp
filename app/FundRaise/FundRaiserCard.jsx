@@ -1,38 +1,214 @@
-import React from "react";
-import { Poppins } from "next/font/google";
+"use client";
 
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-});
+import React, { useState, useEffect } from "react";
+import ReactDOM from "react-dom";
+import { firestore } from "@/lib/firebase";
+import {
+  doc,
+  collection,
+  addDoc,
+  onSnapshot,
+  serverTimestamp,
+  getDoc,
+} from "firebase/firestore";
 
-
-export default function FundRaiserCard({
+const FundRaiserCard = ({
+  id,
   bgImage,
   title,
   description,
-  raisedAmount,
+  raisedAmount: initialRaised,
   totalAmount,
-  filledhr,
-}) {
+  orphanageName,
+  user,
+}) => {
+  const [showDonateModal, setShowDonateModal] = useState(false);
+  const [donationAmount, setDonationAmount] = useState("");
+  const [donating, setDonating] = useState(false);
+  const [userRole, setUserRole] = useState(user?.role);
+  const [raisedAmount, setRaisedAmount] = useState(initialRaised);
+  const [amountError, setAmountError] = useState("");
+
+  useEffect(() => {
+    if (!user?.uid || user?.role) return;
+    getDoc(doc(firestore, "users", user.uid)).then((snap) => {
+      if (snap.exists()) {
+        setUserRole(snap.data().userType);
+      }
+    });
+  }, [user]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(firestore, "fundraisers", id), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setRaisedAmount(data.raisedAmount || 0);
+      }
+    });
+    return () => unsub();
+  }, [id]);
+
+  const checkDonorAccess = () => {
+    if (!user || userRole !== "Donor") {
+      alert("Only donors are allowed to donate.");
+      return;
+    }
+    setShowDonateModal(true);
+  };
+
+  const closeModal = () => {
+    setShowDonateModal(false);
+    setDonationAmount("");
+    setAmountError("");
+  };
+
+  const handleDonate = async () => {
+    const trimmed = donationAmount.trim();
+    const amountNum = Number(trimmed);
+
+    if (!trimmed || isNaN(amountNum)) {
+      setAmountError("Please enter a valid numeric amount.");
+      return;
+    }
+
+    if (amountNum <= 0 || /^0\d+/.test(trimmed)) {
+      setAmountError("Amount must be greater than zero, no leading zeros.");
+      return;
+    }
+
+    if (amountNum > 1000000) {
+      setAmountError("Amount must be ≤ 1,000,000.");
+      return;
+    }
+
+    setAmountError("");
+    setDonating(true);
+
+    try {
+      const donorId = user?.uid;
+      if (!donorId) throw new Error("User not authenticated");
+
+      await addDoc(collection(firestore, "fundraisers", id, "donations"), {
+        donorId,
+        amount: amountNum,
+        status: "pending",
+        timestamp: serverTimestamp(),
+      });
+
+      alert("✅ Thank you! Awaiting orphanage confirmation.");
+      closeModal();
+    } catch (err) {
+      console.error("Donation failed:", err);
+      setAmountError("Donation failed: " + err.message);
+    } finally {
+      setDonating(false);
+    }
+  };
+
+  const DonateModal = () => {
+    if (typeof window === "undefined") return null;
+    return ReactDOM.createPortal(
+      <div
+        className="fixed inset-0 z-[9999] bg-black bg-opacity-50 flex items-center justify-center p-4"
+        onClick={closeModal}
+      >
+        <div
+          className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm relative"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={closeModal}
+            aria-label="Close Modal"
+            className="absolute top-3 right-3 text-gray-700 hover:text-gray-900 text-xl font-bold"
+          >
+            &times;
+          </button>
+
+          <h2 className="text-xl font-bold mb-4">Donate to Fundraiser</h2>
+
+          <label className="block mb-1 font-semibold" htmlFor="donationAmount">
+            Donation Amount
+          </label>
+          <input
+            id="donationAmount"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder="Enter amount (₹1 to ₹1,000,000)"
+            value={donationAmount}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              setDonationAmount(val);
+              setAmountError("");
+            }}
+            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          {amountError && (
+            <p className="text-sm text-red-600 mt-1">{amountError}</p>
+          )}
+
+          <button
+            onClick={handleDonate}
+            disabled={donating}
+            className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded font-semibold transition"
+          >
+            {donating ? "Processing..." : "Donate Now"}
+          </button>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  const filledhr = Math.min((raisedAmount / totalAmount) * 100, 100);
+
   return (
-    <div className="min-w-[370px]  h-[100px] min-h-[500px] bg-white flex flex-col justify-between rounded-sm shadow-xl">
-      <img src={bgImage} alt="" className="w-[100%] h-2/3 rounded-t-sm" />
-      <div className="text-black h-1/2 flex flex-col gap-6 justify-center px-6">
-        <h2 className="text-2xl font-semibold">{title}</h2>
-        <p className="text-md text-gray-600">{description}</p>
-        <div className="relative w-full">
-          <hr className="w-full border-t-2 border-gray-300" />
-          <hr
-            className={`absolute top-0 left-0 ${filledhr} border-t-2 border-red-500`}
+    <>
+      <div className="w-full sm:w-[340px] bg-white rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300 ease-in-out">
+        <div className="relative h-64 overflow-hidden rounded-t-3xl shadow-inner">
+          <img
+            src={bgImage}
+            alt={title}
+            className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-300 ease-in-out"
+            loading="lazy"
           />
         </div>
-        <div>
-          <p>
-            Raised: <strong>Rs. {raisedAmount}</strong> of Rs. {totalAmount}
-          </p>
+
+        <div className="p-6 flex flex-col gap-3">
+          <h2 className="text-2xl font-extrabold text-gray-900 line-clamp-2">{title}</h2>
+          <p className="text-sm text-gray-600 line-clamp-3">{description}</p>
+
+          {orphanageName && (
+            <p className="text-sm font-semibold text-gray-500">
+              ORPHANAGE: <span className="font-thin">{orphanageName}</span>
+            </p>
+          )}
+
+          <div className="w-full h-3 bg-gray-300 rounded-full overflow-hidden shadow-inner">
+            <div
+              className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-all duration-500 ease-in-out"
+              style={{ width: `${filledhr}%` }}
+            />
+          </div>
+
+          <div className="text-sm text-gray-700 font-semibold">
+            Raised <span className="text-green-700">Rs. {raisedAmount}</span> of Rs. {totalAmount}
+          </div>
+
+          {user?.uid && userRole === "Donor" && (
+            <button
+              onClick={checkDonorAccess}
+              className="mt-4 w-full py-3 rounded-xl text-white font-semibold bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
+            >
+              Donate
+            </button>
+          )}
         </div>
       </div>
-    </div>
+
+      {showDonateModal && <DonateModal />}
+    </>
   );
-}
+};
+
+export default FundRaiserCard;
