@@ -1,16 +1,25 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Poppins } from "next/font/google";
-import { auth } from "@/lib/firebase"; // ✅ Import auth for logout
+import { auth, firestore } from "@/lib/firebase"; // Import firestore for notifications
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  orderBy,
+} from "firebase/firestore";
 
 import OrphanageDashboard from "./dashboard";
 import Navbar from "../Navbar/page";
 import AccountDetails from "./accountDetails";
-import AddressSection from "./addressSection";
-import LoginPage from "../login/page";
 import Request from "./requests";
+import Services from "./service";
+import FundRaise from "./fundraise";
+import ConfirmedRequests from "./confirmdonations";
+import Messages from "./messages";
 
 // Importing Poppins Font
 const poppins = Poppins({
@@ -20,17 +29,52 @@ const poppins = Poppins({
 
 export default function MyAccount() {
   const [activeTab, setActiveTab] = useState("Dashboard");
+  const [notifications, setNotifications] = useState([]);
+  const [user, setUser] = useState(null);
   const router = useRouter();
 
-  // ✅ Proper Logout Function
+  // Listen for auth state change to get current user
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Firestore listener for orphanage notifications (unread only)
+  useEffect(() => {
+    if (!user) return;
+
+    const notificationsRef = collection(firestore, "notifications", user.uid, "userNotifications");
+    
+    const q = query(notificationsRef, where("read", "==", false), orderBy("timestamp", "desc"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const notifs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setNotifications(notifs);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Logout function
   const handleLogout = async () => {
     try {
-      await auth.signOut(); // 🔹 Sign the user out of Firebase
-      localStorage.removeItem("userSession"); // 🔹 Remove session data
-      router.push("/login"); // 🔹 Redirect to login
+      await auth.signOut();
+      localStorage.removeItem("userSession");
+      router.push("/login");
     } catch (error) {
-      console.error("🔥 Error Logging Out:", error.message);
+      console.error(" Error Logging Out:", error.message);
     }
+  };
+
+  // Handle click on notification: Open chat page for that chat
+  const openChatFromNotification = (chatId) => {
+    if (!chatId) return;
+    router.push(`/chat?chatId=${chatId}`);
   };
 
   return (
@@ -41,45 +85,106 @@ export default function MyAccount() {
       {/* Main Account Section */}
       <div className="flex flex-col lg:flex-row mt-8 gap-10">
         {/* Sidebar Navigation */}
-        <aside className="w-full lg:w-1/4 bg-white shadow-md p-6 mt-10">
+        <aside className="w-full lg:w-1/4 bg-white shadow-md p-6 mt-20">
           <ul className="space-y-2">
-            {["Dashboard", "Services", "Requests", "Addresses", "Account details", "Logout"].map((tab) => (
+            {["Dashboard","Account details","Messages", "Requests", "Services", "Fund Raise", "Donations", "Logout"].map((tab) => (
               <li
                 key={tab}
                 onClick={() => {
                   if (tab === "Logout") {
-                    handleLogout(); // ✅ Call Logout Function
+                    handleLogout();
                   } else {
                     setActiveTab(tab);
                   }
                 }}
-                className={`p-3 cursor-pointer ${
+                className={`p-3 cursor-pointer flex justify-between items-center ${
                   activeTab === tab ? "bg-gray-200 font-bold" : "hover:bg-gray-100"
                 }`}
               >
                 {tab}
+                {/* Show notification badge only on Requests tab */}
+                {tab === "Messages" && notifications.length > 0 && (
+                  <span className="bg-red-600 text-white rounded-full px-2 text-xs font-semibold">
+                    {notifications.length}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
+
+        
+          
         </aside>
 
         {/* Main Content Section */}
         <div className="w-full lg:w-3/4 mt-18">
-          {/* Greeting Message - Always Visible */}
-          <p className="text-lg font-medium">
-            Hello <span className="font-bold">CareConnect.</span> (not{" "}
-            <span className="font-bold">careconnect.com</span>?{" "}
-            <button onClick={handleLogout} className="text-blue-500 ml-1">
-              Log out
-            </button>
-            )
-          </p>
-
-          {/* Dynamic Content Based on Active Tab */}
-          {activeTab === "Dashboard" && <OrphanageDashboard />}
-          {activeTab === "Account details" && <AccountDetails />}
-          {activeTab === "Addresses" && <AddressSection />}
-          {activeTab === "Requests" && <Request />}
+          <div className="mt-8">
+            {activeTab === "Dashboard" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <OrphanageDashboard />
+              </motion.div>
+            )}
+             
+            {activeTab === "Account details" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <AccountDetails />
+              </motion.div>
+            )}
+            {activeTab === "Messages" && (
+  <motion.div
+    initial={{ opacity: 0, y: -20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.8 }}
+  >
+    <Messages />
+  </motion.div>
+)}
+           
+            {activeTab === "Donations" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <ConfirmedRequests />
+              </motion.div>
+            )}
+            {activeTab === "Requests" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <Request />
+              </motion.div>
+            )}
+            {activeTab === "Services" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <Services />
+              </motion.div>
+            )}
+            {activeTab === "Fund Raise" && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <FundRaise />
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
     </section>

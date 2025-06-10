@@ -39,18 +39,18 @@ export default function OrphanageDashboard() {
         transition={{ duration: 0.8 }}
       >
         {/* ✅ Display User Name or Email */}
-        <h1 className="mt-2 mb-2 text-2xl font-bold">
-          WELCOME {user?.fullName ? user.fullName : user?.email || ""}
-        </h1>
+        <h1 className="mt-6 mb-2 text-2xl font-bold">
+  WELCOME {user?.orgName ? user.orgName : user?.email || ""}
+</h1>
         
         <p className="text-gray-600">
           From your account dashboard, you can view your{" "}
           <span className="text-blue-500 cursor-pointer">recent Donations</span>,
-          manage your{" "}
-          <span className="text-blue-500 cursor-pointer">Transaction charges</span> and{" "}
-          <span className="text-blue-500 cursor-pointer">billing addresses</span>, 
+          chat with{" "}
+          <span className="text-blue-500 cursor-pointer">Donors </span> 
           and edit your{" "}
-          <span className="text-blue-500 cursor-pointer">password</span> and account details.
+          <span className="text-blue-500 cursor-pointer">password</span> and   
+          <span className="text-blue-500 cursor-pointer"> account details.</span>
         </p>
 
         {/* Dashboard Icons */}
@@ -61,7 +61,7 @@ export default function OrphanageDashboard() {
           </div>
           <div className="border p-6 flex flex-col items-center cursor-pointer hover:bg-gray-100 transition rounded-lg">
             <FaDownload className="text-gray-600 text-2xl mb-2" />
-            <p className="text-gray-700 font-semibold">DOWNLOADS</p>
+            <p className="text-gray-700 font-semibold">MESSAGES</p>
           </div>
           <div className="border p-6 flex flex-col items-center cursor-pointer hover:bg-gray-100 transition rounded-lg">
             <FaMapMarkerAlt className="text-gray-600 text-2xl mb-2" />

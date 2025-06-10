@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link"; // Import Next.js Link
 import { Poppins } from "next/font/google";
 import Navbar from "../Navbar/page";
-
+import Footer from "../footer/page";
 export default function Services() {
   const services = [
     {
@@ -40,7 +40,7 @@ export default function Services() {
 
   return (
     <section className="py-12 ">
-      <Navbar />
+      
       <div className="container mx-auto text-center mt-24">
         <h2 className="text-4xl font-bold text-gray-800 text-center">
           OUR SERVICES
@@ -85,6 +85,8 @@ export default function Services() {
         className="my-12 h-px border-t-0 bg-transparent bg-gradient-to-r 
       from-transparent via-neutral-500 to-transparent opacity-25 dark:via-neutral-400"
       />
+      
     </section>
+    
   );
 }

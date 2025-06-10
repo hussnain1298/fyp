@@ -84,71 +84,69 @@ export default function Footer() {
   };
 
   return (
-    <footer className="bg-gray-100 pt-10 pb-2 px-10 mt-14 w-full m-auto">
-      <div className="container mx-20 ">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-          {/* Links Sections */}
-          {Object.entries(footerLinks).map(([category, links]) => (
-            <div key={category}>
-              <h3 className="font-semibold text-sm text-gray-900 mb-2 md:mb-4">
-                {category}
-              </h3>
-              <ul className="space-y-3">
-                {links.map((link) => (
-                  <li key={link.name}>
-                    <Link
-                      href={link.href}
-                      className="text-gray-600 hover:text-gray-900 text-sm"
-                    >
-                      {link.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-          <div className="flex flex-col gap-4 items-start">
-            {/* Email Input & Subscribe Button */}
-            <input
-              className="w-5/6 px-3 py-2"
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <button
-              className="bg-green-600 text-white px-4 py-2 rounded-md"
-              onClick={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? "Subscribing..." : "Subscribe Now"}
-            </button>
-
-            {/* Success & Error Messages */}
-            {error && <p className="text-red-500 mt-4">{error}</p>}
-            {success && <p className="text-green-500 mt-4">{success}</p>}
-          </div>
+    <footer className="bg-gray-100 pt-10 pb-2 px-4 sm:px-6 lg:px-12 mt-14 w-full">
+  <div className="max-w-7xl mx-auto">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
+      {/* Link Sections */}
+      {Object.entries(footerLinks).map(([category, links]) => (
+        <div key={category}>
+          <h3 className="font-semibold text-sm text-gray-900 mb-4">
+            {category}
+          </h3>
+          <ul className="space-y-2">
+            {links.map((link) => (
+              <li key={link.name}>
+                <Link
+                  href={link.href}
+                  className="text-gray-600 hover:text-gray-900 text-sm"
+                >
+                  {link.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
+      ))}
 
-        {/* Social Media Links */}
-        <div className="flex justify-center space-x-6 py-4">
-          {socialLinks.map(({ icon, href, label }) => (
-            <a
-              key={label}
-              href={href}
-              aria-label={label}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              {icon}
-            </a>
-          ))}
-        </div>
-
-        {/* Copyright */}
-        <div className="text-center py-4 text-gray-500 text-sm">
-          © 2025 CareConnect, Inc. All rights reserved.
-        </div>
+      {/* Subscribe Section */}
+      <div className="flex flex-col gap-4">
+        <input
+          className="w-full px-3 py-2 border rounded-sm text-sm"
+          type="email"
+          placeholder="Enter your email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <button
+          className="bg-green-600 text-white px-4 py-2 text-sm rounded-md w-fit sm:w-auto"
+          onClick={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? "Subscribing..." : "Subscribe Now"}
+        </button>
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {success && <p className="text-green-600 text-sm">{success}</p>}
       </div>
-    </footer>
-  );
-}
+    </div>
+
+    {/* Social Media Links */}
+    <div className="flex justify-center mt-10 space-x-6">
+      {socialLinks.map(({ icon, href, label }) => (
+        <a
+          key={label}
+          href={href}
+          aria-label={label}
+          className="text-gray-400 hover:text-gray-600 text-lg"
+        >
+          {icon}
+        </a>
+      ))}
+    </div>
+
+    {/* Copyright */}
+    <div className="text-center mt-6 text-gray-500 text-sm">
+      © 2025 CareConnect, Inc. All rights reserved.
+    </div>
+  </div>
+</footer>
+  )}
