@@ -124,7 +124,7 @@ const FundRaising = () => {
   return (
     <div className="bg-gray-50 w-full min-h-screen px-4 py-20 relative">
       <div className="text-center max-w-4xl mx-auto mb-8">
-        <h2 className="text-3xl sm:text-4xl font-bold text-gray-800">
+        <h2 className="text-3xl sm:text-4xl font-bold text-red-800">
           Fund Raising
         </h2>
         <p className="text-lg sm:text-xl text-gray-500 mt-4">
