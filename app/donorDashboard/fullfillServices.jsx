@@ -32,12 +32,10 @@ export default function FulfillServices() {
       setError("");
       try {
         const serviceSnapshot = await getDocs(collection(firestore, "services"));
-        const serviceList = serviceSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const serviceList = serviceSnapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((service) => service.status === "Pending");
 
-        // Extract unique orphanageIds
         const orphanageIds = [
           ...new Set(serviceList.map((s) => s.orphanageId).filter(Boolean)),
         ];
@@ -62,14 +60,13 @@ export default function FulfillServices() {
           }
         }
 
-        // Merge orphanage info into services
         const mergedServices = serviceList.map((service) => ({
           ...service,
           orphanInfo: orphanageMap[service.orphanageId] || null,
         }));
 
         setServices(mergedServices);
-        setPage(1); // reset to first page on fetch
+        setPage(1);
       } catch (err) {
         setError("Failed to load services: " + err.message);
       } finally {
@@ -101,14 +98,13 @@ export default function FulfillServices() {
     }
   };
 
-  // Calculate pagination
   const totalPages = Math.ceil(services.length / pageSize);
   const paginatedServices = services.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
       <div className="container mx-auto p-8 mt-16">
-        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">Services</h2>
+        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">SERVICES</h2>
 
         {error && <p className="text-red-500 text-center mt-4">{error}</p>}
         {loading && <p className="text-gray-500 text-center mt-4">Loading...</p>}
@@ -120,9 +116,7 @@ export default function FulfillServices() {
             paginatedServices.map((service) => (
               <div key={service.id} className="relative bg-gray-100 p-6 rounded-lg shadow-md">
                 <span
-                  className={`absolute top-4 right-4 px-3 py-1 rounded-full text-white text-sm font-semibold ${
-                    service.status === "Pending" ? "bg-yellow-500" : "bg-green-600"
-                  }`}
+                  className="absolute top-4 right-4 px-3 py-1 rounded-full text-white text-sm font-semibold bg-yellow-500"
                 >
                   {service.status}
                 </span>
@@ -138,17 +132,7 @@ export default function FulfillServices() {
 
                 <div className="flex space-x-4 mt-6">
                   <button
-                    className="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition"
-                    onClick={() =>
-                      router.push(
-                        `/chat?serviceId=${service.id}&userEmail=${auth.currentUser?.email}`
-                      )
-                    }
-                  >
-                    View Chat
-                  </button>
-                  <button
-                    className="bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 transition"
+                    className="px-5 py-2 rounded-md text-white bg-green-600 hover:bg-green-700"
                     onClick={() => setActiveModalId(service.id)}
                   >
                     Fulfill
@@ -161,7 +145,7 @@ export default function FulfillServices() {
                       <h2 className="text-xl font-bold mb-4 text-green-900">Confirm Fulfillment</h2>
 
                       <p className="mb-2">
-                        Are you sure you want to fulfill this service for the orphanage:{" "}
+                        Are you sure you want to fulfill this service for the orphanage: {" "}
                         <span className="font-semibold">{service.orphanInfo?.orgName || "N/A"}</span>?
                       </p>
                       <p className="mb-4">
@@ -203,7 +187,6 @@ export default function FulfillServices() {
           )}
         </div>
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex justify-center mt-8 space-x-2">
             {[...Array(totalPages)].map((_, idx) => {

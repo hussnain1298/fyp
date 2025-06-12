@@ -106,7 +106,7 @@ export default function DonationsHistory() {
     <section className="container mx-auto px-6 py-12">
       <div className="w-full">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-3xl font-bold">Donation History</h2>
+          <h2 className="text-3xl font-bold text-center">DONATION HISTORY </h2>
           <div className="flex gap-2">
             <button onClick={exportPDF} className="bg-red-600 text-white px-3 py-2 rounded hover:bg-red-700">
               Export PDF
