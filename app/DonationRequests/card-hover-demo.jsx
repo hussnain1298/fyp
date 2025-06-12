@@ -1,3 +1,4 @@
+// Updated RequestsHoverDemo.jsx with dynamic modal inputs and donation handling
 "use client";
 
 import { useEffect, useState } from "react";
@@ -37,7 +38,6 @@ export default function RequestsHoverDemo() {
   const [user, setUser] = useState(null);
   const [userType, setUserType] = useState(null);
 
-  // Geolocation fetch with error handling
   useEffect(() => {
     navigator.geolocation?.getCurrentPosition(
       async ({ coords }) => {
@@ -45,22 +45,16 @@ export default function RequestsHoverDemo() {
           const res = await fetch(
             `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${coords.latitude}&longitude=${coords.longitude}&localityLanguage=en`
           );
-          if (!res.ok) throw new Error("Failed to fetch location");
           const data = await res.json();
           setCity(data.city || data.locality || data.principalSubdivision || "Unknown");
-        } catch (err) {
-          console.error("Geolocation fetch error:", err);
+        } catch {
           setCity("Unknown");
         }
       },
-      (error) => {
-        console.error("Geolocation error:", error);
-        setCity("Unknown");
-      }
+      () => setCity("Unknown")
     );
   }, []);
 
-  // Cleanup fulfilled requests older than 24 hours
   useEffect(() => {
     const cleanupOldFulfilledRequests = async () => {
       const q = query(collection(firestore, "requests"), where("status", "==", "Fulfilled"));
@@ -69,11 +63,8 @@ export default function RequestsHoverDemo() {
       snapshot.forEach(async (docSnap) => {
         const data = docSnap.data();
         const fulfilledAt = data.fulfilledAt || data.updatedAt || data.timestamp;
-        if (fulfilledAt) {
-          const diffHours = (now.seconds - fulfilledAt.seconds) / 3600;
-          if (diffHours >= 24) {
-            await deleteDoc(doc(firestore, "requests", docSnap.id));
-          }
+        if (fulfilledAt && (now.seconds - fulfilledAt.seconds) / 3600 >= 24) {
+          await deleteDoc(doc(firestore, "requests", docSnap.id));
         }
       });
     };
@@ -91,11 +82,7 @@ export default function RequestsHoverDemo() {
       orphanSnap.forEach((doc) => {
         const data = doc.data();
         const cityMatch = (data.city || "").trim().toLowerCase();
-        if (
-          !normalizedCity ||
-          ["detecting...", "unknown"].includes(normalizedCity) ||
-          cityMatch === normalizedCity
-        ) {
+        if (!normalizedCity || ["detecting...", "unknown"].includes(normalizedCity) || cityMatch === normalizedCity) {
           orphanMap[doc.id] = data;
         }
       });
@@ -123,42 +110,26 @@ export default function RequestsHoverDemo() {
 
   useEffect(() => {
     const start = (page - 1) * pageSize;
-    const filtered =
-      selectedType === "All"
-        ? cityFilteredRequests
-        : cityFilteredRequests.filter(
-            (r) => r.requestType.toLowerCase() === selectedType.toLowerCase()
-          );
+    const filtered = selectedType === "All"
+      ? cityFilteredRequests
+      : cityFilteredRequests.filter((r) => r.requestType.toLowerCase() === selectedType.toLowerCase());
     setFilteredRequests(filtered.slice(start, start + pageSize));
   }, [selectedType, cityFilteredRequests, page]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (u) => {
       setUser(u);
-      if (!u) {
-        setUserType(null);
-        return;
-      }
+      if (!u) return setUserType(null);
       const snap = await getDoc(doc(firestore, "users", u.uid));
-      const data = snap.exists() ? snap.data() : {};
-      setUserType(data.userType || null);
+      setUserType(snap.exists() ? snap.data().userType : null);
     });
     return unsubscribe;
   }, []);
 
   const handleDonateClick = (req) => {
-    if (!user) {
-      alert("Please login to donate.");
-      return;
-    }
-    if (userType !== "Donor") {
-      alert("Only donors can make donations.");
-      return;
-    }
-    if (req.status === "Fulfilled") {
-      alert("This request is fulfilled and no longer accepting donations.");
-      return;
-    }
+    if (!user) return alert("Please login to donate.");
+    if (userType !== "Donor") return alert("Only donors can make donations.");
+    if (req.status === "Fulfilled") return alert("This request is fulfilled.");
     setActiveModalId(req.id);
     setDonationNote("");
     setDonationAmount("");
@@ -168,19 +139,12 @@ export default function RequestsHoverDemo() {
   const handleDonationSubmit = async (req) => {
     setError("");
     try {
-      if (!user) {
-        setError("You must be logged in to donate.");
-        return;
-      }
+      if (!user) return setError("Login required.");
+      if (req.status === "Fulfilled") return setError("Request already fulfilled.");
 
-      if (req.status === "Fulfilled") {
-        setError("Cannot donate to a fulfilled request.");
-        return;
-      }
-
-      if (req.requestType === "Money" && (!donationAmount || Number(donationAmount) <= 0)) {
-        setError("Please enter a valid donation amount.");
-        return;
+      if ((req.requestType === "Money" || req.requestType === "Clothes") &&
+        (!donationAmount || isNaN(donationAmount) || Number(donationAmount) <= 0)) {
+        return setError("Enter a valid amount.");
       }
 
       const donationData = {
@@ -190,14 +154,12 @@ export default function RequestsHoverDemo() {
         requestId: req.id,
         donationType: req.requestType,
         amount: req.requestType === "Money" ? Number(donationAmount) : null,
-        numClothes: req.requestType === "Clothes" ? req.quantity || null : null,
+        numClothes: req.requestType === "Clothes" ? Number(donationAmount) : null,
         foodDescription: req.requestType === "Food" ? req.description : null,
         description: donationNote || "",
         confirmed: false,
         timestamp: serverTimestamp(),
       };
-
-      console.log("Donation data to submit:", donationData);
 
       const donationRef = await addDoc(collection(firestore, "donations"), donationData);
 
@@ -210,7 +172,6 @@ export default function RequestsHoverDemo() {
       setDonationAmount("");
       alert("Donation submitted for review.");
     } catch (err) {
-      console.error("Donation submission error:", err);
       setError("Donation failed: " + err.message);
     }
   };
@@ -218,8 +179,7 @@ export default function RequestsHoverDemo() {
   const totalPages = Math.ceil(
     (selectedType === "All"
       ? cityFilteredRequests.length
-      : cityFilteredRequests.filter((r) => r.requestType.toLowerCase() === selectedType.toLowerCase()).length) /
-      pageSize
+      : cityFilteredRequests.filter((r) => r.requestType.toLowerCase() === selectedType.toLowerCase()).length) / pageSize
   );
 
   return (
@@ -234,7 +194,7 @@ export default function RequestsHoverDemo() {
             value={userCityFilter}
             onChange={(e) => setUserCityFilter(e.target.value)}
             placeholder="Filter by city"
-            className="border-b border-gray-300 focus:outline-none focus:border-green-600 px-2 py-1"
+            className="border-b border-gray-300 px-2 py-1"
           />
         </div>
 
@@ -242,10 +202,7 @@ export default function RequestsHoverDemo() {
           {"All,Food,Money,Clothes".split(",").map((type) => (
             <button
               key={type}
-              onClick={() => {
-                setSelectedType(type);
-                setPage(1);
-              }}
+              onClick={() => { setSelectedType(type); setPage(1); }}
               className={`px-4 py-2 rounded border ${
                 selectedType === type ? "bg-green-600 text-white" : "border-gray-300"
               }`}
@@ -264,22 +221,21 @@ export default function RequestsHoverDemo() {
             {filteredRequests.map((req) => (
               <div key={req.id} className="p-5 border rounded-lg shadow bg-white">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-semibold text-lg">
-                    {req.requestType === "Other" && req.quantity ? req.quantity : req.requestType}
-                  </h3>
-                  <span
-                    className={`inline-block px-2 py-1 rounded text-white text-xs ${
-                      req.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
-                    }`}
-                  >
+                  <h3 className="font-semibold text-lg">{req.title || req.requestType}</h3>
+                  <span className={`inline-block px-2 py-1 rounded text-white text-xs ${
+                    req.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
+                  }`}>
                     {req.status}
                   </span>
                 </div>
                 <p className="text-gray-600 mb-2">{req.description}</p>
-
+                {req.quantity && (
+                  <p className="text-sm text-gray-600 mb-1">
+                    Needed: {req.quantity}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500">Orphanage: {req.orphanInfo?.orgName || "N/A"}</p>
                 <p className="text-sm text-gray-500 mb-4">Location: {req.orphanInfo?.city || "N/A"}</p>
-
                 <button
                   onClick={() => handleDonateClick(req)}
                   disabled={req.status === "Fulfilled"}
@@ -309,56 +265,53 @@ export default function RequestsHoverDemo() {
         </div>
       </div>
 
-      {activeModalId && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
-          <div className="bg-white p-6 rounded shadow-xl w-full max-w-md">
-            <h3 className="text-lg font-bold mb-4">Add Donation Note</h3>
+      {/* Donation Modal */}
+      {activeModalId && (() => {
+        const req = filteredRequests.find((r) => r.id === activeModalId);
+        if (!req) return null;
+        const isMoney = req.requestType === "Money";
+        const isClothes = req.requestType === "Clothes";
 
-            <textarea
-              value={donationNote}
-              onChange={(e) => setDonationNote(e.target.value)}
-              placeholder="Write something about your donation..."
-              rows={4}
-              className="w-full border border-gray-300 rounded p-2"
-            />
-
-            {filteredRequests.find((r) => r.id === activeModalId)?.requestType === "Money" && (
-              <div className="mt-4">
-                <label className="block font-semibold text-sm mb-1">Donation Amount</label>
-                <input
-                  type="number"
-                  value={donationAmount}
-                  onChange={(e) => setDonationAmount(e.target.value)}
-                  placeholder="Enter donation amount"
-                  className="w-full border border-gray-300 rounded p-2"
-                  required
-                  min={1}
-                />
+        return (
+          <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
+            <div className="bg-white p-6 rounded shadow-xl w-full max-w-md">
+              <h3 className="text-lg font-bold mb-4">Add Donation Note</h3>
+              <textarea
+                value={donationNote}
+                onChange={(e) => setDonationNote(e.target.value)}
+                placeholder="Write something about your donation..."
+                rows={4}
+                className="w-full border border-gray-300 rounded p-2"
+              />
+              {(isMoney || isClothes) && (
+                <div className="mt-4">
+                  <label className="block font-semibold text-sm mb-1">
+                    {isMoney ? "Donation Amount" : "Clothes Quantity"}
+                  </label>
+                  <input
+                    type="number"
+                    value={donationAmount}
+                    onChange={(e) => setDonationAmount(e.target.value)}
+                    placeholder={isMoney ? "Enter donation amount" : "Enter clothes quantity"}
+                    className="w-full border border-gray-300 rounded p-2"
+                    required
+                    min={1}
+                  />
+                </div>
+              )}
+              {error && <p className="text-red-600 mt-2">{error}</p>}
+              <div className="flex justify-end gap-2 mt-4">
+                <button onClick={() => setActiveModalId(null)} className="px-4 py-2 border rounded hover:bg-gray-100">
+                  Cancel
+                </button>
+                <button onClick={() => handleDonationSubmit(req)} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                  Submit
+                </button>
               </div>
-            )}
-
-            {error && <p className="text-red-600 mt-2">{error}</p>}
-
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => setActiveModalId(null)}
-                className="px-4 py-2 border rounded hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const req = filteredRequests.find((r) => r.id === activeModalId);
-                  if (req) handleDonationSubmit(req);
-                }}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Submit
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </>
   );
 }
