@@ -10,7 +10,8 @@ import {
   doc,
   updateDoc,
   addDoc,
-  arrayUnion
+  arrayUnion,
+  where
 } from "firebase/firestore";
 import { Poppins } from "next/font/google";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +33,6 @@ const FulfillRequests = () => {
     const fetchRequests = async () => {
       setLoading(true);
       setError("");
-
       const user = auth.currentUser;
       if (!user) {
         setError("You must be logged in to view requests.");
@@ -41,14 +41,39 @@ const FulfillRequests = () => {
       }
 
       try {
-        const q = query(collection(firestore, "requests"));
-        const querySnapshot = await getDocs(q);
-        const requestList = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
+        const reqSnap = await getDocs(query(collection(firestore, "requests")));
+        const reqList = await Promise.all(reqSnap.docs.map(async (docRef) => {
+          const data = docRef.data();
+          const donationSnap = await getDocs(
+            query(
+              collection(firestore, "donations"),
+              where("requestId", "==", docRef.id),
+              where("confirmed", "==", true)
+            )
+          );
+          let totalDonated = 0;
+          donationSnap.forEach(d => {
+            if (data.requestType === "Money") {
+              totalDonated += Number(d.data().amount || 0);
+            } else if (data.requestType === "Clothes") {
+              totalDonated += Number(d.data().numClothes || 0);
+            }
+          });
+
+          const isFulfilled = data.quantity && totalDonated >= Number(data.quantity);
+          if (isFulfilled && data.status !== "Fulfilled") {
+            await updateDoc(doc(firestore, "requests", docRef.id), { status: "Fulfilled" });
+          }
+
+          return {
+            id: docRef.id,
+            ...data,
+            totalDonated,
+            status: isFulfilled ? "Fulfilled" : data.status,
+          };
         }));
 
-        setRequests(requestList);
+        setRequests(reqList);
       } catch (err) {
         setError("Failed to load requests: " + err.message);
       } finally {
@@ -67,8 +92,9 @@ const FulfillRequests = () => {
         return;
       }
 
-      if (request.requestType === "Money" && !donationAmount) {
-        setError("Please enter a donation amount.");
+      if ((request.requestType === "Money" || request.requestType === "Clothes") &&
+        (!donationAmount || isNaN(donationAmount) || Number(donationAmount) <= 0)) {
+        setError("Please enter a valid amount.");
         return;
       }
 
@@ -79,7 +105,7 @@ const FulfillRequests = () => {
         requestId: request.id,
         donationType: request.requestType,
         amount: request.requestType === "Money" ? Number(donationAmount) : null,
-        numClothes: request.requestType === "Clothes" ? request.quantity || null : null,
+        numClothes: request.requestType === "Clothes" ? Number(donationAmount) : null,
         foodDescription: request.requestType === "Food" ? request.description : null,
         description: donationNote,
         confirmed: false,
@@ -118,18 +144,19 @@ const FulfillRequests = () => {
                 <div key={request.id} className="bg-gray-100 p-6 rounded-lg shadow-md">
                   <div className="flex justify-between items-center mb-1">
                     <h3 className="text-lg font-bold">{request.title || request.requestType}</h3>
-                    <span
-                      className={`px-2 py-1 rounded text-white text-xs font-medium ${
-                        request.status === "Pending" ? "bg-yellow-500" : "bg-green-600"
-                      }`}
-                    >
+                    <span className={`px-2 py-1 rounded text-white text-xs font-medium ${
+                      request.status === "Pending" ? "bg-yellow-500" : "bg-green-600"
+                    }`}>
                       {request.status}
                     </span>
                   </div>
                   <p className="text-gray-700">{request.description}</p>
-                  <p className="mt-2 text-sm">
-                    <strong>Request ID:</strong> {request.id}
-                  </p>
+                  <p className="mt-2 text-sm"><strong>Request ID:</strong> {request.id}</p>
+                  {request.quantity && (
+                    <p className="mt-1 text-sm text-gray-700">
+                      Donated: {request.totalDonated || 0} of {request.quantity}
+                    </p>
+                  )}
 
                   <div className="flex space-x-4 mt-4">
                     <button
@@ -157,15 +184,18 @@ const FulfillRequests = () => {
                           rows={4}
                         />
 
-                        {request.requestType === "Money" && (
+                        {["Money", "Clothes"].includes(request.requestType) && (
                           <div className="mt-4">
-                            <label className="block font-semibold text-sm mb-1">Donation Amount</label>
+                            <label className="block font-semibold text-sm mb-1">
+                              {request.requestType === "Money" ? "Donation Amount" : "Clothes Quantity"}
+                            </label>
                             <Input
                               type="number"
                               value={donationAmount}
                               onChange={(e) => setDonationAmount(e.target.value)}
-                              placeholder="Enter donation amount"
+                              placeholder={`Enter ${request.requestType.toLowerCase()} value`}
                               required
+                              min={1}
                             />
                           </div>
                         )}
