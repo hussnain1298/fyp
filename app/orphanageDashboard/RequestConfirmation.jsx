@@ -115,28 +115,57 @@ export default function RequestConfirmations({ activeStatus }) {
 
   const paginatedDonations = getPageItems(filteredDonations, page);
 
-  const handleConfirmDonation = async (donation) => {
-    const user = auth.currentUser;
-    if (!user) return;
+const handleConfirmDonation = async (donation) => {
+  const user = auth.currentUser;
+  if (!user) return;
 
-    try {
-      // Update donation status
-      await updateDoc(doc(firestore, "donations", donation.donationId), { confirmed: true, status: "approved" });
+  try {
+    // Step 1: Mark this donation as confirmed
+    await updateDoc(doc(firestore, "donations", donation.donationId), {
+      confirmed: true,
+      status: "approved",
+    });
 
-      // Update request status to "Fulfilled"
-      if (donation.requestId) {
-        await updateDoc(doc(firestore, "requests", donation.requestId), { status: "Fulfilled" });
+    // Step 2: Re-fetch all confirmed donations for this request
+    const confirmedDonationsSnap = await getDocs(
+      query(
+        collection(firestore, "donations"),
+        where("requestId", "==", donation.requestId),
+        where("confirmed", "==", true)
+      )
+    );
+
+    let totalConfirmed = 0;
+    confirmedDonationsSnap.forEach((d) => {
+      const data = d.data();
+      if (donation.donationType === "Money") {
+        totalConfirmed += Number(data.amount || 0);
+      } else if (donation.donationType === "Clothes") {
+        totalConfirmed += Number(data.numClothes || 0);
       }
+    });
 
-      setRequestDonations((prev) =>
-        prev.map((d) =>
-          d.donationId === donation.donationId ? { ...d, status: "approved", confirmed: true } : d
-        )
-      );
-    } catch (err) {
-      console.error("Approval error", err);
+    // Step 3: Fetch original request to get required quantity
+    const requestRef = doc(firestore, "requests", donation.requestId);
+    const reqSnap = await getDoc(requestRef);
+    const requestData = reqSnap.exists() ? reqSnap.data() : null;
+
+    // Step 4: Conditionally update request status
+    if (requestData && requestData.quantity && totalConfirmed >= Number(requestData.quantity)) {
+      await updateDoc(requestRef, { status: "Fulfilled" });
     }
-  };
+
+    // Step 5: Update local state
+    setRequestDonations((prev) =>
+      prev.map((d) =>
+        d.donationId === donation.donationId ? { ...d, status: "approved", confirmed: true } : d
+      )
+    );
+  } catch (err) {
+    console.error("Approval error", err);
+  }
+};
+
 
   const handleRejectDonation = async (donation) => {
     try {
