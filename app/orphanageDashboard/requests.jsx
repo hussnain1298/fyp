@@ -1,3 +1,4 @@
+// Updated Request Component with title, quantity validation, dashboard display, and status logic
 "use client";
 
 import { useState, useEffect } from "react";
@@ -29,9 +30,11 @@ const Request = () => {
   const [editRequest, setEditRequest] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [requestType, setRequestType] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [customType, setCustomType] = useState("");
 
   const router = useRouter();
 
@@ -54,19 +57,32 @@ const Request = () => {
             const donationQuery = query(
               collection(firestore, "donations"),
               where("requestId", "==", docRef.id),
-              where("orphanageId", "==", user.uid)
+              where("orphanageId", "==", user.uid),
+              where("confirmed", "==", true)
             );
             const donationSnapshot = await getDocs(donationQuery);
 
             let totalDonated = 0;
             donationSnapshot.forEach((d) => {
-              totalDonated += parseInt(d.data().numClothes) || 0;
+              if (data.requestType === "Money") {
+                totalDonated += Number(d.data().amount || 0);
+              } else if (data.requestType === "Clothes") {
+                totalDonated += Number(d.data().numClothes || 0);
+              }
             });
+
+            const isFulfilled = data.quantity && totalDonated >= Number(data.quantity);
+            if (isFulfilled && data.status !== "Fulfilled") {
+              await updateDoc(doc(firestore, "requests", docRef.id), {
+                status: "Fulfilled",
+              });
+            }
 
             return {
               id: docRef.id,
               ...data,
               totalDonated,
+              status: isFulfilled ? "Fulfilled" : data.status,
             };
           })
         );
@@ -87,11 +103,18 @@ const Request = () => {
     const user = auth.currentUser;
     if (!user) return;
 
+    if (!title.trim()) return setError("Title is required.");
+    if (requestType === "Other" && !customType.trim()) return setError("Custom type is required.");
+    if ((["Clothes", "Money"].includes(requestType) || (requestType === "Other" && customType)) && (!quantity || isNaN(quantity) || Number(quantity) <= 0)) {
+      return setError("Valid quantity is required.");
+    }
+
     try {
-      const type = requestType === "Other" ? quantity.trim() : requestType;
+      const finalType = requestType === "Other" ? customType.trim() : requestType;
 
       const requestData = {
-        requestType: type,
+        title: title.trim(),
+        requestType: finalType,
         description: description.trim(),
         orphanageId: user.uid,
         orphanageEmail: user.email,
@@ -99,50 +122,21 @@ const Request = () => {
         timestamp: serverTimestamp(),
       };
 
-      if (["Clothes", "Money"].includes(requestType)) {
+      if (["Clothes", "Money"].includes(requestType) || (requestType === "Other" && quantity)) {
         requestData.quantity = Number(quantity);
       }
 
       await addDoc(collection(firestore, "requests"), requestData);
       setIsModalOpen(false);
-      setDescription(""); setRequestType(""); setQuantity("");
+      setTitle("");
+      setDescription("");
+      setRequestType("");
+      setQuantity("");
+      setCustomType("");
+      setError("");
       location.reload();
     } catch (err) {
       setError("Add failed: " + err.message);
-    }
-  };
-
-  const handleEditClick = (req) => {
-    setEditRequest(req);
-    setIsEditing(true);
-  };
-
-  const handleSaveChanges = async (e) => {
-    e.preventDefault();
-    try {
-      const ref = doc(firestore, "requests", editRequest.id);
-      await updateDoc(ref, {
-        requestType: editRequest.requestType,
-        description: editRequest.description,
-        status: editRequest.status,
-      });
-
-      setRequests((prev) =>
-        prev.map((r) => (r.id === editRequest.id ? editRequest : r))
-      );
-      setIsEditing(false);
-    } catch (err) {
-      setError("Update failed: " + err.message);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm("Confirm delete?")) return;
-    try {
-      await deleteDoc(doc(firestore, "requests", id));
-      setRequests((prev) => prev.filter((r) => r.id !== id));
-    } catch (err) {
-      setError("Delete failed: " + err.message);
     }
   };
 
@@ -159,57 +153,34 @@ const Request = () => {
           </button>
         </div>
 
-        {error && <p className="text-red-500 mt-4">{error}</p>}
-        {loading && <p className="text-gray-500 mt-4">Loading...</p>}
+        {error && <p className="text-red-600 mt-4">{error}</p>}
 
         <div className="mt-6 space-y-4">
           {requests.map((r) => (
             <div key={r.id} className="bg-gray-100 p-4 rounded shadow">
-              <div className="flex justify-between items-center">
-                <h2 className="font-bold text-lg">{r.requestType}</h2>
-                <span className={`inline-block px-2 py-1 rounded text-white text-xs ${
-                  r.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
-                }`}>
-                  {r.status}
-                </span>
-              </div>
+              <h3 className="text-xl font-semibold">{r.title}</h3>
+              <p className="text-gray-600 mb-1">Type: {r.requestType}</p>
+              {r.quantity && <p className="text-gray-600">Quantity: {r.quantity}</p>}
+              {r.totalDonated > 0 && <p className="text-gray-600">Donated: {r.totalDonated} of {r.quantity}</p>}
               <p>{r.description}</p>
-              {r.quantity && (
-                <p className="text-sm mt-1">
-                  {r.requestType === "Clothes"
-                    ? `Clothes Needed: ${r.quantity}`
-                    : `Money Needed: $${r.quantity}`}
-                </p>
-              )}
-              {r.totalDonated > 0 && (
-                <p className="text-sm text-green-700 mt-1">
-                  Total Donated: {r.totalDonated}
-                </p>
-              )}
-              <div className="flex gap-3 mt-4">
-                <button
-                  className="bg-green-600 text-white px-3 py-1 rounded"
-                  onClick={() => handleEditClick(r)}
-                >
-                  Edit
-                </button>
-                <button
-                  className="bg-red-600 text-white px-3 py-1 rounded"
-                  onClick={() => handleDelete(r.id)}
-                >
-                  Delete
-                </button>
-              </div>
+              <span className={`inline-block mt-2 px-2 py-1 rounded text-white text-xs ${
+                r.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
+              }`}>
+                {r.status}
+              </span>
             </div>
           ))}
         </div>
 
-        {/* Add Request Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl w-[400px]">
               <h2 className="text-2xl font-bold mb-4">New Request</h2>
               <form onSubmit={handleAddRequest} className="space-y-4">
+                <div>
+                  <Label htmlFor="title">Title</Label>
+                  <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                </div>
                 <div>
                   <Label htmlFor="description">Description</Label>
                   <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} required />
@@ -230,29 +201,23 @@ const Request = () => {
                     <option value="Other">Other</option>
                   </select>
                 </div>
-
                 {requestType === "Other" && (
                   <div>
                     <Label htmlFor="customType">Custom Type</Label>
                     <Input
                       id="customType"
-                      placeholder="Enter custom request type"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
+                      value={customType}
+                      onChange={(e) => setCustomType(e.target.value)}
                       required
                     />
                   </div>
                 )}
-
-                {["Clothes", "Money"].includes(requestType) && (
+                {(["Clothes", "Money"].includes(requestType) || (requestType === "Other" && customType)) && (
                   <div>
-                    <Label htmlFor="quantity">
-                      {requestType === "Clothes" ? "Clothes Needed" : "Money Amount"}
-                    </Label>
+                    <Label htmlFor="quantity">Quantity</Label>
                     <Input
                       id="quantity"
                       type="number"
-                      min="1"
                       value={quantity}
                       onChange={(e) => setQuantity(e.target.value)}
                       required
@@ -262,41 +227,6 @@ const Request = () => {
                 <div className="flex justify-between">
                   <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">Submit</button>
                   <button onClick={() => setIsModalOpen(false)} className="text-gray-600 hover:text-black">Cancel</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Edit Modal */}
-        {isEditing && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white p-6 rounded w-[400px] shadow-xl">
-              <h2 className="text-xl font-bold mb-4">Edit Request</h2>
-              <form onSubmit={handleSaveChanges} className="space-y-4">
-                <input
-                  value={editRequest.requestType}
-                  onChange={(e) =>
-                    setEditRequest({ ...editRequest, requestType: e.target.value })
-                  }
-                  className="w-full border p-2 rounded"
-                  required
-                />
-                <textarea
-                  value={editRequest.description}
-                  onChange={(e) =>
-                    setEditRequest({ ...editRequest, description: e.target.value })
-                  }
-                  className="w-full border p-2 rounded"
-                  required
-                />
-                <div className="flex justify-between">
-                  <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
-                    Save
-                  </button>
-                  <button onClick={() => setIsEditing(false)} className="text-gray-500">
-                    Cancel
-                  </button>
                 </div>
               </form>
             </div>
