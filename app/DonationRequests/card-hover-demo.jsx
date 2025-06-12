@@ -1,4 +1,4 @@
-// Updated RequestsHoverDemo.jsx with dynamic modal inputs and donation handling
+// File: components/RequestsHoverDemo.jsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -95,12 +95,30 @@ export default function RequestsHoverDemo() {
     const unsubscribe = onSnapshot(q, async (querySnapshot) => {
       const orphanMap = await orphanMapPromise;
       const requests = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (orphanMap[data.orphanageId]) {
-          requests.push({ id: doc.id, ...data, orphanInfo: orphanMap[data.orphanageId] });
-        }
-      });
+
+      for (const docSnap of querySnapshot.docs) {
+        const data = docSnap.data();
+        const reqId = docSnap.id;
+
+        if (!orphanMap[data.orphanageId]) continue;
+
+        const donationSnap = await getDocs(
+          query(collection(firestore, "donations"), where("requestId", "==", reqId), where("confirmed", "==", true))
+        );
+
+        let totalDonated = 0;
+        donationSnap.forEach((d) => {
+          const dData = d.data();
+          if (data.requestType === "Money") {
+            totalDonated += Number(dData.amount || 0);
+          } else if (data.requestType === "Clothes") {
+            totalDonated += Number(dData.numClothes || 0);
+          }
+        });
+
+        requests.push({ id: reqId, ...data, orphanInfo: orphanMap[data.orphanageId], totalDonated });
+      }
+
       setCityFilteredRequests(requests);
       setLoading(false);
     });
@@ -110,9 +128,10 @@ export default function RequestsHoverDemo() {
 
   useEffect(() => {
     const start = (page - 1) * pageSize;
-    const filtered = selectedType === "All"
-      ? cityFilteredRequests
-      : cityFilteredRequests.filter((r) => r.requestType.toLowerCase() === selectedType.toLowerCase());
+    const filtered =
+      selectedType === "All"
+        ? cityFilteredRequests
+        : cityFilteredRequests.filter((r) => r.requestType.toLowerCase() === selectedType.toLowerCase());
     setFilteredRequests(filtered.slice(start, start + pageSize));
   }, [selectedType, cityFilteredRequests, page]);
 
@@ -141,7 +160,6 @@ export default function RequestsHoverDemo() {
     try {
       if (!user) return setError("Login required.");
       if (req.status === "Fulfilled") return setError("Request already fulfilled.");
-
       if ((req.requestType === "Money" || req.requestType === "Clothes") &&
         (!donationAmount || isNaN(donationAmount) || Number(donationAmount) <= 0)) {
         return setError("Enter a valid amount.");
@@ -162,7 +180,6 @@ export default function RequestsHoverDemo() {
       };
 
       const donationRef = await addDoc(collection(firestore, "donations"), donationData);
-
       await updateDoc(doc(firestore, "requests", req.id), {
         donations: arrayUnion(donationRef.id),
       });
@@ -185,6 +202,7 @@ export default function RequestsHoverDemo() {
   return (
     <>
       <div className="w-full max-w-7xl mx-auto p-6">
+        {/* Filters and City Header */}
         <div className="flex justify-between items-center mb-6">
           <p className="bg-green-100 text-green-700 font-medium px-4 py-2 rounded shadow">
             📍 Showing requests near <strong>{effectiveCity}</strong>
@@ -198,20 +216,20 @@ export default function RequestsHoverDemo() {
           />
         </div>
 
+        {/* Type Filter */}
         <div className="flex gap-4 mb-6">
           {"All,Food,Money,Clothes".split(",").map((type) => (
             <button
               key={type}
               onClick={() => { setSelectedType(type); setPage(1); }}
-              className={`px-4 py-2 rounded border ${
-                selectedType === type ? "bg-green-600 text-white" : "border-gray-300"
-              }`}
+              className={`px-4 py-2 rounded border ${selectedType === type ? "bg-green-600 text-white" : "border-gray-300"}`}
             >
               {type}
             </button>
           ))}
         </div>
 
+        {/* Request Cards */}
         {loading ? (
           <p className="text-center text-gray-500">Loading...</p>
         ) : filteredRequests.length === 0 ? (
@@ -222,28 +240,23 @@ export default function RequestsHoverDemo() {
               <div key={req.id} className="p-5 border rounded-lg shadow bg-white">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-semibold text-lg">{req.title || req.requestType}</h3>
-                  <span className={`inline-block px-2 py-1 rounded text-white text-xs ${
-                    req.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
-                  }`}>
+                  <span className={`inline-block px-2 py-1 rounded text-white text-xs ${req.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"}`}>
                     {req.status}
                   </span>
                 </div>
                 <p className="text-gray-600 mb-2">{req.description}</p>
-                {req.quantity && (
-                  <p className="text-sm text-gray-600 mb-1">
-                    Needed: {req.quantity}
-                  </p>
-                )}
+              {req.quantity && (
+  <p className="text-sm text-gray-600 mb-2">
+    Donated: {req.totalDonated || 0} of {req.quantity}
+  </p>
+)}
+
                 <p className="text-sm text-gray-500">Orphanage: {req.orphanInfo?.orgName || "N/A"}</p>
                 <p className="text-sm text-gray-500 mb-4">Location: {req.orphanInfo?.city || "N/A"}</p>
                 <button
                   onClick={() => handleDonateClick(req)}
                   disabled={req.status === "Fulfilled"}
-                  className={`py-2 px-6 rounded text-white ${
-                    req.status === "Fulfilled"
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-green-600 hover:bg-green-700"
-                  }`}
+                  className={`py-2 px-6 rounded text-white ${req.status === "Fulfilled" ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
                 >
                   Donate
                 </button>
@@ -252,6 +265,7 @@ export default function RequestsHoverDemo() {
           </div>
         )}
 
+        {/* Pagination */}
         <div className="flex justify-center mt-8 gap-2">
           {[...Array(totalPages)].map((_, i) => (
             <button
@@ -271,7 +285,6 @@ export default function RequestsHoverDemo() {
         if (!req) return null;
         const isMoney = req.requestType === "Money";
         const isClothes = req.requestType === "Clothes";
-
         return (
           <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
             <div className="bg-white p-6 rounded shadow-xl w-full max-w-md">
