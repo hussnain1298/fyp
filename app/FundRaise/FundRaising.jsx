@@ -5,7 +5,6 @@ import Slider from "react-slick";
 import { firestore } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import FundRaiserCard from "./FundRaiserCard";
-
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
