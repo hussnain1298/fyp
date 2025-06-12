@@ -11,7 +11,7 @@ import {
   serverTimestamp,
   getDoc,
 } from "firebase/firestore";
-
+import { withAuth } from "@/lib/withAuth";
 const FundRaiserCard = ({
   id,
   bgImage,
@@ -25,18 +25,20 @@ const FundRaiserCard = ({
   const [showDonateModal, setShowDonateModal] = useState(false);
   const [donationAmount, setDonationAmount] = useState("");
   const [donating, setDonating] = useState(false);
-  const [userRole, setUserRole] = useState(user?.role);
+  const [userRole, setUserRole] = useState(null);
   const [raisedAmount, setRaisedAmount] = useState(initialRaised);
   const [amountError, setAmountError] = useState("");
 
-  useEffect(() => {
-    if (!user?.uid || user?.role) return;
+ useEffect(() => {
+  if (user?.uid) {
     getDoc(doc(firestore, "users", user.uid)).then((snap) => {
       if (snap.exists()) {
         setUserRole(snap.data().userType);
       }
     });
-  }, [user]);
+  }
+}, [user]);
+
 
   useEffect(() => {
     const unsub = onSnapshot(doc(firestore, "fundraisers", id), (snap) => {
@@ -48,14 +50,6 @@ const FundRaiserCard = ({
     return () => unsub();
   }, [id]);
 
-  const checkDonorAccess = () => {
-    if (!user || userRole !== "Donor") {
-      alert("Only donors are allowed to donate.");
-      return;
-    }
-    setShowDonateModal(true);
-  };
-
   const closeModal = () => {
     setShowDonateModal(false);
     setDonationAmount("");
@@ -63,6 +57,16 @@ const FundRaiserCard = ({
   };
 
   const handleDonate = async () => {
+    if (!user?.uid) {
+      alert("Please login as donor to donate.");
+      return;
+    }
+
+    if (userRole !== "Donor") {
+      alert("Only donors can make donations.");
+      return;
+    }
+
     const trimmed = donationAmount.trim();
     const amountNum = Number(trimmed);
 
@@ -85,11 +89,8 @@ const FundRaiserCard = ({
     setDonating(true);
 
     try {
-      const donorId = user?.uid;
-      if (!donorId) throw new Error("User not authenticated");
-
       await addDoc(collection(firestore, "fundraisers", id, "donations"), {
-        donorId,
+        donorId: user.uid,
         amount: amountNum,
         status: "pending",
         timestamp: serverTimestamp(),
@@ -105,6 +106,8 @@ const FundRaiserCard = ({
     }
   };
 
+  const filledhr = Math.min((raisedAmount / totalAmount) * 100, 100);
+
   const DonateModal = () => {
     if (typeof window === "undefined") return null;
     return ReactDOM.createPortal(
@@ -118,19 +121,12 @@ const FundRaiserCard = ({
         >
           <button
             onClick={closeModal}
-            aria-label="Close Modal"
             className="absolute top-3 right-3 text-gray-700 hover:text-gray-900 text-xl font-bold"
           >
             &times;
           </button>
-
           <h2 className="text-xl font-bold mb-4">Donate to Fundraiser</h2>
-
-          <label className="block mb-1 font-semibold" htmlFor="donationAmount">
-            Donation Amount
-          </label>
           <input
-            id="donationAmount"
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
@@ -141,12 +137,9 @@ const FundRaiserCard = ({
               setDonationAmount(val);
               setAmountError("");
             }}
-            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-green-500"
           />
-          {amountError && (
-            <p className="text-sm text-red-600 mt-1">{amountError}</p>
-          )}
-
+          {amountError && <p className="text-sm text-red-600 mt-1">{amountError}</p>}
           <button
             onClick={handleDonate}
             disabled={donating}
@@ -159,8 +152,6 @@ const FundRaiserCard = ({
       document.body
     );
   };
-
-  const filledhr = Math.min((raisedAmount / totalAmount) * 100, 100);
 
   return (
     <>
@@ -195,14 +186,12 @@ const FundRaiserCard = ({
             Raised <span className="text-green-700">Rs. {raisedAmount}</span> of Rs. {totalAmount}
           </div>
 
-          {user?.uid && userRole === "Donor" && (
-            <button
-              onClick={checkDonorAccess}
-              className="mt-4 w-full py-3 rounded-xl text-white font-semibold bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
-            >
-              Donate
-            </button>
-          )}
+          <button
+            onClick={() => setShowDonateModal(true)}
+            className="mt-4 w-full py-3 rounded-xl text-white font-semibold bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
+          >
+            Donate
+          </button>
         </div>
       </div>
 

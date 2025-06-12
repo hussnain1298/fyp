@@ -104,7 +104,7 @@ const FulfillRequests = () => {
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
       <div className="container mx-auto p-8 mt-16">
-        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">Requests</h2>
+        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">REQUESTS</h2>
 
         {error && <p className="text-red-500 text-center mt-4">{error}</p>}
         {loading && <p className="text-gray-500 text-center mt-4">Loading...</p>}
@@ -133,16 +133,12 @@ const FulfillRequests = () => {
 
                   <div className="flex space-x-4 mt-4">
                     <button
-                      className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-400"
-                      onClick={() =>
-                        router.push(`/chat?requestId=${request.id}&userEmail=${auth.currentUser?.email}`)
-                      }
-                    >
-                      View Chat
-                    </button>
-
-                    <button
-                      className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-500"
+                      className={`px-4 py-2 rounded-md text-white ${
+                        request.status === "Fulfilled"
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : "bg-green-600 hover:bg-green-500"
+                      }`}
+                      disabled={request.status === "Fulfilled"}
                       onClick={() => setActiveModalId(request.id)}
                     >
                       Donate

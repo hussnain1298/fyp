@@ -9,9 +9,12 @@ import {
   onSnapshot,
   where,
   doc,
+  addDoc,
   setDoc,
   getDoc,
-  deleteDoc,
+  getDocs,
+  limit,
+  orderBy as orderByFB,
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
@@ -35,81 +38,133 @@ const getInitials = (name) => {
 };
 
 export default function DonorMessages() {
+  const [orphanageSearchResult, setOrphanageSearchResult] = useState(null);
   const [user, setUser] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [chats, setChats] = useState([]);
   const [orphanageProfiles, setOrphanageProfiles] = useState({});
+  const [search, setSearch] = useState("");
   const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-      console.log("Auth state changed:", currentUser);
       setUser(currentUser);
     });
     return () => unsubscribe();
   }, []);
 
-  // Listen to notifications for donor
-useEffect(() => {
-  if (!user) return;
-
-  const notifRef = collection(firestore, "notifications", user.uid, "userNotifications");
-  const notifQuery = query(notifRef, orderBy("timestamp", "desc"));
-
-  const unsubscribe = onSnapshot(notifQuery, (snapshot) => {
-    const updated = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate(),
-    }));
-    setNotifications(updated);
-  });
-
-  return () => unsubscribe();
-}, [user]);
-
-  // Fetch chats where donor is participant, persist orphanageId if missing
   useEffect(() => {
-    if (!user) {
-      setChats([]);
-      return;
-    }
-
-    const chatsRef = collection(firestore, "chats");
-    const chatsQuery = query(chatsRef, where("participants", "array-contains", user.uid));
-
-    const unsubscribe = onSnapshot(
-      chatsQuery,
-      async (snapshot) => {
-        const fetchedChats = await Promise.all(
-          snapshot.docs.map(async (docSnap) => {
-            const chatData = docSnap.data();
-            // Infer orphanageId if missing and persist it
-            if (!chatData.orphanageId && chatData.participants) {
-              const inferredOrphanageId = chatData.participants.find((p) => p !== user.uid);
-              if (inferredOrphanageId) {
-                await setDoc(doc(firestore, "chats", docSnap.id), { orphanageId: inferredOrphanageId }, { merge: true });
-                console.log(`Set orphanageId ${inferredOrphanageId} for chat ${docSnap.id}`);
-                return { id: docSnap.id, ...chatData, orphanageId: inferredOrphanageId };
-              }
-            }
-            return { id: docSnap.id, ...chatData };
-          })
-        );
-
-        console.log("Chats fetched:", fetchedChats);
-        setChats(fetchedChats);
-      },
-      (error) => {
-        console.error("Failed to listen to chats:", error);
-        setChats([]);
-      }
-    );
-
+    if (!user) return;
+    const notifRef = collection(firestore, "notifications", user.uid, "userNotifications");
+    const notifQuery = query(notifRef, orderBy("timestamp", "desc"));
+    const unsubscribe = onSnapshot(notifQuery, (snapshot) => {
+      const updated = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate(),
+      }));
+      setNotifications(updated);
+    });
     return () => unsubscribe();
   }, [user]);
 
-  // Fetch orphanage profiles after chats are loaded and orphanageIds are known
+  const startChat = async () => {
+    if (!user || !orphanageSearchResult) return;
+
+    const existingChat = chats.find((chat) => chat.orphanageId === orphanageSearchResult.uid);
+    if (existingChat) {
+      return router.push(`/chat?chatId=${existingChat.id}`);
+    }
+
+    try {
+      const chatRef = await addDoc(collection(firestore, "chats"), {
+        donorId: user.uid,
+        orphanageId: orphanageSearchResult.uid,
+        participants: [user.uid, orphanageSearchResult.uid],
+        createdAt: new Date(),
+      });
+      router.push(`/chat?chatId=${chatRef.id}`);
+    } catch (e) {
+      console.error("Failed to start chat:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (!search) {
+      setOrphanageSearchResult(null);
+      return;
+    }
+
+    const runFuzzySearch = async () => {
+      try {
+        const orphanageQuery = query(
+          collection(firestore, "users"),
+          where("userType", "==", "Orphanage")
+        );
+        const snap = await getDocs(orphanageQuery);
+        const match = snap.docs
+          .map((doc) => ({ id: doc.id, uid: doc.id, ...doc.data() }))
+          .find((user) =>
+            (user.orgName || user.fullName || "").toLowerCase().includes(search.toLowerCase())
+          );
+        setOrphanageSearchResult(match || null);
+      } catch (error) {
+        console.error("Search failed:", error);
+        setOrphanageSearchResult(null);
+      }
+    };
+
+    runFuzzySearch();
+  }, [search]);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchChats = async () => {
+      const chatsRef = collection(firestore, "chats");
+      const chatsQuery = query(chatsRef, where("participants", "array-contains", user.uid));
+      const snapshot = await getDocs(chatsQuery);
+
+      const enrichedChats = await Promise.all(
+        snapshot.docs.map(async (docSnap) => {
+          const chatData = docSnap.data();
+          const chatId = docSnap.id;
+          const orphanageId = chatData.orphanageId || chatData.participants.find((p) => p !== user.uid);
+
+          let lastMessage = null;
+          let lastTimestamp = null;
+
+          try {
+            const messagesQuery = query(
+              collection(firestore, "chats", chatId, "messages"),
+              orderByFB("timestamp", "desc"),
+              limit(1)
+            );
+            const messagesSnap = await getDocs(messagesQuery);
+            if (!messagesSnap.empty) {
+              const msg = messagesSnap.docs[0].data();
+              lastMessage = msg.text || "";
+              lastTimestamp = msg.timestamp?.toDate() || null;
+            }
+          } catch (e) {
+            console.error("Error fetching last message", e);
+          }
+
+          return {
+            id: chatId,
+            ...chatData,
+            orphanageId,
+            lastMessage,
+            lastTimestamp,
+          };
+        })
+      );
+
+      setChats(enrichedChats);
+    };
+
+    fetchChats();
+  }, [user]);
+
   useEffect(() => {
     const orphanageIds = chats
       .map((chat) => chat.orphanageId)
@@ -121,22 +176,19 @@ useEffect(() => {
       const updates = {};
       for (const id of orphanageIds) {
         try {
-          console.log(`Fetching profile for orphanageId: ${id}`);
           const docSnap = await getDoc(doc(firestore, "users", id));
           if (docSnap.exists()) {
             const data = docSnap.data();
-            console.log(`Profile data for ${id}:`, data);
             updates[id] = {
-              name: data.orgName || "Unknown Orphanage",
+              name: data.orgName || data.fullName || "Unknown Orphanage",
+              orgName: data.orgName || "",
               profilePhoto: data.profilePhoto || null,
             };
           } else {
-            console.warn(`No profile found for orphanageId: ${id}`);
-            updates[id] = { name: "Unknown Orphanage", profilePhoto: null };
+            updates[id] = { name: "Unknown Orphanage", orgName: "", profilePhoto: null };
           }
-        } catch (error) {
-          console.error(`Error fetching profile for orphanageId ${id}:`, error);
-          updates[id] = { name: "Unknown Orphanage", profilePhoto: null };
+        } catch {
+          updates[id] = { name: "Unknown Orphanage", orgName: "", profilePhoto: null };
         }
       }
       setOrphanageProfiles((prev) => ({ ...prev, ...updates }));
@@ -145,7 +197,6 @@ useEffect(() => {
     fetchProfiles();
   }, [chats, orphanageProfiles]);
 
-  // Mark notification read and open chat
   const openChat = async (chatId) => {
     if (!chatId) return;
     try {
@@ -157,17 +208,13 @@ useEffect(() => {
     router.push(`/chat?chatId=${chatId}`);
   };
 
-  // Delete chat handler
-  const handleDeleteChat = async (chatId) => {
-    if (!confirm("Are you sure you want to delete this chat? This action cannot be undone.")) return;
-    try {
-      await deleteDoc(doc(firestore, "chats", chatId));
-      alert("Chat deleted successfully.");
-    } catch (error) {
-      console.error("Failed to delete chat:", error);
-      alert("Failed to delete chat. Please try again.");
-    }
-  };
+  const filteredChats = chats.filter((chat) => {
+    const profile = orphanageProfiles[chat.orphanageId];
+    const searchTarget = profile?.orgName?.toLowerCase() || profile?.name?.toLowerCase() || "";
+    const matchesSearch = searchTarget.includes(search.toLowerCase());
+    const hasMessage = !!chat.lastMessage || !!chat.lastTimestamp;
+    return search ? matchesSearch : hasMessage;
+  });
 
   if (!user)
     return (
@@ -182,49 +229,67 @@ useEffect(() => {
         Chat with Orphanages
       </h2>
 
-      {chats.length === 0 ? (
+      <input
+        type="text"
+        placeholder="Search orphanage by name..."
+        className="mb-6 w-full px-4 py-2 border rounded focus:outline-none focus:ring"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
+      {search && orphanageSearchResult && filteredChats.length === 0 && (
+        <div
+          className="cursor-pointer flex justify-between items-center bg-white p-4 mb-2 rounded shadow hover:bg-green-100"
+          onClick={startChat}
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center font-bold text-lg">
+              {getInitials(orphanageSearchResult.orgName || orphanageSearchResult.fullName)}
+            </div>
+            <div className="text-gray-800 font-medium">
+              {orphanageSearchResult.orgName || orphanageSearchResult.fullName}
+            </div>
+          </div>
+          <span className="text-sm text-green-500 font-semibold">Start Chat</span>
+        </div>
+      )}
+
+      {filteredChats.length === 0 ? (
         <p className="text-center text-gray-600 text-lg">No chats available.</p>
       ) : (
         <ul className="bg-white shadow-md rounded-lg divide-y divide-gray-200">
-          {chats.map((chat) => {
-            const notif = notifications.find((n) => n.chatId === chat.id);
-            const orphanageId = chat.orphanageId || null;
-            const orphanageProfile = orphanageProfiles[orphanageId] || { name: "Loading...", profilePhoto: null };
-            const lastMsg = notif?.lastMessage || "No message";
-            const timestamp = notif?.timestamp || null;
+          {filteredChats.map((chat) => {
+            const profile = orphanageProfiles[chat.orphanageId] || {
+              name: "Loading...",
+              profilePhoto: null,
+            };
+            const notif = notifications.find((n) => n.id === chat.id);
 
             return (
               <li
                 key={chat.id}
-                className={`cursor-pointer px-6 py-4 flex justify-between items-center hover:bg-green-50 transition ${
-                  notif?.read ? "bg-white" : "bg-green-100"
-                }`}
+                className="cursor-pointer px-6 py-4 flex justify-between items-center hover:bg-green-50 transition"
                 onClick={() => openChat(chat.id)}
-                title={`Last updated: ${timestamp ? timestamp.toLocaleString() : "Unknown"}`}
               >
                 <div className="flex items-center space-x-4 flex-1">
-                  {orphanageProfile.profilePhoto ? (
+                  {profile.profilePhoto ? (
                     <img
-                      src={orphanageProfile.profilePhoto}
-                      alt={`${orphanageProfile.name} profile`}
+                      src={profile.profilePhoto}
+                      alt={`${profile.name} profile`}
                       className="w-12 h-12 rounded-full object-cover shadow-md"
                     />
                   ) : (
                     <div className="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                      {getInitials(orphanageProfile.name)}
+                      {getInitials(profile.name)}
                     </div>
                   )}
                   <div>
-                    <p className="font-semibold text-lg text-gray-900">{orphanageProfile.name}</p>
-                    <p className="text-gray-700 mt-1 truncate max-w-xl">{lastMsg}</p>
+                    <p className="font-semibold text-lg text-gray-900">{profile.name}</p>
+                    <p className="text-gray-700 mt-1 truncate max-w-xl">{chat.lastMessage || "No message"}</p>
                   </div>
                 </div>
-
                 <div className="flex flex-col items-end min-w-[120px] justify-end space-y-1">
-                  <span className="text-sm text-gray-500">
-                    {formatRelativeTime(timestamp)}
-                  </span>
-
+                  <span className="text-sm text-gray-500">{formatRelativeTime(chat.lastTimestamp)}</span>
                   {!notif?.read && (
                     <span className="inline-block bg-green-500 text-white text-xs px-3 py-1 rounded-full font-semibold select-none">
                       New

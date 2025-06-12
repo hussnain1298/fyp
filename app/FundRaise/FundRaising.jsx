@@ -5,7 +5,7 @@ import Slider from "react-slick";
 import { firestore } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import FundRaiserCard from "./FundRaiserCard";
-
+import { auth } from "@/lib/firebase"; // 👈 load user manually
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
@@ -48,16 +48,29 @@ const PrevArrow = ({ onClick }) => (
 );
 
 const FundRaising = () => {
+  const [user, setUser] = useState(null);
   const [fundraisers, setFundraisers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (currentUser) {
+        const tokenResult = await currentUser.getIdTokenResult();
+        const role = tokenResult.claims?.userType || null;
+        setUser({ uid: currentUser.uid, email: currentUser.email, role });
+      } else {
+        setUser(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fetchFundraisers = async () => {
       setLoading(true);
       setError("");
       try {
-        // Fetch orphanages
         const orphanQuery = query(collection(firestore, "users"), where("userType", "==", "Orphanage"));
         const orphanSnapshot = await getDocs(orphanQuery);
         const orphanMap = {};
@@ -65,7 +78,6 @@ const FundRaising = () => {
           orphanMap[doc.id] = doc.data();
         });
 
-        // Fetch fundraisers
         const fundraiserSnapshot = await getDocs(collection(firestore, "fundraisers"));
 
         const fundraiserList = fundraiserSnapshot.docs.map(doc => {
@@ -73,7 +85,7 @@ const FundRaising = () => {
           return {
             id: doc.id,
             ...data,
-            orphanageName: orphanMap[data.orphanageId]?.orgName || "", // Merge orphanage name
+            orphanageName: orphanMap[data.orphanageId]?.orgName || "",
           };
         });
 
@@ -124,7 +136,7 @@ const FundRaising = () => {
   return (
     <div className="bg-gray-50 w-full min-h-screen px-4 py-20 relative">
       <div className="text-center max-w-4xl mx-auto mb-8">
-        <h2 className="text-3xl sm:text-4xl font-bold text-red-800">
+        <h2 className="text-3xl sm:text-4xl font-bold text-gray-800">
           Fund Raising
         </h2>
         <p className="text-lg sm:text-xl text-gray-500 mt-4">
@@ -143,11 +155,11 @@ const FundRaising = () => {
               raisedAmount={fundraiser.raisedAmount || 0}
               totalAmount={fundraiser.totalAmount || 1}
               filledhr={Math.min(
-                (Number(fundraiser.raisedAmount) / Number(fundraiser.totalAmount)) *
-                  100,
+                (Number(fundraiser.raisedAmount) / Number(fundraiser.totalAmount)) * 100,
                 100
               )}
               orphanageName={fundraiser.orphanageName}
+              user={user}
             />
           </div>
         ))}

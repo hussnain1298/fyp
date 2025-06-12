@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 
 const generateColor = (name) => {
   if (!name) return "#4CAF50";
-
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -29,6 +28,8 @@ const getInitial = (name) => {
 export default function OurOrphanages() {
   const [orphanages, setOrphanages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const pageSize = 6;
   const router = useRouter();
 
   useEffect(() => {
@@ -54,15 +55,13 @@ export default function OurOrphanages() {
     fetchOrphanages();
   }, []);
 
-  const handleMoreClick = () => {
-    // TODO: implement load more or navigate to another page
-    alert("Load more functionality coming soon!");
-  };
+  const totalPages = Math.ceil(orphanages.length / pageSize);
+  const paginatedOrphanages = orphanages.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
-      <h1 className="text-4xl font-extrabold text-center mb-12 mt-20  text-gray-900">
-        Registered Orphanages
+      <h1 className="text-4xl font-extrabold text-center mb-12 mt-20 text-gray-800">
+        OUR ORPHANAGES 
       </h1>
 
       {loading ? (
@@ -70,14 +69,13 @@ export default function OurOrphanages() {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-            {orphanages.map((orp) => (
+            {paginatedOrphanages.map((orp) => (
               <div
                 key={orp.id}
                 className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer flex flex-col"
                 onClick={() => router.push(`/chat?chatId=auto&orphanageId=${orp.id}`)}
               >
                 <div className="flex items-center px-6 py-5 border-b border-gray-200">
-                  {/* Avatar */}
                   {orp.profilePhoto ? (
                     <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0">
                       <Image
@@ -96,8 +94,6 @@ export default function OurOrphanages() {
                       {getInitial(orp.orgName)}
                     </div>
                   )}
-
-                  {/* Name & Location */}
                   <div className="ml-5 flex-1">
                     <h2 className="text-xl font-semibold text-gray-900 truncate">
                       {orp.orgName || "Unnamed Orphanage"}
@@ -119,28 +115,7 @@ export default function OurOrphanages() {
                     e.stopPropagation();
                     router.push(`/chat?chatId=auto&orphanageId=${orp.id}`);
                   }}
-                  className="
-                    mt-auto
-                    w-full
-                    py-3
-                    rounded-b-xl
-                    font-semibold
-                    text-white
-                    bg-gradient-to-r
-                    from-green-400
-                    to-blue-500
-                    shadow-md
-                    hover:from-blue-500
-                    hover:to-green-400
-                    transition
-                    duration-300
-                    transform
-                    hover:scale-105
-                    focus:outline-none
-                    focus:ring-2
-                    focus:ring-offset-2
-                    focus:ring-blue-400
-                  "
+                  className="mt-auto w-full py-3 rounded-b-xl font-semibold text-white bg-gradient-to-r from-green-400 to-blue-500 shadow-md hover:from-blue-500 hover:to-green-400 transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400"
                 >
                   Message
                 </button>
@@ -148,35 +123,40 @@ export default function OurOrphanages() {
             ))}
           </div>
 
-          {/* MORE Button */}
-          <div className="flex justify-center mt-12">
-            <button
-              onClick={handleMoreClick}
-              className="
-                px-8
-                py-3
-                font-semibold
-                rounded-full
-                bg-gradient-to-r
-                from-purple-600
-                to-indigo-600
-                text-white
-                shadow-lg
-                hover:from-indigo-600
-                hover:to-purple-600
-                transition
-                duration-300
-                transform
-                hover:scale-105
-                focus:outline-none
-                focus:ring-2
-                focus:ring-offset-2
-                focus:ring-indigo-400
-              "
-            >
-              MORE
-            </button>
-          </div>
+          {totalPages > 1 && (
+            <div className="flex justify-center mt-12 space-x-2">
+              <button
+                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                disabled={page === 1}
+                className="px-4 py-2 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50"
+              >
+                Prev
+              </button>
+              {[...Array(totalPages)].map((_, idx) => {
+                const pageNum = idx + 1;
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={`px-4 py-2 rounded ${
+                      page === pageNum
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={page === totalPages}
+                className="px-4 py-2 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
