@@ -12,6 +12,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 
+// Tabs Components
 import OrphanageDashboard from "./dashboard";
 import Navbar from "../Navbar/page";
 import AccountDetails from "./accountDetails";
@@ -20,6 +21,7 @@ import Services from "./service";
 import FundRaise from "./fundraise";
 import Messages from "./messages";
 import ConfirmFund from "./confirmation";
+import Footer from "../footer/page";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -68,88 +70,65 @@ export default function MyAccount() {
     }
   };
 
+  const tabs = [
+    "Dashboard",
+    "Account details",
+    "Messages",
+    "Requests",
+    "Services",
+    "Fund Raise",
+    "Confirm Fund",
+    "Logout",
+  ];
+
   return (
-    <section className={`${poppins.className} container mx-auto`}>
+    <section className={`${poppins.className} min-h-screen`}>
       <Navbar />
-      <div className="flex flex-col lg:flex-row mt-8 gap-10">
-        <aside className="w-full lg:w-1/4 bg-white shadow-md p-6 mt-20">
-          <ul className="space-y-2">
-            {[
-              "Dashboard",
-              "Account details",
-              "Messages",
-              "Requests",
-              "Services",
-              "Fund Raise",
-              "Confirm Fund",
-              "Logout",
-            ].map((tab) => (
+      <div className="container mx-auto mt-20 px-4 flex flex-col lg:flex-row gap-10">
+        {/* Sidebar */}
+        <aside className="w-full lg:w-1/4 h-full bg-white shadow-md p-6 rounded-lg">
+          <ul className="space-y-2 text-sm font-medium">
+            {tabs.map((tab) => (
               <li
                 key={tab}
-                onClick={() => {
-                  if (tab === "Logout") {
-                    handleLogout();
-                  } else {
-                    setActiveTab(tab);
-                  }
-                }}
-                className={`p-3 cursor-pointer flex justify-between items-center ${
-                  activeTab === tab ? "bg-gray-200 font-bold" : "hover:bg-gray-100"
+                onClick={() =>
+                  tab === "Logout" ? handleLogout() : setActiveTab(tab)
+                }
+                className={`p-3 rounded flex justify-between items-center cursor-pointer transition ${
+                  activeTab === tab
+                    ? "bg-gray-200 font-bold"
+                    : "hover:bg-gray-100"
                 }`}
               >
-                <span className="flex items-center gap-2">
-                  {tab}
-                  {tab === "Messages" && unreadCount > 0 && (
-                    <span className="bg-red-600 text-white rounded-full px-2 py-0.5 text-xs font-semibold">
-                      {unreadCount}
-                    </span>
-                  )}
-                </span>
+                <span>{tab}</span>
+                {tab === "Messages" && unreadCount > 0 && (
+                  <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    {unreadCount}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
         </aside>
 
-        <div className="w-full lg:w-3/4 mt-18">
-          <div className="mt-8">
-            {activeTab === "Dashboard" && (
-              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-                <OrphanageDashboard />
-              </motion.div>
-            )}
-            {activeTab === "Account details" && (
-              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-                <AccountDetails />
-              </motion.div>
-            )}
-            {activeTab === "Messages" && (
-              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-                <Messages />
-              </motion.div>
-            )}
-            {activeTab === "Requests" && (
-              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-                <Request />
-              </motion.div>
-            )}
-            {activeTab === "Services" && (
-              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-                <Services />
-              </motion.div>
-            )}
-            {activeTab === "Fund Raise" && (
-              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-                <FundRaise />
-              </motion.div>
-            )}
-            {activeTab === "Confirm Fund" && (
-              <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-                <ConfirmFund />
-              </motion.div>
-            )}
-          </div>
-        </div>
+        {/* Main Content */}
+        <motion.div
+          className="w-full lg:w-3/4"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          {activeTab === "Dashboard" && <OrphanageDashboard />}
+          {activeTab === "Account details" && <AccountDetails />}
+          {activeTab === "Messages" && <Messages />}
+          {activeTab === "Requests" && <Request />}
+          {activeTab === "Services" && <Services />}
+          {activeTab === "Fund Raise" && <FundRaise />}
+          {activeTab === "Confirm Fund" && <ConfirmFund />}
+        </motion.div>
       </div>
+      <Footer/>
     </section>
+    
   );
 }

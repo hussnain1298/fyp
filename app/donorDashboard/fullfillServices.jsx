@@ -22,102 +22,94 @@ export default function FulfillServices() {
   const [activeModalId, setActiveModalId] = useState(null);
   const [donationNote, setDonationNote] = useState("");
   const [processing, setProcessing] = useState(false);
+
   const [page, setPage] = useState(1);
   const pageSize = 6;
   const router = useRouter();
 
+  const totalPages = Math.ceil(services.length / pageSize);
+  const paginatedServices = services.slice((page - 1) * pageSize, page * pageSize);
+
   useEffect(() => {
-    async function fetchServices() {
+    const fetchServices = async () => {
       setLoading(true);
       setError("");
       try {
-        const serviceSnapshot = await getDocs(collection(firestore, "services"));
-        const serviceList = serviceSnapshot.docs
+        const snap = await getDocs(collection(firestore, "services"));
+        const raw = snap.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((service) => service.status === "Pending");
+          .filter((s) => s.status === "Pending");
 
-        const orphanageIds = [
-          ...new Set(serviceList.map((s) => s.orphanageId).filter(Boolean)),
-        ];
-
+        const orphanageIds = [...new Set(raw.map((s) => s.orphanageId).filter(Boolean))];
         let orphanageMap = {};
-        if (orphanageIds.length > 0) {
-          const batches = [];
-          while (orphanageIds.length) {
-            batches.push(orphanageIds.splice(0, 10));
-          }
 
-          orphanageMap = {};
+        if (orphanageIds.length) {
+          const batches = [];
+          while (orphanageIds.length) batches.push(orphanageIds.splice(0, 10));
+
           for (const batch of batches) {
-            const orphanageQuery = query(
-              collection(firestore, "users"),
-              where("__name__", "in", batch)
+            const orphanSnap = await getDocs(
+              query(collection(firestore, "users"), where("__name__", "in", batch))
             );
-            const orphanageSnapshot = await getDocs(orphanageQuery);
-            orphanageSnapshot.docs.forEach((doc) => {
+            orphanSnap.forEach((doc) => {
               orphanageMap[doc.id] = doc.data();
             });
           }
         }
 
-        const mergedServices = serviceList.map((service) => ({
-          ...service,
-          orphanInfo: orphanageMap[service.orphanageId] || null,
+        const enriched = raw.map((s) => ({
+          ...s,
+          orphanInfo: orphanageMap[s.orphanageId] || {},
         }));
 
-        setServices(mergedServices);
+        setServices(enriched);
         setPage(1);
       } catch (err) {
         setError("Failed to load services: " + err.message);
       } finally {
         setLoading(false);
       }
-    }
+    };
+
     fetchServices();
   }, []);
 
   const handleFulfill = async (service) => {
     if (!auth.currentUser) {
-      alert("Please log in as a donor to fulfill this service.");
+      alert("Please log in to fulfill this service.");
       return;
     }
     setProcessing(true);
     try {
-      const serviceRef = doc(firestore, "services", service.id);
-      await updateDoc(serviceRef, {
+      await updateDoc(doc(firestore, "services", service.id), {
         status: "In Progress",
         lastFulfillmentNote: donationNote || null,
       });
-      alert("Service fulfillment submitted successfully!");
+      alert("Fulfillment submitted successfully!");
       setActiveModalId(null);
       setDonationNote("");
     } catch (err) {
-      alert("Failed to fulfill service: " + err.message);
+      alert("Failed to fulfill: " + err.message);
     } finally {
       setProcessing(false);
     }
   };
 
-  const totalPages = Math.ceil(services.length / pageSize);
-  const paginatedServices = services.slice((page - 1) * pageSize, page * pageSize);
-
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
-      <div className="container mx-auto p-8 mt-16">
-        <h2 className="text-4xl font-bold text-gray-800 text-center pb-6">SERVICES</h2>
+      <div className="container mx-auto px-6 py-10 mt-16">
+        <h2 className="text-3xl font-bold text-center text-gray-800 mb-6 border-b pb-2">SERVICES</h2>
 
-        {error && <p className="text-red-500 text-center mt-4">{error}</p>}
-        {loading && <p className="text-gray-500 text-center mt-4">Loading...</p>}
+        {error && <p className="text-red-500 text-center">{error}</p>}
+        {loading && <p className="text-gray-500 text-center">Loading...</p>}
 
         <div className="mt-6 space-y-6">
           {paginatedServices.length === 0 && !loading ? (
             <p className="text-center text-xl text-gray-500">No services available.</p>
           ) : (
             paginatedServices.map((service) => (
-              <div key={service.id} className="relative bg-gray-100 p-6 rounded-lg shadow-md">
-                <span
-                  className="absolute top-4 right-4 px-3 py-1 rounded-full text-white text-sm font-semibold bg-yellow-500"
-                >
+              <div key={service.id} className="bg-gray-100 p-6 rounded-lg shadow-md relative">
+                <span className="absolute top-4 right-4 px-3 py-1 rounded-full text-white text-sm font-semibold bg-yellow-500">
                   {service.status}
                 </span>
 
@@ -130,7 +122,7 @@ export default function FulfillServices() {
                   <strong>Location:</strong> {service.orphanInfo?.city || "N/A"}
                 </p>
 
-                <div className="flex space-x-4 mt-6">
+                <div className="flex space-x-4 mt-4">
                   <button
                     className="px-5 py-2 rounded-md text-white bg-green-600 hover:bg-green-700"
                     onClick={() => setActiveModalId(service.id)}
@@ -140,30 +132,29 @@ export default function FulfillServices() {
                 </div>
 
                 {activeModalId === service.id && (
-                  <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
-                      <h2 className="text-xl font-bold mb-4 text-green-900">Confirm Fulfillment</h2>
+                  <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
+                    <div className="bg-white p-6 rounded shadow-xl w-full max-w-md">
+                      <h3 className="text-lg font-bold mb-4">Confirm Fulfillment</h3>
 
                       <p className="mb-2">
-                        Are you sure you want to fulfill this service for the orphanage: {" "}
-                        <span className="font-semibold">{service.orphanInfo?.orgName || "N/A"}</span>?
+                        For: <strong>{service.orphanInfo?.orgName || "N/A"}</strong>
                       </p>
                       <p className="mb-4">
-                        Location: <span className="font-semibold">{service.orphanInfo?.city || "N/A"}</span>
+                        Location: <strong>{service.orphanInfo?.city || "N/A"}</strong>
                       </p>
 
                       <textarea
+                        value={donationNote}
+                        onChange={(e) => setDonationNote(e.target.value)}
                         placeholder="Add a donation note (optional)"
                         className="w-full p-2 border border-gray-300 rounded mb-4 resize-none"
                         rows={3}
-                        value={donationNote}
-                        onChange={(e) => setDonationNote(e.target.value)}
                         disabled={processing}
                       />
 
-                      <div className="flex justify-end gap-4">
+                      <div className="flex justify-end gap-2 mt-4">
                         <button
-                          onClick={() => !processing && setActiveModalId(null)}
+                          onClick={() => setActiveModalId(null)}
                           className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-100"
                           disabled={processing}
                         >
@@ -172,7 +163,7 @@ export default function FulfillServices() {
                         <button
                           onClick={() => handleFulfill(service)}
                           className={`px-4 py-2 rounded text-white ${
-                            processing ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+                            processing ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"
                           }`}
                           disabled={processing}
                         >
@@ -188,23 +179,20 @@ export default function FulfillServices() {
         </div>
 
         {totalPages > 1 && (
-          <div className="flex justify-center mt-8 space-x-2">
-            {[...Array(totalPages)].map((_, idx) => {
-              const pageNum = idx + 1;
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => setPage(pageNum)}
-                  className={`px-4 py-2 rounded ${
-                    page === pageNum
-                      ? "bg-green-600 text-white"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
+          <div className="flex justify-center mt-10 space-x-2">
+            {Array.from({ length: totalPages }, (_, idx) => (
+              <button
+                key={idx + 1}
+                onClick={() => setPage(idx + 1)}
+                className={`px-4 py-2 rounded ${
+                  page === idx + 1
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                {idx + 1}
+              </button>
+            ))}
           </div>
         )}
       </div>

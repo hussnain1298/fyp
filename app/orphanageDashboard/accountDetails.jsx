@@ -1,4 +1,5 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { Poppins } from "next/font/google";
 import { motion } from "framer-motion";
@@ -8,36 +9,13 @@ import { updatePassword, onAuthStateChanged } from "firebase/auth";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-});
-
-// Function to generate a consistent color based on organization name
-const generateColor = (name) => {
-  if (!name) return "#4CAF50"; // Default green color
-
-  // Simple hash function to generate a consistent color
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-
-  // Convert to hex color
-  let color = "#";
-  for (let i = 0; i < 3; i++) {
-    const value = (hash >> (i * 8)) & 0xff;
-    color += ("00" + value.toString(16)).substr(-2);
-  }
-
-  return color;
-};
+const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
 
 export default function AccountDetails() {
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  // Combined form state with all fields empty by default
   const [formData, setFormData] = useState({
     orgName: "",
     email: "",
@@ -51,38 +29,22 @@ export default function AccountDetails() {
     zip: "",
     taxId: "",
   });
-  const [loading, setLoading] = useState(false);
 
-  // Listen for auth state changes
   useEffect(() => {
-    console.log("Setting up auth state observer");
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      console.log("Auth state changed:", currentUser);
       setUser(currentUser);
       setLoadingAuth(false);
     });
-    return () => {
-      console.log("Cleaning up auth state observer");
-      unsubscribe();
-    };
+    return unsubscribe;
   }, []);
 
-  // Fetch user data
   useEffect(() => {
-    if (!user) {
-      console.log("No user found, skipping data fetch");
-      return;
-    }
-
-    console.log("Fetching data for user:", user.uid);
-
+    if (!user) return;
     const fetchUserData = async () => {
       try {
         const userDoc = await getDoc(doc(firestore, "users", user.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
-          console.log("Fetched user data:", data);
-
           setFormData((prev) => ({
             ...prev,
             orgName: data.orgName || "",
@@ -93,19 +55,14 @@ export default function AccountDetails() {
             province: data.province || "",
             zip: data.zip || "",
             taxId: data.taxId || "",
-            currentPassword: "",
-            newPassword: "",
-            confirmPassword: "",
           }));
         } else {
           toast.error("User data not found!");
         }
-      } catch (error) {
+      } catch {
         toast.error("Failed to load user data.");
-        console.error("Fetch user data error:", error);
       }
     };
-
     fetchUserData();
   }, [user]);
 
@@ -119,6 +76,15 @@ export default function AccountDetails() {
       toast.error("Organization Name and Contact number are required!");
       return;
     }
+
+    if (
+      formData.newPassword &&
+      formData.newPassword !== formData.confirmPassword
+    ) {
+      toast.error("Passwords do not match!");
+      return;
+    }
+
     setLoading(true);
     try {
       const userRef = doc(firestore, "users", user.uid);
@@ -132,32 +98,16 @@ export default function AccountDetails() {
         taxId: formData.taxId,
       });
 
-      if (
-        formData.newPassword &&
-        formData.newPassword === formData.confirmPassword
-      ) {
-        console.log("Updating password...");
+      if (formData.newPassword) {
         await updatePassword(user, formData.newPassword);
       }
+
       toast.success("Changes saved successfully!");
-      console.log("Changes saved successfully");
     } catch (error) {
       toast.error("Failed to save changes.");
-      console.error("Save error:", error);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Get the first letter of organization name
-  const getInitial = () => {
-    if (!formData.orgName) return "O"; // Default to "O" for Orphanage if no name
-    return formData.orgName.charAt(0).toUpperCase();
-  };
-
-  // Get background color based on organization name
-  const getBackgroundColor = () => {
-    return generateColor(formData.orgName);
   };
 
   if (loadingAuth)
@@ -180,17 +130,12 @@ export default function AccountDetails() {
           Orphanage Profile
         </h2>
 
-        {/* Letter Avatar instead of profile image */}
         <div className="flex justify-center mb-6">
-          <div
-            className="w-40 h-40 rounded-full flex items-center justify-center text-white text-6xl font-bold shadow-lg"
-            style={{ backgroundColor: getBackgroundColor() }}
-          >
-            {getInitial()}
+          <div className="w-40 h-40 rounded-full flex items-center justify-center text-white text-6xl font-bold shadow-lg bg-green-500">
+            {formData.orgName?.charAt(0).toUpperCase() || "O"}
           </div>
         </div>
 
-        {/* Combined Form */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -198,161 +143,118 @@ export default function AccountDetails() {
           }}
           className="grid grid-cols-3 gap-6"
         >
-          {/* Left Column */}
           <div className="space-y-4">
-            <div>
-              <label className="text-gray-700 font-medium">
-                Organization Name *
-              </label>
-              <input
-                type="text"
-                name="orgName"
-                value={formData.orgName}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Organization Name"
-              />
-            </div>
+            <label className="text-gray-700 font-medium">Organization Name *</label>
+            <input
+              type="text"
+              name="orgName"
+              value={formData.orgName}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md"
+            />
 
-            <div>
-              <label className="text-gray-700 font-medium">
-                Email Address *
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                readOnly
-                className="w-full border border-gray-300 p-2 rounded-md bg-gray-100 cursor-not-allowed"
-              />
-            </div>
+            <label className="text-gray-700 font-medium">Email *</label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              readOnly
+              className="w-full border border-gray-300 p-2 rounded-md bg-gray-100 cursor-not-allowed"
+            />
 
-            <div>
-              <label className="text-gray-700 font-medium">
-                Contact Number *
-              </label>
-              <input
-                type="text"
-                name="contactNumber"
-                value={formData.contactNumber}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
+            <label className="text-gray-700 font-medium">Contact Number *</label>
+            <input
+              type="text"
+              name="contactNumber"
+              value={formData.contactNumber}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md"
+            />
           </div>
 
-          {/* Middle Column */}
           <div className="space-y-4">
             <h3 className="text-lg font-bold text-gray-800 border-b pb-2">
               Password Change
             </h3>
+            <label className="text-gray-700 font-medium">Current Password</label>
+            <input
+              type="password"
+              name="currentPassword"
+              value={formData.currentPassword}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md"
+            />
 
-            <div>
-              <label className="text-gray-700 font-medium">
-                Current Password
-              </label>
-              <input
-                type="password"
-                name="currentPassword"
-                value={formData.currentPassword}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
+            <label className="text-gray-700 font-medium">New Password</label>
+            <input
+              type="password"
+              name="newPassword"
+              value={formData.newPassword}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md"
+            />
 
-            <div>
-              <label className="text-gray-700 font-medium">New Password</label>
-              <input
-                type="password"
-                name="newPassword"
-                value={formData.newPassword}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-gray-700 font-medium">
-                Confirm New Password
-              </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
+            <label className="text-gray-700 font-medium">Confirm New Password</label>
+            <input
+              type="password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md"
+            />
           </div>
 
-          {/* Right Column */}
           <div className="space-y-4">
             <h3 className="text-lg font-bold text-gray-800 border-b pb-2">
               Address Details
             </h3>
 
-            <div>
-              <label className="text-gray-700 font-medium">Address</label>
-              <input
-                type="text"
-                name="orgAddress"
-                value={formData.orgAddress}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="Address"
-              />
-            </div>
+            <label className="text-gray-700 font-medium">Address</label>
+            <input
+              type="text"
+              name="orgAddress"
+              value={formData.orgAddress}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md"
+            />
 
-            <div>
-              <label className="text-gray-700 font-medium">City</label>
-              <input
-                type="text"
-                name="city"
-                value={formData.city}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="City"
-              />
-            </div>
+            <label className="text-gray-700 font-medium">City</label>
+            <input
+              type="text"
+              name="city"
+              value={formData.city}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md"
+            />
 
-            <div>
-              <label className="text-gray-700 font-medium">Province</label>
-              <input
-                type="text"
-                name="province"
-                value={formData.province}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="Province"
-              />
-            </div>
+            <label className="text-gray-700 font-medium">Province</label>
+            <input
+              type="text"
+              name="province"
+              value={formData.province}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md"
+            />
 
-            <div>
-              <label className="text-gray-700 font-medium">ZIP</label>
-              <input
-                type="text"
-                name="zip"
-                value={formData.zip}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="ZIP Code"
-              />
-            </div>
+            <label className="text-gray-700 font-medium">ZIP</label>
+            <input
+              type="text"
+              name="zip"
+              value={formData.zip}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md"
+            />
 
-            <div>
-              <label className="text-gray-700 font-medium">Tax ID</label>
-              <input
-                type="text"
-                name="taxId"
-                value={formData.taxId}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="Tax ID"
-              />
-            </div>
+            <label className="text-gray-700 font-medium">Tax ID</label>
+            <input
+              type="text"
+              name="taxId"
+              value={formData.taxId}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded-md"
+            />
           </div>
 
-          {/* Save Button spanning all columns */}
           <div className="col-span-3 mt-6">
             <button
               type="submit"
