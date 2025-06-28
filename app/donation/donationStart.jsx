@@ -18,6 +18,7 @@ export default function DonationStart({ setShowForm, setShowReview, setDonationA
   };
 
   return (
+
    <motion.div className="w-full max-w-xl bg-white shadow-lg rounded-2xl p-8 space-y-6 border border-gray-200">
   <h2 className="text-3xl font-bold text-gray-800 text-center">Start Your Donation</h2>
 

@@ -12,6 +12,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { withAuth } from "@/lib/withAuth";
+
 const FundRaiserCard = ({
   id,
   bgImage,
@@ -28,17 +29,17 @@ const FundRaiserCard = ({
   const [userRole, setUserRole] = useState(null);
   const [raisedAmount, setRaisedAmount] = useState(initialRaised);
   const [amountError, setAmountError] = useState("");
+  const [showFullDesc, setShowFullDesc] = useState(false);
 
- useEffect(() => {
-  if (user?.uid) {
-    getDoc(doc(firestore, "users", user.uid)).then((snap) => {
-      if (snap.exists()) {
-        setUserRole(snap.data().userType);
-      }
-    });
-  }
-}, [user]);
-
+  useEffect(() => {
+    if (user?.uid) {
+      getDoc(doc(firestore, "users", user.uid)).then((snap) => {
+        if (snap.exists()) {
+          setUserRole(snap.data().userType);
+        }
+      });
+    }
+  }, [user]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(firestore, "fundraisers", id), (snap) => {
@@ -155,40 +156,56 @@ const FundRaiserCard = ({
 
   return (
     <>
-      <div className="w-full sm:w-[340px] bg-white rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300 ease-in-out">
-        <div className="relative h-64 overflow-hidden rounded-t-3xl shadow-inner">
-          <img
-            src={bgImage}
-            alt={title}
-            className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-300 ease-in-out"
-            loading="lazy"
-          />
-        </div>
-
-        <div className="p-6 flex flex-col gap-3">
-          <h2 className="text-2xl font-extrabold text-gray-900 line-clamp-2">{title}</h2>
-          <p className="text-sm text-gray-600 line-clamp-3">{description}</p>
-
-          {orphanageName && (
-            <p className="text-sm font-semibold text-gray-500">
-              ORPHANAGE: <span className="font-thin">{orphanageName}</span>
-            </p>
-          )}
-
-          <div className="w-full h-3 bg-gray-300 rounded-full overflow-hidden shadow-inner">
-            <div
-              className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-all duration-500 ease-in-out"
-              style={{ width: `${filledhr}%` }}
+      <div className="w-full sm:w-[340px] h-full min-h-[550px] bg-white rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300 ease-in-out flex flex-col justify-between">
+        <div>
+          <div className="relative h-64 overflow-hidden rounded-t-3xl shadow-inner">
+            <img
+              src={bgImage}
+              alt={title}
+              className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-300 ease-in-out"
+              loading="lazy"
             />
           </div>
 
-          <div className="text-sm text-gray-700 font-semibold">
-            Raised <span className="text-green-700">Rs. {raisedAmount}</span> of Rs. {totalAmount}
-          </div>
+          <div className="p-6 flex flex-col gap-3 flex-grow">
+            <h2 className="text-2xl font-extrabold text-gray-900 line-clamp-2">{title}</h2>
+            <p className="text-sm text-gray-600">
+              {showFullDesc || description.length <= 40
+                ? description
+                : `${description.slice(0, 40)}...`}
+            </p>
+            {description.length > 40 && (
+              <span
+                className="text-green-600 text-sm cursor-pointer hover:underline"
+                onClick={() => setShowFullDesc(!showFullDesc)}
+              >
+                {showFullDesc ? "Show less" : "Read more"}
+              </span>
+            )}
 
+            {orphanageName && (
+              <p className="text-sm font-semibold text-gray-500">
+                ORPHANAGE: <span className="font-thin">{orphanageName}</span>
+              </p>
+            )}
+
+            <div className="w-full h-3 bg-gray-300 rounded-full overflow-hidden shadow-inner">
+              <div
+                className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-all duration-500 ease-in-out"
+                style={{ width: `${filledhr}%` }}
+              />
+            </div>
+
+            <div className="text-sm text-gray-700 font-semibold">
+              Raised <span className="text-green-700">Rs. {raisedAmount}</span> of Rs. {totalAmount}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 pt-0">
           <button
             onClick={() => setShowDonateModal(true)}
-            className="mt-4 w-full py-3 rounded-xl text-white font-semibold bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
+            className="w-full py-3 rounded-xl text-white font-semibold bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
           >
             Donate
           </button>

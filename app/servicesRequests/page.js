@@ -110,10 +110,14 @@ export default function ServicesDisplay() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 min-h-screen flex flex-col justify-center">
-      <h2 className="text-2xl font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl ">
-        SERVICES
-      </h2>
+    <div className="max-w-7xl mx-auto px-6 min-h-screen flex flex-col ">
+     <h2 className="text-2xl justify-center font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl">
+         SERVICES
+        </h2>
+        <p className="text-lg sm:text-xl text-gray-500 mt-4 text-center">
+          Your support can bring hope and change to those in need...
+        </p>
+
 
       <div className="flex justify-end items-center mb-2 mt-4">
         <select

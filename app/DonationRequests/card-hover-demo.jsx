@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { firestore, auth } from "@/lib/firebase";
+
 import {
   collection,
   query,
@@ -217,7 +218,7 @@ export default function RequestsHoverDemo() {
         </div>
 
         {/* Type Filter */}
-        <div className="flex gap-4 mb-6">
+        <div className="flex  justify-center gap-4 mb-6">
           {"All,Food,Money,Clothes".split(",").map((type) => (
             <button
               key={type}

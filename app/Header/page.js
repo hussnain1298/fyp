@@ -3,7 +3,7 @@
 import Header from "./header.jsx";
 
 const dropdownItems = [
-  { name: "Our Services", link: "/Services" },
+
  { name: "Our Donors", link: "/Donors" },
   { name: "Our Orphanages", link: "/Orphanages" },
   

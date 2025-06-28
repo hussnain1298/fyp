@@ -136,10 +136,13 @@ const FundRaising = () => {
   return (
     <div className="bg-gray-50 w-full min-h-screen px-4 py-20 relative">
       <div className="text-center max-w-4xl mx-auto mb-8">
-        <h2 className="text-3xl sm:text-4xl font-bold text-gray-800">
-          Fund Raising
+         
+
+
+          <h2 className="text-2xl font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl">
+          FUND RAISING
         </h2>
-        <p className="text-lg sm:text-xl text-gray-500 mt-4">
+        <p className="text-gray-500 text-center text-sm md:text-base lg:text-lg xl:text-xl">
           Your support can bring hope and change to those in need...
         </p>
       </div>

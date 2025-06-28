@@ -15,6 +15,7 @@ export function withAuth(Component, allowedRoles = []) {
     useEffect(() => {
       const checkAuth = async () => {
         try {
+          // Check session in localStorage
           const storedUser = localStorage.getItem("userSession");
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
@@ -27,6 +28,7 @@ export function withAuth(Component, allowedRoles = []) {
             }
           }
 
+          // If no session, check current Firebase auth state
           const currentUser = auth.currentUser;
           if (!currentUser) {
             router.push("/login");
@@ -48,6 +50,7 @@ export function withAuth(Component, allowedRoles = []) {
             return;
           }
 
+          // All good — set session
           const sessionData = {
             uid: currentUser.uid,
             email: currentUser.email,
@@ -66,6 +69,7 @@ export function withAuth(Component, allowedRoles = []) {
 
       checkAuth();
 
+      // Listen for auth changes
       const unsubscribe = auth.onAuthStateChanged((user) => {
         if (!user) {
           localStorage.removeItem("userSession");
@@ -81,8 +85,8 @@ export function withAuth(Component, allowedRoles = []) {
         <div className="flex flex-col justify-center items-center h-screen bg-gray-50">
           <motion.div
             animate={{ rotate: 360 }}
-            transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1 }}
-            className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
+            transition={{ repeat: Infinity, duration: 1 }}
+            className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full"
           />
           <p className="text-gray-600 mt-4">Checking authentication...</p>
         </div>
@@ -90,9 +94,9 @@ export function withAuth(Component, allowedRoles = []) {
 
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.4 }}
       >
         <Component {...props} user={user} />
       </motion.div>
