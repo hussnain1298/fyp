@@ -33,7 +33,7 @@ export default function HeroSection() {
               <span className="text-lg lg:text-xl">Watch Video</span>
             </a>
           </div>
-           <DonationButton/>
+          
         </div>
       </div>
     </div>
