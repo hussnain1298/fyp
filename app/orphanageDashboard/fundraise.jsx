@@ -66,7 +66,7 @@ const FundRaise = () => {
     const { title, description, totalAmount } = editFundraiser;
     const amt = Number(totalAmount);
     if (!title || !description || isNaN(amt) || amt < 1 || amt > MAX_DONATION_AMOUNT) {
-      return setError("All fields are required. Amount must be between ₹1 and ₹1,000,000.");
+      return setError("All fields are required. Amount must be between RS. 1 and RS. 1,000,000.");
     }
     const ref = doc(firestore, "fundraisers", editFundraiser.id);
     const status = (editFundraiser.raisedAmount || 0) >= amt ? "Fulfilled" : "Pending";
@@ -110,9 +110,12 @@ const FundRaise = () => {
   };
 
   return (
-    <div className="container mx-auto mt-16 px-4">
-      <div className="flex justify-between mb-6">
-        <h2 className="text-4xl font-bold">FundRaise</h2>
+    <div className="container mx-auto mt-16 px-6">
+         <h2 className="text-4xl font-bold text-gray-800 mb-6 border-b pb-2 text-center">
+        FUNDRAISE
+        </h2>
+      <div className="flex justify-end mb-6">
+       
         <button
           onClick={() => {
             setForm({ title: "", customTitle: "", description: "", totalAmount: "" });
@@ -120,7 +123,7 @@ const FundRaise = () => {
           }}
           className="bg-green-600 text-white py-2 px-4 rounded"
         >
-          + Add Fundraiser
+          + Fundraiser
         </button>
       </div>
 
@@ -134,7 +137,7 @@ const FundRaise = () => {
                 <h3 className="text-lg font-bold">{f.title}</h3>
                 <p className="text-gray-700">{f.description}</p>
                 <p className="text-sm mt-1 text-gray-600">
-                  Raised: ₹{f.raisedAmount || 0} / ₹{f.totalAmount}
+                  Raised: Rs.{f.raisedAmount || 0} / Rs.{f.totalAmount}
                 </p>
                 <div className="flex space-x-2 mt-2">
                   <button onClick={() => handleEdit(f)} className="bg-green-600 text-white px-3 py-1 rounded text-sm">
@@ -221,13 +224,15 @@ const FundRaise = () => {
               required
             />
 
-            <div className="flex justify-between">
-              <button type="button" onClick={() => (isEditing ? setIsEditing(false) : setModalOpen(false))}>
+            <div className="flex justify-end">
+                 <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded ">
+                {isEditing ? "Save" : "Post"}
+              </button>
+
+              <button type="button"  className="px-4 py-2 rounded border border-gray-400 ml-4" onClick={() => (isEditing ? setIsEditing(false) : setModalOpen(false))}>
                 Cancel
               </button>
-              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
-                {isEditing ? "Save Changes" : "Submit"}
-              </button>
+           
             </div>
           </form>
         </div>

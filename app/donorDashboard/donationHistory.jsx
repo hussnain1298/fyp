@@ -18,36 +18,60 @@ export default function DonationsHistory() {
   const itemsPerPage = 8;
 
   useEffect(() => {
-    const fetchDonations = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-      const q = query(collection(firestore, "donations"), where("donorId", "==", user.uid));
-      const snap = await getDocs(q);
-      const list = snap.docs.map(doc => {
-        const data = doc.data();
-        const rawDate = data.timestamp?.toDate();
-        return {
-          id: doc.id,
-          date: rawDate || new Date(0),
-          status: data.confirmed ? "Approved" : "Pending",
-          total: data.amount
-            ? `Rs${data.amount}`
-            : data.numClothes
-            ? `${data.numClothes} Clothes`
-            : data.foodDescription
-            ? "Food"
-            : "—",
-          type: data.donationType || "—",
-          description: data.description || "—",
-          full: data,
-        };
-      });
-      setDonations(list);
-      setFilteredDonations(list);
-    };
+  const fetchDonationsAndServices = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
 
-    fetchDonations();
-  }, []);
+    const [donSnap, servSnap] = await Promise.all([
+      getDocs(query(collection(firestore, "donations"), where("donorId", "==", user.uid))),
+      getDocs(query(collection(firestore, "services"), where("donorId", "==", user.uid))),
+      
+    ]);
+
+    const donationList = donSnap.docs.map(doc => {
+      const data = doc.data();
+      const rawDate = data.timestamp?.toDate();
+      return {
+        id: doc.id,
+        date: rawDate || new Date(0),
+        status: data.confirmed ? "Approved" : "Pending",
+        total: data.amount
+          ? `Rs${data.amount}`
+          : data.numClothes
+          ? `${data.numClothes} Clothes`
+          : data.foodDescription
+          ? "Food"
+          : "—",
+        type: data.donationType || "—",
+        description: data.description || "—",
+        source: "request",
+      };
+    });
+
+    const serviceList = servSnap.docs.map(doc => {
+      const data = doc.data();
+      const rawDate = data.timestamp?.toDate();
+      return {
+        id: doc.id,
+        date: rawDate || new Date(0),
+        status: "In Progress",
+        total: "—",
+        type: "Service",
+        description: data.lastFulfillmentNote || "—",
+        source: "service",
+      };
+    });
+
+    const combined = [...donationList, ...serviceList];
+    combined.sort((a, b) => b.date - a.date); // latest first
+
+    setDonations(combined);
+    setFilteredDonations(combined);
+  };
+
+  fetchDonationsAndServices();
+}, []);
+
 
   const exportPDF = () => {
     const doc = new jsPDF();
@@ -151,7 +175,10 @@ export default function DonationsHistory() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.04 }}
               >
-                <td className="px-5 py-3 text-blue-600 font-medium">#{donation.id}</td>
+               <td className="px-5 py-3 text-blue-600 font-medium">
+  #{donation.id} {donation.source === "service" && <span className="text-xs text-gray-500">(service)</span>}
+</td>
+
                 <td className="px-5 py-3">{donation.date.toLocaleDateString()}</td>
                 <td
                   className={`px-5 py-3 font-semibold ${

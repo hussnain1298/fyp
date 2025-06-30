@@ -77,7 +77,7 @@ export default function MyAccount() {
     "Requests",
     "Services",
     "Fund Raise",
-    "Confirm Fund",
+    "Confirm Donations",
     "Logout",
   ];
 
@@ -124,7 +124,7 @@ export default function MyAccount() {
           {activeTab === "Requests" && <Request />}
           {activeTab === "Services" && <Services />}
           {activeTab === "Fund Raise" && <FundRaise />}
-          {activeTab === "Confirm Fund" && <ConfirmFund />}
+          {activeTab === "Confirm Donations" && <ConfirmFund />}
         </motion.div>
       </div>
       <Footer/>

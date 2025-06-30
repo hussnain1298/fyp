@@ -86,7 +86,7 @@ export default function Navbar() {
     >
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
 
-        <h1 className="text-3xl font-semibold text-black hover:text-yellow-500 cursor-pointer">
+        <h1 className="text-3xl font-semibold text-black cursor-pointer">
           CareConnect.
         </h1>
 

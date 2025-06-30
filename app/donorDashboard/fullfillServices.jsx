@@ -63,7 +63,7 @@ export default function FulfillServices() {
         }));
 
         setServices(enriched);
-        setPage(1);
+        setPage(1); // Reset page after load
       } catch (err) {
         setError("Failed to load services: " + err.message);
       } finally {
@@ -83,6 +83,8 @@ export default function FulfillServices() {
     try {
       await updateDoc(doc(firestore, "services", service.id), {
         status: "In Progress",
+         
+
         lastFulfillmentNote: donationNote || null,
       });
       alert("Fulfillment submitted successfully!");
@@ -109,7 +111,7 @@ export default function FulfillServices() {
           ) : (
             paginatedServices.map((service) => (
               <div key={service.id} className="bg-gray-100 p-6 rounded-lg shadow-md relative">
-                <span className="absolute top-4 right-4 px-3 py-1 rounded-full text-white text-sm font-semibold bg-yellow-500">
+                <span className="absolute top-4 right-4 px-3 py-1 rounded text-white text-sm font-semibold bg-yellow-500">
                   {service.status}
                 </span>
 
@@ -122,9 +124,9 @@ export default function FulfillServices() {
                   <strong>Location:</strong> {service.orphanInfo?.city || "N/A"}
                 </p>
 
-                <div className="flex space-x-4 mt-4">
+                <div className="flex space-x-2">
                   <button
-                    className="px-5 py-2 rounded-md text-white bg-green-600 hover:bg-green-700"
+                    className="mt-4 px-4 py-2 rounded text-white bg-green-600 hover:bg-green-700"
                     onClick={() => setActiveModalId(service.id)}
                   >
                     Fulfill
@@ -135,9 +137,9 @@ export default function FulfillServices() {
                   <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
                     <div className="bg-white p-6 rounded shadow-xl w-full max-w-md">
                       <h3 className="text-lg font-bold mb-4">Confirm Fulfillment</h3>
-
                       <p className="mb-2">
-                        For: <strong>{service.orphanInfo?.orgName || "N/A"}</strong>
+                        Are you sure you want to fulfill this service for Orphanage:{" "}
+                        <strong>{service.orphanInfo?.orgName || "N/A"}</strong>?
                       </p>
                       <p className="mb-4">
                         Location: <strong>{service.orphanInfo?.city || "N/A"}</strong>
@@ -154,13 +156,6 @@ export default function FulfillServices() {
 
                       <div className="flex justify-end gap-2 mt-4">
                         <button
-                          onClick={() => setActiveModalId(null)}
-                          className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-100"
-                          disabled={processing}
-                        >
-                          Cancel
-                        </button>
-                        <button
                           onClick={() => handleFulfill(service)}
                           className={`px-4 py-2 rounded text-white ${
                             processing ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"
@@ -168,6 +163,13 @@ export default function FulfillServices() {
                           disabled={processing}
                         >
                           {processing ? "Processing..." : "Confirm"}
+                        </button>
+                        <button
+                          onClick={() => setActiveModalId(null)}
+                          className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-100"
+                          disabled={processing}
+                        >
+                          Cancel
                         </button>
                       </div>
                     </div>

@@ -21,6 +21,13 @@ import {
 } from "firebase/firestore";
 
 export default function RequestsHoverDemo() {
+  const [expandedIds, setExpandedIds] = useState([]);
+const toggleExpand = (id) => {
+  setExpandedIds((prev) =>
+    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+  );
+};
+
   const [cityFilteredRequests, setCityFilteredRequests] = useState([]);
   const [filteredRequests, setFilteredRequests] = useState([]);
   const [city, setCity] = useState("Detecting...");
@@ -237,32 +244,78 @@ export default function RequestsHoverDemo() {
           <p className="text-center text-gray-400">No requests found.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRequests.map((req) => (
-              <div key={req.id} className="p-5 border rounded-lg shadow bg-white">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-semibold text-lg">{req.title || req.requestType}</h3>
-                  <span className={`inline-block px-2 py-1 rounded text-white text-xs ${req.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"}`}>
-                    {req.status}
-                  </span>
-                </div>
-                <p className="text-gray-600 mb-2">{req.description}</p>
-              {req.quantity && (
-  <p className="text-sm text-gray-600 mb-2">
-    Donated: {req.totalDonated || 0} of {req.quantity}
-  </p>
-)}
+            {filteredRequests.map((req) => {
+  const isFood = req.requestType === "Food";
+  return (
+    <div
+      key={req.id}
+      className="p-5 border rounded-lg shadow bg-white flex flex-col justify-between h-full"
+    >
+      {/* Top Content */}
+      <div>
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="font-semibold text-lg">{req.title || req.requestType}</h3>
+          <span
+            className={`inline-block px-2 py-1 rounded text-white text-xs ${
+              req.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
+            }`}
+          >
+            {req.status}
+          </span>
+        </div>
 
-                <p className="text-sm text-gray-500">Orphanage: {req.orphanInfo?.orgName || "N/A"}</p>
-                <p className="text-sm text-gray-500 mb-4">Location: {req.orphanInfo?.city || "N/A"}</p>
-                <button
-                  onClick={() => handleDonateClick(req)}
-                  disabled={req.status === "Fulfilled"}
-                  className={`py-2 px-6 rounded text-white ${req.status === "Fulfilled" ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
-                >
-                  Donate
-                </button>
-              </div>
-            ))}
+    <div className="text-gray-600 mb-2 text-sm">
+  {req.description.length > 100 ? (
+    <>
+      {expandedIds.includes(req.id)
+        ? req.description
+        : `${req.description.slice(0, 100)}... `}
+      <button
+        onClick={() => toggleExpand(req.id)}
+        className="text-green-600 font-medium hover:underline ml-1"
+      >
+        {expandedIds.includes(req.id) ? "Show Less" : "Read More"}
+      </button>
+    </>
+  ) : (
+    req.description
+  )}
+</div>
+
+
+     
+ 
+
+      </div>
+
+      {/* Fixed Button Placement */}
+      <div className="mt-auto">
+           {!isFood && req.quantity && (
+          <p className="text-sm text-gray-600 mb-2">
+            Donated: {req.totalDonated || 0} of {req.quantity}
+          </p>
+        )}
+
+             <div className="mt-2 mb-4 text-sm text-gray-500 space-y-1">
+  <p>Orphanage: {req.orphanInfo?.orgName || "N/A"}</p>
+  <p>Location: {req.orphanInfo?.city || "N/A"}</p>
+</div>
+        <button
+          onClick={() => handleDonateClick(req)}
+          disabled={req.status === "Fulfilled"}
+          className={`w-full py-2 px-6 rounded text-white ${
+            req.status === "Fulfilled"
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-green-600 hover:bg-green-700"
+          }`}
+        >
+          Donate
+        </button>
+      </div>
+    </div>
+  );
+})}
+
           </div>
         )}
 

@@ -19,9 +19,9 @@ const categories = [
   "Academic Skills",
   "Technology & STEM",
   "Arts & Creativity",
-  "Life Skills & Personal Development",
-  "Career & Vocational Training",
-  "Social & Emotional Learning",
+  "Personal Development",
+  "Career Training",
+  "Social Learning",
 ];
 
 export default function ServicesDashboard() {
@@ -97,8 +97,11 @@ export default function ServicesDashboard() {
 
   return (
     <div className="bg-white min-h-screen container mx-auto px-6 py-10 mt-16">
-      <div className="flex justify-between mb-6">
-        <h2 className="text-4xl font-bold text-gray-900">Services</h2>
+        <h2 className="text-4xl font-bold text-gray-800 mb-6 border-b pb-2 text-center">
+        SERVICES
+        </h2>
+      <div className="flex justify-end mb-6">
+       
         <button
           onClick={() => {
             setForm({});
@@ -107,7 +110,7 @@ export default function ServicesDashboard() {
           }}
           className="bg-green-600 text-white py-2 px-4 rounded"
         >
-          + Add Service
+          + Service Request
         </button>
       </div>
 
@@ -145,6 +148,7 @@ export default function ServicesDashboard() {
             </div>
             <div className="text-right space-y-2">
               <span
+           
                 className={`inline-block text-xs font-semibold px-2 py-1 rounded text-white ${
                   s.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
                 }`}
@@ -244,19 +248,9 @@ export default function ServicesDashboard() {
                   className="w-full p-2 border rounded"
                 />
               </div>
-              <div className="flex justify-between mt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setModalOpen(false);
-                    setForm({});
-                    setFormError("");
-                  }}
-                  className="px-4 py-2 rounded border border-gray-400"
-                >
-                  Cancel
-                </button>
-                <button
+              <div className="flex justify-end mt-4">
+
+                    <button
                   type="submit"
                   className="px-4 py-2 bg-green-600 text-white rounded"
                   disabled={loading}
@@ -267,8 +261,22 @@ export default function ServicesDashboard() {
                       : "Posting..."
                     : editMode
                     ? "Save"
-                    : "Submit"}
+                    : "Post"}
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalOpen(false);
+                    setForm({});
+                    setFormError("");
+                  }}
+                  className="px-4 py-2 rounded border border-gray-400 ml-4"
+                >
+                  Cancel
+                </button>
+
+            
               </div>
             </form>
           </div>

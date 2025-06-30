@@ -103,21 +103,28 @@ export default function Request() {
 
     if (!form.title?.trim()) return setFormError("Title is required.");
     if (form.requestType === "Other" && !form.customType?.trim()) return setFormError("Custom type is required.");
-    if ((["Clothes", "Money"].includes(form.requestType) || form.customType) && (!form.quantity || isNaN(form.quantity) || Number(form.quantity) <= 0)) {
-      return setFormError("Valid quantity is required.");
-    }
+   if ((["Clothes", "Money"].includes(form.requestType) || form.customType) &&
+  (!form.quantity || isNaN(form.quantity) || Number(form.quantity) <= 0)
+) {
+  return setFormError("Valid quantity is required.");
+}
+
 
     try {
-      const payload = {
-        title: form.title.trim(),
-        requestType: form.requestType === "Other" ? form.customType.trim() : form.requestType,
-        description: form.description.trim(),
-        quantity: form.quantity ? Number(form.quantity) : undefined,
-        orphanageId: user.uid,
-        orphanageEmail: user.email,
-        status: "Pending",
-        timestamp: serverTimestamp(),
-      };
+     const payload = {
+  title: form.title.trim(),
+  requestType: form.requestType === "Other" ? form.customType.trim() : form.requestType,
+  description: form.description.trim(),
+  orphanageId: user.uid,
+  orphanageEmail: user.email,
+  status: "Pending",
+  timestamp: serverTimestamp(),
+};
+
+if (["Clothes", "Money"].includes(form.requestType) || form.customType) {
+  payload.quantity = Number(form.quantity);
+}
+
 
       if (form.id) {
         await updateDoc(doc(firestore, "requests", form.id), payload);
@@ -138,8 +145,12 @@ export default function Request() {
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
       <div className="container mx-auto px-6 py-10 mt-16">
-        <div className="flex justify-between mb-6">
-          <h2 className="text-4xl font-bold">Requests</h2>
+  
+          <h2 className="text-4xl font-bold text-gray-800 mb-6 border-b pb-2 text-center">
+        REQUESTS
+        </h2>
+        <div className="flex justify-end mb-6">
+         
           <button
             onClick={() => {
               setForm({});
@@ -148,7 +159,7 @@ export default function Request() {
             }}
             className="bg-green-600 text-white py-2 px-4 rounded"
           >
-            + Add Request
+            + Request
           </button>
         </div>
 
@@ -163,9 +174,12 @@ export default function Request() {
                 <p className="text-sm mt-1 text-gray-600">
                   Type: {r.requestType}
                 </p>
-                <p className="text-sm mt-1 text-gray-600">
-                Quantity: {r.quantity || "-"}, Donated: {r.totalDonated || 0}
-                </p>
+              {(["Clothes", "Money", "Other"].includes(r.requestType)) && (
+  <p className="text-sm mt-1 text-gray-600">
+    Quantity: {r.quantity || "-"}, Donated: {r.totalDonated || 0}
+  </p>
+)}
+
                 <div className="flex space-x-2 mt-2">
                   <button
                     onClick={() => {
@@ -237,11 +251,12 @@ export default function Request() {
                     <Input type="number" value={form.quantity || ""} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <button type="button" onClick={() => { setIsModalOpen(false); setForm({}); setFormError(""); }} className="px-4 py-2 border rounded">Cancel</button>
-                  <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded">
-                    {editMode ? "Save" : "Submit"}
+                <div className="flex justify-end">
+                   <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded">
+                    {editMode ? "Save" : "Post"}
                   </button>
+                  <button type="button" onClick={() => { setIsModalOpen(false); setForm({}); setFormError(""); }} className="px-4 py-2 border rounded ml-4">Cancel</button>
+                 
                 </div>
               </form>
             </div>
