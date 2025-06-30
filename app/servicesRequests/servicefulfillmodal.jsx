@@ -98,14 +98,7 @@ export default function ServiceFulfillModal({ service, user, onFulfill }) {
             {error && <p className="text-red-600 mb-3">{error}</p>}
 
             <div className="flex justify-end gap-4">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-100"
-                disabled={processing}
-              >
-                Cancel
-              </button>
-              <button
+               <button
                 onClick={fulfillService}
                 className={`px-4 py-2 rounded text-white ${
                   processing ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
@@ -114,6 +107,16 @@ export default function ServiceFulfillModal({ service, user, onFulfill }) {
               >
                 {processing ? "Processing..." : "Confirm"}
               </button>
+
+
+              <button
+                onClick={closeModal}
+                className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-100"
+                disabled={processing}
+              >
+                Cancel
+              </button>
+             
             </div>
           </div>
         </div>

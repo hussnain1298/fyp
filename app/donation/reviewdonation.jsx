@@ -113,7 +113,7 @@ export default function ReviewDonation({
       ) : (
         <button
           onClick={() => alert("✅ Thank you! Your donation request has been recorded.")}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition"
+          className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold transition"
         >
           Confirm Donation
         </button>

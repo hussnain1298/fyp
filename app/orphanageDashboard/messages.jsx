@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -40,11 +39,11 @@ const getInitials = (name) => {
 
 export default function OrphanageMessages() {
   const [user, setUser] = useState(null);
-  const [notifications, setNotifications] = useState([]);
   const [chats, setChats] = useState([]);
   const [donorProfiles, setDonorProfiles] = useState({});
   const [search, setSearch] = useState("");
   const [donorSearchResult, setDonorSearchResult] = useState(null);
+  const [loadingChats, setLoadingChats] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -56,22 +55,8 @@ export default function OrphanageMessages() {
 
   useEffect(() => {
     if (!user) return;
-    const notifRef = collection(firestore, "notifications", user.uid, "userNotifications");
-    const notifQuery = query(notifRef, orderBy("timestamp", "desc"));
-    const unsubscribe = onSnapshot(notifQuery, (snapshot) => {
-      const updated = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate(),
-      }));
-      setNotifications(updated);
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
     const fetchChats = async () => {
+      setLoadingChats(true);
       const chatsRef = collection(firestore, "chats");
       const chatsQuery = query(chatsRef, where("participants", "array-contains", user.uid));
       const snapshot = await getDocs(chatsQuery);
@@ -112,6 +97,7 @@ export default function OrphanageMessages() {
       );
 
       setChats(enrichedChats);
+      setLoadingChats(false);
     };
 
     fetchChats();
@@ -192,22 +178,18 @@ export default function OrphanageMessages() {
 
   const openChat = async (chatId) => {
     if (!chatId) return;
-    try {
-      const notifRef = doc(firestore, "notifications", user.uid, "userNotifications", chatId);
-      await setDoc(notifRef, { read: true }, { merge: true });
-    } catch (error) {
-      console.error("Failed to mark notification as read", error);
-    }
     router.push(`/chat?chatId=${chatId}`);
   };
 
-  const filteredChats = chats.filter((chat) => {
-    const profile = donorProfiles[chat.donorId];
-    const name = profile?.name?.toLowerCase() || "";
-    const matchesSearch = name.includes(search.toLowerCase());
-    const hasMessage = !!chat.lastMessage || !!chat.lastTimestamp;
-    return search ? matchesSearch : hasMessage;
-  });
+  const filteredChats = chats
+    .filter((chat) => {
+      const profile = donorProfiles[chat.donorId];
+      const name = profile?.name?.toLowerCase() || "";
+      const matchesSearch = name.includes(search.toLowerCase());
+      const hasMessage = !!chat.lastMessage || !!chat.lastTimestamp;
+      return search ? matchesSearch : hasMessage;
+    })
+    .sort((a, b) => (b.lastTimestamp || 0) - (a.lastTimestamp || 0)); // latest on top
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10 mt-20 bg-gray-50 min-h-screen rounded-lg shadow-lg">
@@ -240,7 +222,19 @@ export default function OrphanageMessages() {
         </div>
       )}
 
-      {filteredChats.length === 0 ? (
+      {loadingChats ? (
+        <ul className="space-y-4">
+          {[...Array(4)].map((_, i) => (
+            <li key={i} className="animate-pulse bg-white p-4 rounded shadow flex items-center space-x-4">
+              <div className="w-12 h-12 rounded-full bg-gray-300" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-300 rounded w-1/3" />
+                <div className="h-3 bg-gray-200 rounded w-2/3" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : filteredChats.length === 0 ? (
         <p className="text-center text-gray-600 text-lg">No chats available.</p>
       ) : (
         <ul className="bg-white shadow-md rounded-lg divide-y divide-gray-200">
@@ -249,12 +243,11 @@ export default function OrphanageMessages() {
               name: "Loading...",
               profilePhoto: null,
             };
-            const notif = notifications.find((n) => n.id === chat.id);
 
             return (
               <li
                 key={chat.id}
-                className={`cursor-pointer px-6 py-4 flex justify-between items-center hover:bg-green-50 transition`}
+                className="cursor-pointer px-6 py-4 flex justify-between items-center hover:bg-green-50 transition"
                 onClick={() => openChat(chat.id)}
               >
                 <div className="flex items-center space-x-4 flex-1">
@@ -266,14 +259,9 @@ export default function OrphanageMessages() {
                     <p className="text-gray-700 mt-1 truncate max-w-xl">{chat.lastMessage || "No message"}</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end min-w-[120px] justify-end space-y-1">
-                  <span className="text-sm text-gray-500">{formatRelativeTime(chat.lastTimestamp)}</span>
-                  {!notif?.read && (
-                    <span className="inline-block bg-green-500 text-white text-xs px-3 py-1 rounded-full font-semibold select-none">
-                      New
-                    </span>
-                  )}
-                </div>
+                <span className="text-sm text-gray-500 min-w-[100px] text-right">
+                  {formatRelativeTime(chat.lastTimestamp)}
+                </span>
               </li>
             );
           })}

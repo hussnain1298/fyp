@@ -8,12 +8,19 @@ const workshopCategories = [
   "Academic Skills",
   "Technology & STEM",
   "Arts & Creativity",
-  "Life Skills & Personal Development",
-  "Career & Vocational Training",
-  "Social & Emotional Learning",
+  "Personal Development",
+  "Career Training",
+  "Social Learning",
 ];
 
 export default function ServicesDisplay() {
+  const [expandedDescriptions, setExpandedDescriptions] = useState([]);
+const toggleExpandDescription = (id) => {
+  setExpandedDescriptions((prev) =>
+    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+  );
+};
+
   const [services, setServices] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [loading, setLoading] = useState(true);
@@ -110,10 +117,14 @@ export default function ServicesDisplay() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 min-h-screen flex flex-col justify-center">
-      <h2 className="text-2xl font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl ">
-        SERVICES
-      </h2>
+    <div className="max-w-7xl mx-auto px-6 min-h-screen flex flex-col ">
+     <h2 className="text-2xl justify-center font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl">
+         SERVICES
+        </h2>
+        <p className="text-lg sm:text-xl text-gray-500 mt-4 text-center">
+          Your support can bring hope and change to those in need...
+        </p>
+
 
       <div className="flex justify-end items-center mb-2 mt-4">
         <select
@@ -147,9 +158,11 @@ export default function ServicesDisplay() {
               className="relative bg-white rounded-lg shadow-md p-6 flex flex-col justify-between min-h-[200px]"
             >
               <span
-                className={`absolute top-4 right-4 px-3 py-1 text-xs font-semibold rounded-full ${
+
+             
+                className={`absolute top-4 right-4 px-3 py-1 text-xs font-semibold rounded ${
                   svc.status === "Pending"
-                    ? "bg-yellow-400 text-yellow-900"
+                    ? "bg-yellow-400 text-yellow-800"
                     : svc.status === "In Progress"
                     ? "bg-blue-600 text-white"
                     : "bg-green-700 text-white"
@@ -161,9 +174,27 @@ export default function ServicesDisplay() {
               <div className="flex flex-col flex-grow gap-2">
                 <h3 className="text-xl font-bold text-green-800">{svc.title}</h3>
                 <div className="mt-auto">
-                  <p className="text-gray-700 text-md flex-grow min-h-[10px] pb-6">
-                    {svc.description}
-                  </p>
+
+
+                 <div className="text-gray-700 text-md flex-grow min-h-[10px] pb-6">
+  {svc.description.length > 70 ? (
+    <>
+      {expandedDescriptions.includes(svc.id)
+        ? svc.description
+        : `${svc.description.slice(0, 70)}... `}
+      <button
+        onClick={() => toggleExpandDescription(svc.id)}
+        className="text-green-600 ml-1 hover:underline text-sm font-medium"
+      >
+        {expandedDescriptions.includes(svc.id) ? "Show Less" : "Read More"}
+      </button>
+    </>
+  ) : (
+    svc.description
+  )}
+</div>
+
+
                   <p className="text-sm text-gray-500">
                     <strong>Orphanage:</strong> {svc.orphanInfo?.orgName || "N/A"}
                   </p>
@@ -193,10 +224,11 @@ export default function ServicesDisplay() {
             return (
               <button
                 key={pageNum}
+                
                 onClick={() => setPage(pageNum)}
-                className={`px-4 py-2 rounded-lg font-semibold ${
+                className={`px-3 py-1 rounded ${
                   page === pageNum
-                    ? "bg-green-700 text-white shadow"
+                    ? "bg-green-600 text-white shadow"
                     : "bg-gray-200 text-green-800 hover:bg-gray-300"
                 }`}
               >
@@ -212,7 +244,7 @@ export default function ServicesDisplay() {
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
             <h2 className="text-xl font-bold mb-4 text-green-900">Confirm Fulfillment</h2>
             <p className="mb-2">
-              Are you sure you want to fulfill the service: <strong>{modalService.title}</strong> for orphanage: {" "}
+              Are you sure you want to fulfill the service: <strong>{modalService.title}</strong> for Orphanage: {" "}
               <strong>{modalService.orphanInfo?.orgName || "N/A"}</strong>?
             </p>
             <p className="mb-4">
@@ -226,18 +258,19 @@ export default function ServicesDisplay() {
               rows={3}
             />
             <div className="flex justify-end gap-3">
+                <button
+                onClick={handleFulfill}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Confirm
+              </button>
               <button
                 onClick={() => setModalService(null)}
                 className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
               >
                 Cancel
               </button>
-              <button
-                onClick={handleFulfill}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-              >
-                Confirm
-              </button>
+            
             </div>
           </div>
         </div>

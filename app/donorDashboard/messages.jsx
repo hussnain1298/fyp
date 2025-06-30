@@ -225,9 +225,7 @@ export default function DonorMessages() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-10 mt-20 bg-gray-50 min-h-screen rounded-lg shadow-lg">
-      <h2 className="text-4xl font-extrabold mb-8 text-center text-gray-900">
-        Chat with Orphanages
-      </h2>
+         <h2 className="text-3xl font-bold text-center text-gray-800 mb-6 border-b pb-2">Chat with Orphanages</h2>
 
       <input
         type="text"
@@ -258,47 +256,47 @@ export default function DonorMessages() {
         <p className="text-center text-gray-600 text-lg">No chats available.</p>
       ) : (
         <ul className="bg-white shadow-md rounded-lg divide-y divide-gray-200">
-          {filteredChats.map((chat) => {
-            const profile = orphanageProfiles[chat.orphanageId] || {
-              name: "Loading...",
-              profilePhoto: null,
-            };
-            const notif = notifications.find((n) => n.id === chat.id);
+        {[...filteredChats]
+  .sort((a, b) => (b.lastTimestamp?.getTime?.() || 0) - (a.lastTimestamp?.getTime?.() || 0))
+  .map((chat) => {
+    const profile = orphanageProfiles[chat.orphanageId] || {
+      name: "Loading...",
+      profilePhoto: null,
+    };
 
-            return (
-              <li
-                key={chat.id}
-                className="cursor-pointer px-6 py-4 flex justify-between items-center hover:bg-green-50 transition"
-                onClick={() => openChat(chat.id)}
-              >
-                <div className="flex items-center space-x-4 flex-1">
-                  {profile.profilePhoto ? (
-                    <img
-                      src={profile.profilePhoto}
-                      alt={`${profile.name} profile`}
-                      className="w-12 h-12 rounded-full object-cover shadow-md"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                      {getInitials(profile.name)}
-                    </div>
-                  )}
-                  <div>
-                    <p className="font-semibold text-lg text-gray-900">{profile.name}</p>
-                    <p className="text-gray-700 mt-1 truncate max-w-xl">{chat.lastMessage || "No message"}</p>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end min-w-[120px] justify-end space-y-1">
-                  <span className="text-sm text-gray-500">{formatRelativeTime(chat.lastTimestamp)}</span>
-                  {!notif?.read && (
-                    <span className="inline-block bg-green-500 text-white text-xs px-3 py-1 rounded-full font-semibold select-none">
-                      New
-                    </span>
-                  )}
-                </div>
-              </li>
-            );
-          })}
+    return (
+      <li
+        key={chat.id}
+        className="cursor-pointer px-6 py-4 flex justify-between items-center hover:bg-green-50 transition"
+        onClick={() => openChat(chat.id)}
+      >
+        <div className="flex items-center space-x-4 flex-1">
+          {profile.profilePhoto ? (
+            <img
+              src={profile.profilePhoto}
+              alt={`${profile.name} profile`}
+              className="w-12 h-12 rounded-full object-cover shadow-md"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-lg shadow-md">
+              {getInitials(profile.name)}
+            </div>
+          )}
+          <div>
+            <p className="font-semibold text-lg text-gray-900">{profile.name}</p>
+            <p className="text-gray-700 mt-1 truncate max-w-xl">
+              {chat.lastMessage || "No message"}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col items-end min-w-[120px] justify-end space-y-1">
+          <span className="text-sm text-gray-500">
+            {formatRelativeTime(chat.lastTimestamp)}
+          </span>
+        </div>
+      </li>
+    );
+  })}    
         </ul>
       )}
     </div>

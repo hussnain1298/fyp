@@ -26,17 +26,19 @@ const ConfirmFund = () => {
   return (
     <div className="bg-white min-h-screen">
       <div className="container mx-auto p-8 mt-16">
-        <h2 className="text-3xl font-bold mb-8">Confirmations</h2>
+       <h2 className="text-4xl font-bold text-gray-800 mb-6 border-b pb-2 text-center">
+        CONFIRM DONATIONS
+        </h2>
 
         {/* Status Filters */}
-        <div className="flex gap-3 mb-8">
+        <div className="flex gap-3 mb-8 justify-center">
           {["pending", "approved", "rejected"].map((status) => (
             <button
               key={status}
               onClick={() => setActiveStatus(status)}
               className={`px-4 py-2 rounded font-semibold transition-colors duration-200 ${
                 activeStatus === status
-                  ? "bg-blue-600 text-white shadow-lg"
+                  ? "bg-green-600 text-white shadow-lg"
                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
               }`}
             >

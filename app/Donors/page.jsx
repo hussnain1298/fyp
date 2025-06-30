@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { firestore } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { firestore, auth } from "@/lib/firebase";
+import {
+  collection,
+  query,
+  where,
+  getDocs
+} from "firebase/firestore";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Navbar from "../Navbar/navbar";
@@ -31,18 +36,40 @@ export default function OurDonors() {
   const [donors, setDonors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [orphanageId, setOrphanageId] = useState(null);
   const pageSize = 6;
   const router = useRouter();
+
+  // Get current user (assumed to be an orphanage)
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setOrphanageId(user.uid);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fetchDonors = async () => {
       try {
-        const q = query(collection(firestore, "users"), where("userType", "==", "Donor"));
+        const q = query(
+          collection(firestore, "users"),
+          where("userType", "==", "Donor")
+        );
         const snapshot = await getDocs(q);
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const data = snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter(
+            (donor) =>
+              donor.orgName &&
+              donor.orgName.trim() !== "" &&
+              donor.contactNumber &&
+              donor.contactNumber.trim() !== ""
+          )
+          .sort((a, b) =>
+            a.orgName.toLowerCase().localeCompare(b.orgName.toLowerCase())
+          );
         setDonors(data);
       } catch (error) {
         console.error("Error fetching donors:", error);
@@ -62,7 +89,7 @@ export default function OurDonors() {
       <Navbar />
       <main className="flex-grow max-w-7xl mx-auto px-4 py-12">
         <h1 className="text-4xl font-extrabold text-center mb-12 mt-20 text-gray-800">
-           OUR DONORS
+          OUR DONORS
         </h1>
 
         {loading ? (
@@ -104,7 +131,7 @@ export default function OurDonors() {
                         {donor.orgAddress || "No address provided"}
                       </p>
                       <p className="text-gray-500 text-xs mt-0.5">
-                        {donor.city || "City not set"}, {donor.province || "Province not set"}
+                        {donor.city || "City not set"}
                       </p>
                       <p className="text-gray-500 text-xs mt-0.5">
                         Contact: {donor.contactNumber || "Not provided"}
@@ -112,16 +139,21 @@ export default function OurDonors() {
                     </div>
                   </div>
 
-                 <button
-  onClick={(e) => {
-    e.stopPropagation();
-    router.push(`/chat?chatId=auto&donorId=${donor.id}`);
-  }}
-  className="mt-auto w-full py-3 rounded-b-xl font-semibold text-white bg-gradient-to-r from-green-400 to-blue-500 shadow-md hover:from-blue-500 hover:to-green-400 transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400"
->
-  Chat
-</button>
-
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (orphanageId) {
+                        router.push(
+                          `/chat?chatId=auto&donorId=${donor.id}&orphanageId=${orphanageId}`
+                        );
+                      } else {
+                        alert("Please log in as an orphanage to start a chat.");
+                      }
+                    }}
+                    className="mt-auto w-full py-3 rounded-b-xl font-semibold text-white bg-gradient-to-r from-green-400 to-blue-500 shadow-md hover:from-blue-500 hover:to-green-400 transition duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400"
+                  >
+                    Chat
+                  </button>
                 </div>
               ))}
             </div>

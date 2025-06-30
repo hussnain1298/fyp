@@ -49,7 +49,13 @@ export default function RequestConfirmations({ activeStatus }) {
           from: "request",
         }));
         const reqDonations = allDonations.filter(d => d.requestId);
-        setRequestDonations(reqDonations);
+      const requestMap = Object.fromEntries(reqList.map(r => [r.id, r]));
+const enrichedDonations = reqDonations.map(d => ({
+  ...d,
+  requestTitle: requestMap[d.requestId]?.title || requestMap[d.requestId]?.requestType || "N/A"
+}));
+setRequestDonations(enrichedDonations);
+
 
         // Fetch donor names in batch
         const uniqueDonorIds = [...new Set(reqDonations.map(d => d.donorId))];
@@ -120,42 +126,43 @@ const handleConfirmDonation = async (donation) => {
   if (!user) return;
 
   try {
-    // Step 1: Mark this donation as confirmed
     await updateDoc(doc(firestore, "donations", donation.donationId), {
       confirmed: true,
       status: "approved",
     });
 
-    // Step 2: Re-fetch all confirmed donations for this request
-    const confirmedDonationsSnap = await getDocs(
-      query(
-        collection(firestore, "donations"),
-        where("requestId", "==", donation.requestId),
-        where("confirmed", "==", true)
-      )
-    );
-
-    let totalConfirmed = 0;
-    confirmedDonationsSnap.forEach((d) => {
-      const data = d.data();
-      if (donation.donationType === "Money") {
-        totalConfirmed += Number(data.amount || 0);
-      } else if (donation.donationType === "Clothes") {
-        totalConfirmed += Number(data.numClothes || 0);
-      }
-    });
-
-    // Step 3: Fetch original request to get required quantity
     const requestRef = doc(firestore, "requests", donation.requestId);
     const reqSnap = await getDoc(requestRef);
     const requestData = reqSnap.exists() ? reqSnap.data() : null;
 
-    // Step 4: Conditionally update request status
-    if (requestData && requestData.quantity && totalConfirmed >= Number(requestData.quantity)) {
+    if (!requestData) return;
+
+    if (donation.donationType === "Food") {
       await updateDoc(requestRef, { status: "Fulfilled" });
+    } else {
+      const confirmedDonationsSnap = await getDocs(
+        query(
+          collection(firestore, "donations"),
+          where("requestId", "==", donation.requestId),
+          where("confirmed", "==", true)
+        )
+      );
+
+      let totalConfirmed = 0;
+      confirmedDonationsSnap.forEach((d) => {
+        const data = d.data();
+        if (donation.donationType === "Money") {
+          totalConfirmed += Number(data.amount || 0);
+        } else if (donation.donationType === "Clothes") {
+          totalConfirmed += Number(data.numClothes || 0);
+        }
+      });
+
+      if (requestData.quantity && totalConfirmed >= Number(requestData.quantity)) {
+        await updateDoc(requestRef, { status: "Fulfilled" });
+      }
     }
 
-    // Step 5: Update local state
     setRequestDonations((prev) =>
       prev.map((d) =>
         d.donationId === donation.donationId ? { ...d, status: "approved", confirmed: true } : d
@@ -202,8 +209,12 @@ const handleConfirmDonation = async (donation) => {
               >
                 <div className="space-y-1 text-gray-800">
                   <p className="font-semibold">
-                    Request Donation by Donor: {donorNames[donation.donorId] || donation.donorId}
-                  </p>
+  Request Title: <strong>{donation.requestTitle || "N/A"}</strong>
+</p>
+<p>
+  Donor: {donorNames[donation.donorId] || donation.donorId}
+</p>
+
                   {donation.amount && <p>Amount: Rs. {donation.amount}</p>}
                   {donation.numClothes && <p>Clothes: {donation.numClothes}</p>}
                   {donation.foodDescription && <p>Food: {donation.foodDescription}</p>}

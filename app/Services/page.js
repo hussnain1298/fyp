@@ -42,12 +42,18 @@ export default function Services() {
     <section className="py-12 ">
       
       <div className="container mx-auto text-center mt-24">
-        <h2 className="text-4xl font-bold text-gray-800 text-center">
+       
+
+ <h2 className="text-2xl font-bold text-gray-800  py-12 md:text-3xl lg:text-4xl xl:text-5xl">
           OUR SERVICES
         </h2>
-        <p className="text-gray-500 mt-2 text-xl">
-          Serving Humanity is the Spirit of All Religions
+        <p className="text-gray-500 text-center text-sm md:text-base lg:text-lg xl:text-xl">
+       We offer a diverse range of services dedicated to uplifting vulnerable communities, especially orphans. From basic necessities like food and clothing to long-term investments in education and personal development, our services are designed to nurture potential, restore dignity, and build pathways to a brighter future. Through every act of support, we foster hope, resilience, and lasting change — one life at a time.
+
+
         </p>
+
+
       </div>
 
       <div className="mt-16 flex flex-wrap justify-center gap-6 px-4">

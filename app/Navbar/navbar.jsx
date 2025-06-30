@@ -5,6 +5,7 @@ import { firestore, auth } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -84,7 +85,8 @@ export default function Navbar() {
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-        <h1 className="text-3xl font-semibold text-black hover:text-yellow-500 cursor-pointer">
+
+        <h1 className="text-3xl font-semibold text-black cursor-pointer">
           CareConnect.
         </h1>
 

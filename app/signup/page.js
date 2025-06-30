@@ -1,332 +1,240 @@
-"use client"
+// app/signup/page.jsx
+"use client";
 
-import React, { useState } from "react"
-import { useRouter } from "next/navigation"
-import { auth, firestore } from "@/lib/firebase"
-import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
-import { doc, setDoc, getDoc } from "firebase/firestore"
-import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai"
-import { toast, ToastContainer } from "react-toastify"
-import "react-toastify/dist/ReactToastify.css"
-import { useForm } from "react-hook-form"
-import Loading from "@/components/loading"
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { auth, firestore } from "@/lib/firebase";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+} from "firebase/auth";
+import { setDoc, doc } from "firebase/firestore";
+import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { useForm, Controller } from "react-hook-form";
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/style.css";
+import AsyncSelect from "react-select/async";
+import axios from "axios";
 
 const FormInput = React.forwardRef(({ label, type = "text", error, name, ...rest }, ref) => {
-  const inputId = name || label.replace(/\s+/g, "")
+  const inputId = name || label.replace(/\s+/g, "");
   return (
-    <div>
-      <label htmlFor={inputId} className="block text-sm font-medium text-gray-600">
-        {label}
-      </label>
+    <div className="flex flex-col gap-1">
+      <label htmlFor={inputId} className="text-sm font-medium text-gray-700">{label}</label>
       <input
         id={inputId}
         name={name}
         type={type}
         placeholder={`Enter ${label.toLowerCase()}`}
-        className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-          error ? "border-red-500" : "border-gray-300"
-        }`}
+        className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${error ? "border-red-500" : "border-gray-300"}`}
         aria-invalid={error ? "true" : "false"}
         aria-describedby={error ? `${inputId}-error` : undefined}
         {...rest}
         ref={ref}
       />
       {error && (
-        <p id={`${inputId}-error`} className="text-red-600 text-sm mt-1" role="alert">
-          {error.message}
-        </p>
+        <p id={`${inputId}-error`} className="text-red-600 text-sm" role="alert">{error.message}</p>
       )}
     </div>
-  )
-})
-FormInput.displayName = "FormInput"
+  );
+});
+FormInput.displayName = "FormInput";
 
-const PasswordInput = React.forwardRef(
-  ({ label = "Password", error, showPassword, toggleShow, name, ...rest }, ref) => {
-    const inputId = name || "password"
-    return (
-      <div>
-        <label htmlFor={inputId} className="block text-sm font-medium text-gray-600">
-          {label}
-        </label>
-        <div className="relative">
-          <input
-            id={inputId}
-            name={name}
-            type={showPassword ? "text" : "password"}
-            placeholder="Minimum 6 characters"
-            className={`w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 ${
-              error ? "border-red-500" : "border-gray-300"
-            }`}
-            aria-invalid={error ? "true" : "false"}
-            aria-describedby={error ? `${inputId}-error` : undefined}
-            {...rest}
-            ref={ref}
-          />
-          <button
-            type="button"
-            onClick={toggleShow}
-            className="absolute right-3 top-3"
-            aria-label={showPassword ? "Hide password" : "Show password"}
-          >
-            {showPassword ? <AiFillEyeInvisible /> : <AiFillEye />}
-          </button>
-        </div>
-        {error && (
-          <p id={`${inputId}-error`} className="text-red-600 text-sm mt-1" role="alert">
-            {error.message}
-          </p>
-        )}
+const PasswordInput = React.forwardRef(({ label = "Password", error, showPassword, toggleShow, name, ...rest }, ref) => {
+  const inputId = name || "password";
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={inputId} className="text-sm font-medium text-gray-700">{label}</label>
+      <div className="relative">
+        <input
+          id={inputId}
+          name={name}
+          type={showPassword ? "text" : "password"}
+          placeholder="Minimum 6 characters"
+          className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${error ? "border-red-500" : "border-gray-300"}`}
+          aria-invalid={error ? "true" : "false"}
+          aria-describedby={error ? `${inputId}-error` : undefined}
+          {...rest}
+          ref={ref}
+        />
+        <button
+          type="button"
+          onClick={toggleShow}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600"
+          aria-label={showPassword ? "Hide password" : "Show password"}
+        >
+          {showPassword ? <AiFillEyeInvisible /> : <AiFillEye />}
+        </button>
       </div>
-    )
-  },
-)
-PasswordInput.displayName = "PasswordInput"
+      {error && (
+        <p id={`${inputId}-error`} className="text-red-600 text-sm" role="alert">{error.message}</p>
+      )}
+    </div>
+  );
+});
+PasswordInput.displayName = "PasswordInput";
+
+const loadCityOptions = async (inputValue) => {
+  if (!inputValue) return [];
+  try {
+    const res = await axios.get("https://wft-geo-db.p.rapidapi.com/v1/geo/cities", {
+      params: { namePrefix: inputValue, sort: "-population", limit: 10 },
+      headers: {
+        "X-RapidAPI-Key": "75b9489edemshc4bf9834e6e1852p14e79ejsn0ec27f88f073",
+        "X-RapidAPI-Host": "wft-geo-db.p.rapidapi.com",
+      },
+    });
+    return res.data.data.map((city) => ({ label: `${city.city}, ${city.countryCode}`, value: city.city }));
+  } catch {
+    return [];
+  }
+};
 
 export default function SignUp() {
-  const [userType, setUserType] = useState("Donor")
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
+  const [userType, setUserType] = useState("Donor");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const router = useRouter();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm()
+  const { register, handleSubmit, control, formState: { errors }, reset, watch } = useForm();
 
   const onSubmit = async (data) => {
-    setLoading(true)
+    setLoading(true);
     try {
-      if (!data.email || !data.password) throw new Error("Email and password are required")
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password)
-      const user = userCredential.user
-
-      const userDoc = {
-        uid: user.uid,
+      const userCred = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      await sendEmailVerification(userCred.user);
+      await setDoc(doc(firestore, "users", userCred.user.uid), {
+        uid: userCred.user.uid,
         email: data.email,
         fullName: data.fullName || "",
-        contactNumber: data.contactNumber || "",
-        orgAddress: data.orgAddress || "",
+        contactNumber: data.contactNumber,
+        orgAddress: data.orgAddress,
+        city: data.city,
         orgName: data.orgName || "",
         licenseId: data.licenseId || "",
-        city: data.city || "",
         userType,
         createdAt: new Date(),
-      }
-
-      await setDoc(doc(firestore, "users", user.uid), userDoc)
-
-      toast.success("🎉 User Successfully Signed Up!", { position: "top-right" })
-
-      reset()
-      setLoading(false)
-
-      setTimeout(() => {
-        router.push(userType === "Donor" ? "/donorDashboard" : "/orphanageDashboard")
-      }, 2000)
+      });
+      toast.success("Verification email sent!", { position: "top-right" });
+      setShowModal(true);
+      reset();
     } catch (error) {
-      toast.error("❌ Error: " + error.message, { position: "top-right" })
-      setLoading(false)
+      let msg = error.message;
+      if (error.code === "auth/email-already-in-use") msg = "This email is already registered.";
+      toast.error("❌ Error: " + msg, { position: "top-right" });
+    } finally {
+      setLoading(false);
     }
-  }
-
-  const handleGoogleSignUp = async () => {
-    setLoading(true)
-    try {
-      const provider = new GoogleAuthProvider()
-      provider.addScope("profile")
-      provider.addScope("email")
-
-      const result = await signInWithPopup(auth, provider)
-      const user = result.user
-
-      const userRef = doc(firestore, "users", user.uid)
-      const userDoc = await getDoc(userRef)
-
-      if (!userDoc.exists()) {
-        await setDoc(userRef, {
-          uid: user.uid,
-          email: user.email,
-          fullName: user.displayName || "",
-          contactNumber: "",
-          userType: "Donor",
-          createdAt: new Date(),
-        })
-      }
-
-      toast.success("🎉 Signed Up with Google!", { position: "top-right" })
-      setLoading(false)
-
-      setTimeout(() => {
-        router.push("/donorDashboard")
-      }, 2000)
-    } catch (error) {
-      let errorMessage = error.message
-      if (error.code === "auth/popup-closed-by-user") {
-        errorMessage = "Sign-in popup was closed before completing the sign-in."
-      } else if (error.code === "auth/cancelled-popup-request") {
-        errorMessage = "Sign-in popup was cancelled."
-      }
-
-      toast.error("❌ Error: " + errorMessage, { position: "top-right" })
-      setLoading(false)
-    }
-  }
-
-  
+  };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50 px-4 sm:px-8">
+    <div className="flex justify-center items-center min-h-screen bg-gradient-to-tr from-slate-100 to-slate-200 px-4 sm:px-6 lg:px-8">
       <ToastContainer />
-      <div className="w-full max-w-md p-6 sm:p-8 bg-white shadow-lg rounded-lg">
-        <h2 className="text-2xl font-bold text-center text-gray-700 mb-6">Sign Up</h2>
+      <div className="w-full max-w-xl bg-white p-6 sm:p-10 rounded-2xl shadow-xl">
+        <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">Create Account</h2>
 
-        <div className="flex justify-center mb-4 flex-wrap" role="tablist" aria-label="User Type">
-          <button
-            onClick={() => setUserType("Donor")}
-            type="button"
-            className={`w-24 py-2 text-sm sm:text-base font-medium rounded-l-md ${
-              userType === "Donor" ? "bg-green-500 text-white" : "bg-gray-200 text-gray-600"
-            }`}
-            aria-selected={userType === "Donor"}
-            role="tab"
-            id="donor-tab"
-            aria-controls="donor-panel"
-          >
-            Donor
-          </button>
-          <button
-            onClick={() => setUserType("Orphanage")}
-            type="button"
-            className={`w-24 py-2 text-sm sm:text-base font-medium rounded-r-md ${
-              userType === "Orphanage" ? "bg-green-500 text-white" : "bg-gray-200 text-gray-600"
-            }`}
-            aria-selected={userType === "Orphanage"}
-            role="tab"
-            id="orphanage-tab"
-            aria-controls="orphanage-panel"
-          >
-            Orphanage
-          </button>
+        <div className="flex justify-center gap-4 mb-6" role="tablist">
+          {["Donor", "Orphanage"].map((type) => (
+            <button
+              key={type}
+              onClick={() => setUserType(type)}
+              className={`w-32 py-2 text-sm font-medium rounded-full transition-all ${userType === type ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+              role="tab"
+              aria-selected={userType === type}
+            >
+              {type}
+            </button>
+          ))}
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          <FormInput
-            label="Email"
-            type="email"
-            {...register("email", {
-              required: "Email is required",
-              pattern: {
-                value: /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/,
-                message: "Invalid email address",
-              },
-            })}
-            error={errors.email}
-            name="email"
-          />
+          <FormInput label="Email" type="email" {...register("email", {
+            required: "Email is required",
+            pattern: {
+              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Invalid email address",
+            },
+          })} error={errors.email} name="email" />
 
-          <PasswordInput
-            label="Password"
-            {...register("password", {
-              required: "Password is required",
-              minLength: { value: 6, message: "Password must be at least 6 characters" },
-            })}
-            error={errors.password}
-            showPassword={showPassword}
-            toggleShow={() => setShowPassword(!showPassword)}
-            name="password"
-          />
+          <PasswordInput label="Password" {...register("password", {
+            required: "Password is required",
+            minLength: { value: 6, message: "Minimum 6 characters" },
+          })} error={errors.password} showPassword={showPassword} toggleShow={() => setShowPassword(!showPassword)} name="password" />
+
+          <PasswordInput label="Confirm Password" {...register("confirmPassword", {
+            required: "Confirm your password",
+            validate: (val) => val === watch("password") || "Passwords do not match",
+          })} error={errors.confirmPassword} showPassword={showPassword} toggleShow={() => setShowPassword(!showPassword)} name="confirmPassword" />
 
           {userType === "Donor" && (
-            <>
-              <FormInput
-                label="Full Name"
-                {...register("fullName", { required: "Full Name is required" })}
-                error={errors.fullName}
-                name="fullName"
-              />
-              <FormInput
-                label="Contact Number"
-                {...register("contactNumber", {
-                  required: "Contact Number is required",
-                  pattern: {
-                    value: /^\+?[0-9\s-]{7,15}$/,
-                    message: "Invalid phone number",
-                  },
-                })}
-                error={errors.contactNumber}
-                name="contactNumber"
-              />
-              <FormInput
-                label="Address"
-                {...register("orgAddress", { required: "Address is required" })}
-                error={errors.orgAddress}
-                name="orgAddress"
-              />
-              <FormInput
-                label="City"
-                {...register("city", { required: "City is required" })}
-                error={errors.city}
-                name="city"
-              />
-            </>
+            <FormInput label="Full Name" {...register("fullName", { required: "Full Name is required" })} error={errors.fullName} name="fullName" />
           )}
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Contact Number</label>
+            <Controller name="contactNumber" control={control} rules={{
+              required: "Contact number is required",
+              validate: (val) => val.replace(/\D/g, "").length >= 7 || "Invalid phone number",
+            }} render={({ field }) => (
+              <PhoneInput
+                country="pk"
+                value={field.value}
+                onChange={field.onChange}
+                inputProps={{ name: "contactNumber", required: true }}
+                inputStyle={{ width: "100%" }}
+                enableSearch
+              />
+            )} />
+            {errors.contactNumber && <p className="text-red-600 text-sm mt-1">{errors.contactNumber.message}</p>}
+          </div>
+
+          <FormInput label="Address" {...register("orgAddress", { required: "Address is required" })} error={errors.orgAddress} name="orgAddress" />
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">City</label>
+            <Controller name="city" control={control} rules={{ required: "City is required" }} render={({ field }) => (
+              <AsyncSelect
+                cacheOptions
+                defaultOptions
+                isClearable
+                loadOptions={loadCityOptions}
+                onChange={(opt) => field.onChange(opt?.value || "")}
+                value={field.value ? { label: field.value, value: field.value } : null}
+              />
+            )} />
+            {errors.city && <p className="text-red-600 text-sm mt-1">{errors.city.message}</p>}
+          </div>
 
           {userType === "Orphanage" && (
             <>
-              <FormInput
-                label="Organization Name"
-                {...register("orgName", { required: "Organization Name is required" })}
-                error={errors.orgName}
-                name="orgName"
-              />
-              <FormInput
-                label="Organization Address"
-                {...register("orgAddress", { required: "Organization Address is required" })}
-                error={errors.orgAddress}
-                name="orgAddress"
-              />
-              <FormInput
-                label="City"
-                {...register("city", { required: "City is required" })}
-                error={errors.city}
-                name="city"
-              />
-              <FormInput
-                label="License ID"
-                {...register("licenseId", {
-                  required: "License ID is required",
-                  pattern: {
-                    value: /^[A-Z0-9]{6,12}$/,
-                    message: "License ID must be 6-12 characters (uppercase letters and numbers only)",
-                  },
-                })}
-                error={errors.licenseId}
-                name="licenseId"
-              />
+              <FormInput label="Organization Name" {...register("orgName", { required: "Organization Name is required" })} error={errors.orgName} name="orgName" />
+              <FormInput label="License ID" {...register("licenseId", {
+                required: "License ID is required",
+                pattern: {
+                  value: /^[A-Z0-9]{6,12}$/,
+                  message: "6–12 uppercase letters/numbers",
+                },
+              })} error={errors.licenseId} name="licenseId" />
             </>
           )}
 
-          <button
-            type="submit"
-            className="w-full py-3 text-sm sm:text-base bg-green-600 text-white rounded-md hover:bg-green-700"
-          >
-            Sign Up
+          <button type="submit" className="w-full py-3 bg-green-600 text-white text-lg rounded-lg hover:bg-green-700">
+            {loading ? "Signing Up..." : "Sign Up"}
           </button>
         </form>
-
-        {userType === "Donor" && (
-          <button
-            onClick={handleGoogleSignUp}
-            className="w-full py-3 text-sm sm:text-base bg-black mt-4 text-white rounded-md"
-            type="button"
-          >
-            Sign Up with Google
-          </button>
-        )}
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md text-center">
+            <h2 className="text-xl font-semibold text-green-600 mb-2">Verify Your Email</h2>
+            <p className="text-gray-700 mb-4">A verification link was sent. Check your inbox.</p>
+            <button onClick={() => setShowModal(false)} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Close</button>
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }

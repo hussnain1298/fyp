@@ -13,7 +13,6 @@ import {
   addDoc,
   getDoc,
 } from "firebase/firestore";
-import toast, { Toaster } from "react-hot-toast"; // ✅ Toast
 
 const MAX_DONATION_AMOUNT = 1000000;
 
@@ -23,427 +22,219 @@ const FundRaise = () => {
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editFundraiser, setEditFundraiser] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newFundraiser, setNewFundraiser] = useState({
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState({
     title: "",
     customTitle: "",
     description: "",
     totalAmount: "",
-    filledhr: "0%",
-    orphanageName: "",
   });
 
+  const titleOptions = ["Books", "School Uniforms", "Nutrition", "Medical Aid", "Other"];
+
   useEffect(() => {
-    const fetchFundraisers = async () => {
-      setLoading(true);
-      setError("");
+    const fetch = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
       try {
-        const userUid = auth.currentUser?.uid;
-        const q = query(
-          collection(firestore, "fundraisers"),
-          where("orphanageId", "==", userUid)
-        );
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) {
-          setError("No fundraisers found.");
-          return;
-        }
-        const fundraiserList = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setFundraisers(fundraiserList);
+        const q = query(collection(firestore, "fundraisers"), where("orphanageId", "==", user.uid));
+        const snap = await getDocs(q);
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setFundraisers(list);
       } catch (err) {
-        setError("Failed to load fundraisers: " + err.message);
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-    fetchFundraisers();
+    fetch();
   }, []);
 
   const handleDelete = async (id) => {
-    const userUid = auth.currentUser?.uid;
-    const fundraiser = fundraisers.find((f) => f.id === id);
-    if (!fundraiser) return;
-    if (window.confirm("Are you sure you want to delete this fundraiser?")) {
-      try {
-        if (fundraiser?.orphanageId !== userUid)
-          return alert("Unauthorized");
-        await deleteDoc(doc(firestore, "fundraisers", id));
-        setFundraisers((prev) => prev.filter((f) => f.id !== id));
-      } catch (err) {
-        alert("Failed to delete fundraiser: " + err.message);
-      }
-    }
+    if (!confirm("Delete this fundraiser?")) return;
+    await deleteDoc(doc(firestore, "fundraisers", id));
+    setFundraisers((prev) => prev.filter((f) => f.id !== id));
   };
 
-  const handleEditClick = (fundraiser) => {
-    setEditFundraiser(fundraiser);
+  const handleEdit = (f) => {
+    setEditFundraiser(f);
     setIsEditing(true);
   };
 
-  const handleSaveChanges = async (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
     const { title, description, totalAmount } = editFundraiser;
-    const numAmount = Number(totalAmount);
-    if (!title || !description) return setError("All fields required.");
-    if (
-      !numAmount ||
-      isNaN(numAmount) ||
-      numAmount < 1 ||
-      numAmount > MAX_DONATION_AMOUNT
-    ) {
-      return setError("Total amount must be between ₹1 and ₹1,000,000.");
+    const amt = Number(totalAmount);
+    if (!title || !description || isNaN(amt) || amt < 1 || amt > MAX_DONATION_AMOUNT) {
+      return setError("All fields are required. Amount must be between RS. 1 and RS. 1,000,000.");
     }
-
-    try {
-      const ref = doc(firestore, "fundraisers", editFundraiser.id);
-      const updatedStatus =
-        editFundraiser.raisedAmount >= numAmount
-          ? "Fulfilled"
-          : editFundraiser.status;
-
-      await updateDoc(ref, {
-        title,
-        description,
-        totalAmount: numAmount,
-        status: updatedStatus,
-      });
-      setFundraisers((prev) =>
-        prev.map((f) =>
-          f.id === editFundraiser.id
-            ? {
-                ...f,
-                title,
-                description,
-                totalAmount: numAmount,
-                status: updatedStatus,
-              }
-            : f
-        )
-      );
-      setIsEditing(false);
-      setError("");
-    } catch (err) {
-      setError("Update failed: " + err.message);
-    }
-  };
-
-  const closeModal = () => {
+    const ref = doc(firestore, "fundraisers", editFundraiser.id);
+    const status = (editFundraiser.raisedAmount || 0) >= amt ? "Fulfilled" : "Pending";
+    await updateDoc(ref, { title, description, totalAmount: amt, status });
+    setFundraisers((prev) =>
+      prev.map((f) =>
+        f.id === editFundraiser.id ? { ...f, title, description, totalAmount: amt, status } : f
+      )
+    );
     setIsEditing(false);
-    setError("");
   };
 
-  const handleAddFundraiser = async (e) => {
+  const handleSubmitNew = async (e) => {
     e.preventDefault();
-    const userId = auth.currentUser?.uid;
-    if (!userId) return setError("You must be logged in.");
+    const user = auth.currentUser;
+    if (!user) return;
 
-    try {
-      const userSnap = await getDoc(doc(firestore, "users", userId));
-      if (!userSnap.exists()) return setError("User not found.");
-      const user = userSnap.data();
-      if (user.userType !== "Orphanage")
-        return setError("Only orphanages can create fundraisers.");
-
-      const finalTitle =
-        newFundraiser.title === "Other"
-          ? newFundraiser.customTitle.trim()
-          : newFundraiser.title;
-      const totalAmount = Number(newFundraiser.totalAmount);
-
-      if (!finalTitle) return setError("Please enter a valid title.");
-      if (
-        !totalAmount ||
-        isNaN(totalAmount) ||
-        totalAmount < 1 ||
-        totalAmount > MAX_DONATION_AMOUNT
-      ) {
-        toast.error("Total amount must be between ₹1 and ₹1,000,000."); // ✅ Toast added
-        return;
-      }
-
-      const docRef = await addDoc(collection(firestore, "fundraisers"), {
-        ...newFundraiser,
-        title: finalTitle,
-        totalAmount,
-        orphanageId: userId,
-        orphanageName: user.name || "",
-        image: "/raise.jpg",
-        raisedAmount: 0,
-      });
-
-      setFundraisers([
-        ...fundraisers,
-        {
-          ...newFundraiser,
-          id: docRef.id,
-          orphanageId: userId,
-          orphanageName: user.name || "",
-          image: "/raise.jpg",
-          raisedAmount: 0,
-        },
-      ]);
-      setShowAddModal(false);
-      setNewFundraiser({
-        title: "",
-        customTitle: "",
-        description: "",
-        totalAmount: "",
-        filledhr: "0%",
-        orphanageName: "",
-      });
-    } catch (err) {
-      setError("Failed to add: " + err.message);
+    const finalTitle = form.title === "Other" ? form.customTitle.trim() : form.title;
+    const amt = Number(form.totalAmount);
+    if (!finalTitle || !form.description || isNaN(amt) || amt < 1 || amt > MAX_DONATION_AMOUNT) {
+      return setError("Please complete all fields. Valid amount required.");
     }
-  };
 
-  const titleOptions = [
-    "Books",
-    "School Uniforms",
-    "Nutrition",
-    "Medical Aid",
-    "Other",
-  ];
+    const snap = await getDoc(doc(firestore, "users", user.uid));
+    const name = snap.exists() ? snap.data().name || "" : "";
+    const data = {
+      ...form,
+      title: finalTitle,
+      totalAmount: amt,
+      raisedAmount: 0,
+      orphanageId: user.uid,
+      orphanageName: name,
+      image: "/raise.jpg",
+      status: "Pending",
+    };
+
+    const ref = await addDoc(collection(firestore, "fundraisers"), data);
+    setFundraisers((prev) => [...prev, { id: ref.id, ...data }]);
+    setForm({ title: "", customTitle: "", description: "", totalAmount: "" });
+    setModalOpen(false);
+  };
 
   return (
-    <div className="bg-gray-50 w-full min-h-screen p-6">
-      <Toaster position="top-right" /> {/* ✅ Toast mount */}
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-4xl font-bold text-gray-800">FundRaise</h2>
+    <div className="container mx-auto mt-16 px-6">
+         <h2 className="text-4xl font-bold text-gray-800 mb-6 border-b pb-2 text-center">
+        FUNDRAISE
+        </h2>
+      <div className="flex justify-end mb-6">
+       
         <button
-          type="button"
-          className="bg-green-600 text-white font-medium py-2 px-4 rounded-md"
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setForm({ title: "", customTitle: "", description: "", totalAmount: "" });
+            setModalOpen(true);
+          }}
+          className="bg-green-600 text-white py-2 px-4 rounded"
         >
-          + Add a FundRaise
+          + Fundraiser
         </button>
       </div>
 
-      {error && (
-        <div className="bg-red-500 text-white text-center py-2 mb-6 rounded">
-          {error}
-        </div>
-      )}
-
       {loading ? (
-        <div className="text-center text-gray-500">Loading...</div>
+        <p className="text-gray-600">Loading...</p>
       ) : (
-        <div className="flex flex-col gap-8">
-          {fundraisers.length === 0 ? (
-            <p className="text-center text-xl text-gray-500">
-              No fundraisers found.
-            </p>
-          ) : (
-            fundraisers.map((fundraiser) => (
-              <div
-                key={fundraiser.id}
-                className="bg-white p-6 rounded-lg shadow-md w-full max-w-4xl mx-auto"
-              >
-                <h2 className="text-xl font-semibold mb-1">
-                  {fundraiser.title}
-                </h2>
-                <p className="text-gray-700 mb-2">{fundraiser.description}</p>
-                <p className="text-sm text-gray-600 mb-1">
-                  <strong>ID:</strong> {fundraiser.id}
+        <div className="space-y-4">
+          {fundraisers.map((f) => (
+            <div key={f.id} className="bg-gray-100 p-4 rounded shadow flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-bold">{f.title}</h3>
+                <p className="text-gray-700">{f.description}</p>
+                <p className="text-sm mt-1 text-gray-600">
+                  Raised: Rs.{f.raisedAmount || 0} / Rs.{f.totalAmount}
                 </p>
-                <p className="text-sm text-gray-600 mb-3">
-                  <strong>Raised:</strong> Rs. {fundraiser.raisedAmount || 0} / Rs.{" "}
-                  {fundraiser.totalAmount}
-                </p>
-                <p className="text-sm font-semibold">
-                  <strong>Status:</strong>{" "}
-                  <span
-                    className={`inline-block px-3 py-1 rounded-full text-white ${
-                      fundraiser.status === "Pending"
-                        ? "bg-yellow-500"
-                        : "bg-green-600"
-                    }`}
-                  >
-                    {fundraiser.status}
-                  </span>
-                </p>
-                <div className="mt-4 flex space-x-4">
-                  <button
-                    onClick={() => handleEditClick(fundraiser)}
-                    className="bg-green-600 text-white px-4 py-2 rounded-md"
-                  >
+                <div className="flex space-x-2 mt-2">
+                  <button onClick={() => handleEdit(f)} className="bg-green-600 text-white px-3 py-1 rounded text-sm">
                     Edit
                   </button>
-                  <button
-                    onClick={() => handleDelete(fundraiser.id)}
-                    className="bg-red-600 text-white px-4 py-2 rounded-md"
-                  >
+                  <button onClick={() => handleDelete(f.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm">
                     Delete
                   </button>
                 </div>
               </div>
-            ))
-          )}
+              <div>
+                <span
+                  className={`inline-block text-xs font-semibold px-2 py-1 rounded text-white ${
+                    f.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
+                  }`}
+                >
+                  {f.status}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+      {(modalOpen || isEditing) && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <form
-            onSubmit={handleAddFundraiser}
-            className="bg-white p-6 rounded-xl shadow-lg max-w-md w-full space-y-4"
+            onSubmit={isEditing ? handleSaveEdit : handleSubmitNew}
+            className="bg-white p-6 rounded-lg shadow-xl w-[400px] space-y-4"
           >
-            <h2 className="text-2xl font-bold text-center text-gray-900">
-              Create Fundraiser
-            </h2>
-            <select
-              name="title"
-              value={newFundraiser.title}
-              onChange={(e) =>
-                setNewFundraiser({
-                  ...newFundraiser,
-                  title: e.target.value,
-                })
-              }
-              className="w-full border border-gray-300 px-4 py-3 rounded-md"
-              required
-            >
-              <option value="">Select a title</option>
-              {titleOptions.map((title) => (
-                <option key={title} value={title}>
-                  {title}
-                </option>
-              ))}
-            </select>
-            {newFundraiser.title === "Other" && (
-              <input
-                type="text"
-                name="customTitle"
-                placeholder="Custom Title"
-                value={newFundraiser.customTitle}
-                onChange={(e) =>
-                  setNewFundraiser({
-                    ...newFundraiser,
-                    customTitle: e.target.value,
-                  })
-                }
-                className="w-full border border-gray-300 rounded-md p-2"
-                required
-              />
+            <h2 className="text-xl font-bold">{isEditing ? "Edit" : "New"} Fundraiser</h2>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            {!isEditing && (
+              <>
+                <select
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  required
+                >
+                  <option value="">Select Title</option>
+                  {titleOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+                {form.title === "Other" && (
+                  <input
+                    type="text"
+                    placeholder="Custom Title"
+                    className="w-full p-2 border rounded"
+                    value={form.customTitle}
+                    onChange={(e) => setForm({ ...form, customTitle: e.target.value })}
+                  />
+                )}
+              </>
             )}
+
             <textarea
-              name="description"
+              rows="3"
               placeholder="Description"
-              value={newFundraiser.description}
+              className="w-full p-2 border rounded"
+              value={isEditing ? editFundraiser.description : form.description}
               onChange={(e) =>
-                setNewFundraiser({
-                  ...newFundraiser,
-                  description: e.target.value,
-                })
+                isEditing
+                  ? setEditFundraiser({ ...editFundraiser, description: e.target.value })
+                  : setForm({ ...form, description: e.target.value })
               }
-              className="w-full border border-gray-300 rounded-md p-2"
               required
-              rows={3}
             />
+
             <input
               type="number"
-              name="totalAmount"
               placeholder="Total Amount"
-              value={newFundraiser.totalAmount}
+              className="w-full p-2 border rounded"
+              value={isEditing ? editFundraiser.totalAmount : form.totalAmount}
               onChange={(e) =>
-                setNewFundraiser({
-                  ...newFundraiser,
-                  totalAmount: Number(e.target.value),
-                })
+                isEditing
+                  ? setEditFundraiser({ ...editFundraiser, totalAmount: e.target.value })
+                  : setForm({ ...form, totalAmount: e.target.value })
               }
-              className="w-full border border-gray-300 rounded-md p-2"
               required
             />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 bg-gray-300 rounded"
-              >
+
+            <div className="flex justify-end">
+                 <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded ">
+                {isEditing ? "Save" : "Post"}
+              </button>
+
+              <button type="button"  className="px-4 py-2 rounded border border-gray-400 ml-4" onClick={() => (isEditing ? setIsEditing(false) : setModalOpen(false))}>
                 Cancel
               </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-green-600 text-white rounded"
-              >
-                Save
-              </button>
+           
             </div>
           </form>
-        </div>
-      )}
-
-      {isEditing && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-8 w-full max-w-md relative">
-            <button
-              onClick={closeModal}
-              className="absolute top-4 right-4 text-3xl text-gray-600 hover:text-gray-800"
-            >
-              &times;
-            </button>
-            <h2 className="text-2xl font-bold mb-6 text-gray-900">
-              Edit Fundraiser
-            </h2>
-            {error && (
-              <div className="bg-red-500 text-white text-center py-2 mb-4 rounded">
-                {error}
-              </div>
-            )}
-            <form onSubmit={handleSaveChanges} className="space-y-5">
-              <input
-                type="text"
-                value={editFundraiser.title}
-                onChange={(e) =>
-                  setEditFundraiser({
-                    ...editFundraiser,
-                    title: e.target.value,
-                  })
-                }
-                className="w-full border border-gray-300 rounded-md p-2"
-                required
-              />
-              <textarea
-                value={editFundraiser.description}
-                onChange={(e) =>
-                  setEditFundraiser({
-                    ...editFundraiser,
-                    description: e.target.value,
-                  })
-                }
-                className="w-full border border-gray-300 rounded-md p-2"
-                required
-                rows={3}
-              />
-              <input
-                type="number"
-                value={editFundraiser.raisedAmount}
-                readOnly
-                className="w-full border border-gray-300 bg-gray-100 rounded-md p-2"
-              />
-              <input
-                type="number"
-                value={editFundraiser.totalAmount}
-                onChange={(e) =>
-                  setEditFundraiser({
-                    ...editFundraiser,
-                    totalAmount: e.target.value,
-                  })
-                }
-                className="w-full border border-gray-300 rounded-md p-2"
-                min={0}
-                required
-              />
-              <button
-                type="submit"
-                className="w-full bg-green-600 text-white py-3 rounded-lg"
-              >
-                Save Changes
-              </button>
-            </form>
-          </div>
         </div>
       )}
     </div>
