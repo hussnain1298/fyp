@@ -69,11 +69,10 @@ const FundRaise = () => {
       return setError("All fields are required. Amount must be between RS. 1 and RS. 1,000,000.");
     }
     const ref = doc(firestore, "fundraisers", editFundraiser.id);
-    const status = (editFundraiser.raisedAmount || 0) >= amt ? "Fulfilled" : "Pending";
-    await updateDoc(ref, { title, description, totalAmount: amt, status });
+    await updateDoc(ref, { title, description, totalAmount: amt });
     setFundraisers((prev) =>
       prev.map((f) =>
-        f.id === editFundraiser.id ? { ...f, title, description, totalAmount: amt, status } : f
+        f.id === editFundraiser.id ? { ...f, title, description, totalAmount: amt } : f
       )
     );
     setIsEditing(false);
@@ -100,7 +99,7 @@ const FundRaise = () => {
       orphanageId: user.uid,
       orphanageName: name,
       image: "/raise.jpg",
-      status: "Pending",
+
     };
 
     const ref = await addDoc(collection(firestore, "fundraisers"), data);
@@ -110,7 +109,7 @@ const FundRaise = () => {
   };
 
   return (
-    <div className="container mx-auto mt-16 px-6">
+    <div className="container mx-auto px-6 py-10 mt-16">
          <h2 className="text-4xl font-bold text-gray-800 mb-6 border-b pb-2 text-center">
         FUNDRAISE
         </h2>
@@ -149,13 +148,7 @@ const FundRaise = () => {
                 </div>
               </div>
               <div>
-                <span
-                  className={`inline-block text-xs font-semibold px-2 py-1 rounded text-white ${
-                    f.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
-                  }`}
-                >
-                  {f.status}
-                </span>
+                
               </div>
             </div>
           ))}

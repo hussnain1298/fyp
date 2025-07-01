@@ -82,53 +82,59 @@ export default function MyAccount() {
   ];
 
   return (
-    <section className={`${poppins.className} min-h-screen`}>
-      <Navbar />
-      <div className="container mx-auto mt-20 px-4 flex flex-col lg:flex-row gap-10">
-        {/* Sidebar */}
-        <aside className="w-full lg:w-1/4 h-full bg-white shadow-md p-6 rounded-lg">
-          <ul className="space-y-2 text-sm font-medium">
-            {tabs.map((tab) => (
-              <li
-                key={tab}
-                onClick={() =>
-                  tab === "Logout" ? handleLogout() : setActiveTab(tab)
-                }
-                className={`p-3 rounded flex justify-between items-center cursor-pointer transition ${
-                  activeTab === tab
-                    ? "bg-gray-200 font-bold"
-                    : "hover:bg-gray-100"
-                }`}
-              >
-                <span>{tab}</span>
-                {tab === "Messages" && unreadCount > 0 && (
-                  <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                    {unreadCount}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </aside>
+   <section className={`${poppins.className} min-h-screen flex flex-col`}>
+  <Navbar />
 
-        {/* Main Content */}
-        <motion.div
-          className="w-full lg:w-3/4"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          {activeTab === "Dashboard" && <OrphanageDashboard />}
-          {activeTab === "Account details" && <AccountDetails />}
-          {activeTab === "Messages" && <Messages />}
-          {activeTab === "Requests" && <Request />}
-          {activeTab === "Services" && <Services />}
-          {activeTab === "Fund Raise" && <FundRaise />}
-          {activeTab === "Confirm Donations" && <ConfirmFund />}
-        </motion.div>
-      </div>
-      <Footer/>
-    </section>
+  {/* Main Content */}
+  <div className="flex-1">
+    <div className="container mx-auto mt-20 px-4 flex flex-col lg:flex-row gap-10">
+      {/* Sidebar */}
+      <aside className="w-full lg:w-1/4 h-full bg-white shadow-md p-6 rounded-lg">
+        <ul className="space-y-2 text-sm font-medium">
+          {tabs.map((tab) => (
+            <li
+              key={tab}
+              onClick={() =>
+                tab === "Logout" ? handleLogout() : setActiveTab(tab)
+              }
+              className={`p-3 rounded flex justify-between items-center cursor-pointer transition ${
+                activeTab === tab
+                  ? "bg-gray-200 font-bold"
+                  : "hover:bg-gray-100"
+              }`}
+            >
+              <span>{tab}</span>
+              {tab === "Messages" && unreadCount > 0 && (
+                <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </aside>
+
+      {/* Main Area */}
+      <motion.div
+        className="w-full lg:w-3/4"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        {activeTab === "Dashboard" && <OrphanageDashboard />}
+        {activeTab === "Account details" && <AccountDetails />}
+        {activeTab === "Messages" && <Messages />}
+        {activeTab === "Requests" && <Request />}
+        {activeTab === "Services" && <Services />}
+        {activeTab === "Fund Raise" && <FundRaise />}
+        {activeTab === "Confirm Donations" && <ConfirmFund />}
+      </motion.div>
+    </div>
+  </div>
+
+  <Footer />
+</section>
+
     
   );
 }
