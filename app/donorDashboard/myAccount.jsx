@@ -15,6 +15,7 @@ import DonationsHistory from "./donationHistory";
 import Navbar from "../Navbar/page";
 import Messages from "./messages";
 import Footer from "../footer/page";
+import FulfillFundraise from "./fullfillFundraise";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -50,6 +51,7 @@ export default function MyAccount() {
           "Messages",
           "Fulfill Requests",
           "Fulfill Services",
+          "Fulfill FundRaise",
           "Donations",
           "Logout",
         ].map((tab) => (
@@ -76,6 +78,7 @@ export default function MyAccount() {
       {activeTab === "Account details" && <AccountDetails />}
       {activeTab === "Fulfill Requests" && <FulfillRequests />}
       {activeTab === "Fulfill Services" && <FulfillServices />}
+      {activeTab === "Fulfill FundRaise" && <FulfillFundraise />}
       {activeTab === "Donations" && <DonationsHistory />}
     </section>
   </div>

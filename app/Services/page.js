@@ -79,8 +79,8 @@ export default function Services() {
 
               {/* Hidden Read More Button (Appears on Hover) */}
               <Link href={service.link}>
-                <button className="bg-transparent text-red-500 py-2 ml-8 px-4 rounded-lg text-xs font-semibold shadow-md hover:bg-gray-100 transition-all opacity-0 group-hover:opacity-50 mt-2">
-                  READ MORE
+                <button className="bg-transparent text-red-500 py-2 ml-8 px-4 rounded-lg text-xs font-semibold shadow-md  transition-all opacity-0 group-hover:opacity-50 mt-2">
+                 
                 </button>
               </Link>
             </div>
