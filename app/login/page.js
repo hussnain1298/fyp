@@ -44,7 +44,11 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
       const user = userCredential.user;
 
       if (!user.emailVerified) {
@@ -88,7 +92,7 @@ const LoginPage = () => {
         router.push("/donorDashboard");
       }
     } catch (err) {
-      setError("Login failed: " + err.message);
+      setError("Invalid email or password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -118,19 +122,45 @@ const LoginPage = () => {
         transition={{ duration: 0.4 }}
         className="w-full max-w-md bg-white p-6 sm:p-10 rounded-2xl shadow-xl"
       >
-        <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">Login</h2>
+        <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">
+          Login
+        </h2>
 
-        {donorCheck && <p className="text-red-500 text-center text-sm mb-4">Only donors can proceed with donations.</p>}
-        {error && <p className="text-red-500 text-center text-sm mb-4">{error}</p>}
+        {donorCheck && (
+          <p className="text-red-500 text-center text-sm mb-4">
+            Only donors can proceed with donations.
+          </p>
+        )}
+        {error && (
+          <p className="text-red-500 text-center text-sm mb-4">{error}</p>
+        )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <FormInput label="Email" type="email" value={email} onChange={setEmail} required />
+        <form onSubmit={handleLogin} autoComplete="off" className="space-y-4">
+          {/* Dummy inputs to trick Chrome autofill */}
+          <div style={{ display: "none" }}>
+            <input type="text" name="fakeuser" autoComplete="off" />
+            <input type="password" name="fakepass" autoComplete="off" />
+          </div>
+
+          <FormInput
+            label="Email"
+            type="email"
+            name="new-email"
+            autoComplete="new-email"
+            value={email}
+            onChange={setEmail}
+            required
+          />
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
+                name="new-password"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -149,7 +179,11 @@ const LoginPage = () => {
           </div>
 
           <div className="text-right text-sm">
-            <button type="button" className="text-blue-600 hover:underline" onClick={() => setShowResetModal(true)}>
+            <button
+              type="button"
+              className="text-blue-600 hover:underline"
+              onClick={() => setShowResetModal(true)}
+            >
               Forgot password?
             </button>
           </div>
@@ -189,7 +223,9 @@ const LoginPage = () => {
       {showVerifyModal && (
         <Modal
           title="Email Not Verified"
-          message={verifyMessage || "Please verify your email before logging in."}
+          message={
+            verifyMessage || "Please verify your email before logging in."
+          }
           onSubmit={async () => {
             try {
               await sendEmailVerification(pendingUser);
@@ -210,7 +246,15 @@ const LoginPage = () => {
   );
 };
 
-const Modal = ({ title, message, inputValue, onChange, onSubmit, onClose, submitLabel = "Submit" }) => (
+const Modal = ({
+  title,
+  message,
+  inputValue,
+  onChange,
+  onSubmit,
+  onClose,
+  submitLabel = "Submit",
+}) => (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
     <div className="bg-white w-full max-w-md p-6 rounded-lg shadow-lg text-center">
       <h2 className="text-xl font-bold mb-4 text-gray-800">{title}</h2>
@@ -224,15 +268,25 @@ const Modal = ({ title, message, inputValue, onChange, onSubmit, onClose, submit
         />
       )}
       {message && (
-        <p className={`text-sm mb-3 ${message.startsWith("✅") ? "text-green-600" : "text-red-600"}`}>
+        <p
+          className={`text-sm mb-3 ${
+            message.startsWith("✅") ? "text-green-600" : "text-red-600"
+          }`}
+        >
           {message}
         </p>
       )}
       <div className="flex justify-end space-x-2">
-        <button onClick={onClose} className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+        >
           Cancel
         </button>
-        <button onClick={onSubmit} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+        <button
+          onClick={onSubmit}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
           {submitLabel}
         </button>
       </div>
@@ -240,11 +294,21 @@ const Modal = ({ title, message, inputValue, onChange, onSubmit, onClose, submit
   </div>
 );
 
-const FormInput = ({ label, type = "text", value, onChange, required = false }) => (
+const FormInput = ({
+  label,
+  type = "text",
+  value,
+  onChange,
+  required = false,
+  name,
+  autoComplete,
+}) => (
   <div>
     <label className="block text-sm font-medium text-gray-700">{label}</label>
     <input
       type={type}
+      name={name}
+      autoComplete={autoComplete}
       placeholder={`Enter ${label.toLowerCase()}`}
       value={value}
       onChange={(e) => onChange(e.target.value)}
