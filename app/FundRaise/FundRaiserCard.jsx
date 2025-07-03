@@ -127,23 +127,24 @@ const FundRaiserCard = ({
             &times;
           </button>
           <h2 className="text-xl font-bold mb-4">Donate to Fundraiser</h2>
- <input
-  inputMode="numeric"
-  pattern="[0-9]*"
-  placeholder="Enter amount (1 to 1,000,000)"
-  value={donationAmount}
-  onChange={(e) => {
-    const input = e.target.value;
-    if (/^\d*$/.test(input)) {
-      setDonationAmount(input);
-      setAmountError("");
-    }
-  }}
-  className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-/>
+          <input
+            type="text"
+            placeholder="Enter amount (1 to 1,000,000)"
+            value={donationAmount}
+            autoFocus
+            onChange={(e) => {
+              const input = e.target.value;
+              if (/^\d*$/.test(input)) {
+                setDonationAmount(input);
+                setAmountError("");
+              }
+            }}
+            className="w-full border border-gray-300 rounded px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
 
-
-          {amountError && <p className="text-sm text-red-600 mt-1">{amountError}</p>}
+          {amountError && (
+            <p className="text-sm text-red-600 mt-1">{amountError}</p>
+          )}
           <button
             onClick={handleDonate}
             disabled={donating}
@@ -159,7 +160,7 @@ const FundRaiserCard = ({
 
   return (
     <>
-    <div className="w-full sm:w-[340px] min-h-[570px] bg-white rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300 ease-in-out flex flex-col justify-between">
+      <div className="w-full sm:w-[340px] min-h-[570px] bg-white rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300 ease-in-out flex flex-col justify-between">
         <div>
           <div className="relative h-64 overflow-hidden rounded-t-3xl shadow-inner">
             <img
@@ -171,7 +172,9 @@ const FundRaiserCard = ({
           </div>
 
           <div className="p-6 flex flex-col gap-3 flex-grow">
-            <h2 className="text-2xl font-extrabold text-gray-900 line-clamp-2">{title}</h2>
+            <h2 className="text-2xl font-extrabold text-gray-900 line-clamp-2">
+              {title}
+            </h2>
             <p className="text-sm text-gray-600">
               {showFullDesc || description.length <= 40
                 ? description
@@ -185,28 +188,27 @@ const FundRaiserCard = ({
                 {showFullDesc ? "Show less" : "Read more"}
               </span>
             )}
-
-          
           </div>
         </div>
 
         <div className="p-6 pt-0">
-            {orphanageName && (
-              <p className="text-sm font-semibold text-gray-500 mb-2">
-                ORPHANAGE: <span className="font-thin">{orphanageName}</span>
-              </p>
-            )}
+          {orphanageName && (
+            <p className="text-sm font-semibold text-gray-500 mb-2">
+              ORPHANAGE: <span className="font-thin">{orphanageName}</span>
+            </p>
+          )}
 
-            <div className="w-full h-3 bg-gray-300 rounded-full overflow-hidden shadow-inner mb-4">
-              <div
-                className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-all duration-500 ease-in-out"
-                style={{ width: `${filledhr}%` }}
-              />
-            </div>
+          <div className="w-full h-3 bg-gray-300 rounded-full overflow-hidden shadow-inner mb-4">
+            <div
+              className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-all duration-500 ease-in-out"
+              style={{ width: `${filledhr}%` }}
+            />
+          </div>
 
-            <div className="text-sm text-gray-700 font-semibold mb-6">
-              Raised <span className="text-green-700">Rs. {raisedAmount}</span> of Rs. {totalAmount}
-            </div>
+          <div className="text-sm text-gray-700 font-semibold mb-6">
+            Raised <span className="text-green-700">Rs. {raisedAmount}</span> of
+            Rs. {totalAmount}
+          </div>
           <button
             onClick={() => setShowDonateModal(true)}
             className="w-full py-3 rounded-xl text-white font-semibold bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"

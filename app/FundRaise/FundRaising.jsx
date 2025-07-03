@@ -71,16 +71,21 @@ const FundRaising = () => {
       setLoading(true);
       setError("");
       try {
-        const orphanQuery = query(collection(firestore, "users"), where("userType", "==", "Orphanage"));
+        const orphanQuery = query(
+          collection(firestore, "users"),
+          where("userType", "==", "Orphanage")
+        );
         const orphanSnapshot = await getDocs(orphanQuery);
         const orphanMap = {};
-        orphanSnapshot.docs.forEach(doc => {
+        orphanSnapshot.docs.forEach((doc) => {
           orphanMap[doc.id] = doc.data();
         });
 
-        const fundraiserSnapshot = await getDocs(collection(firestore, "fundraisers"));
+        const fundraiserSnapshot = await getDocs(
+          collection(firestore, "fundraisers")
+        );
 
-        const fundraiserList = fundraiserSnapshot.docs.map(doc => {
+        const fundraiserList = fundraiserSnapshot.docs.map((doc) => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -136,10 +141,7 @@ const FundRaising = () => {
   return (
     <div className="bg-gray-50 w-full min-h-screen px-4 py-20 relative">
       <div className="text-center max-w-4xl mx-auto mb-8">
-         
-
-
-          <h2 className="text-2xl font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl">
+        <h2 className="text-2xl font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl">
           FUND RAISING
         </h2>
         <p className="text-gray-500 text-center text-sm md:text-base lg:text-lg xl:text-xl">
@@ -158,7 +160,9 @@ const FundRaising = () => {
               raisedAmount={fundraiser.raisedAmount || 0}
               totalAmount={fundraiser.totalAmount || 1}
               filledhr={Math.min(
-                (Number(fundraiser.raisedAmount) / Number(fundraiser.totalAmount)) * 100,
+                (Number(fundraiser.raisedAmount) /
+                  Number(fundraiser.totalAmount)) *
+                  100,
                 100
               )}
               orphanageName={fundraiser.orphanageName}
