@@ -14,7 +14,7 @@ import html2canvas from "html2canvas";
 const colors = ["#82ca9d", "#8884d8", "#ffc658", "#ff8042", "#00C49F", "#FFBB28"];
 const tabs = ["Requests", "Services", "Fundraisers", "Users", "Signup Trends"];
 
-export default function Results() {
+export default function Statistics() {
   const [requests, setRequests] = useState([]);
   const [services, setServices] = useState([]);
   const [fundraisers, setFundraisers] = useState([]);

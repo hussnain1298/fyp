@@ -70,10 +70,10 @@ export default function Footer() {
 
     try {
       // Add the email to the "Our-subscribers" collection in Firestore
-      await addDoc(collection(firestore, "Our-subscribers"), {
-        email,
-        timestamp: new Date(),
-      });
+     await addDoc(collection(firestore, "subscriptions"), {
+  email,
+  timestamp: new Date(),
+});
 
       setSuccess("Subscription successful!");
       setEmail(""); // Clear the email input field
@@ -111,6 +111,7 @@ export default function Footer() {
 
       {/* Subscribe Section */}
       <div className="flex flex-col gap-4">
+        <h1 className="text-gray-600 hover:text-gray-900 text-sm mt-9">Want to get notified?</h1>
         <input
           className="w-full px-3 py-2 border rounded-sm text-sm"
           type="email"
