@@ -69,6 +69,8 @@ export default function Navbar() {
   const getDashboardLink = () => {
     if (userRole === "Donor") return "/donorDashboard";
     if (userRole === "Orphanage") return "/orphanageDashboard";
+     if (userRole === "admin") return "/admin";
+
     return null;
   };
 

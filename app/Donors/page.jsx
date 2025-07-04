@@ -60,16 +60,18 @@ export default function OurDonors() {
         const snapshot = await getDocs(q);
         const data = snapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter(
-            (donor) =>
-              donor.orgName &&
-              donor.orgName.trim() !== "" &&
-              donor.contactNumber &&
-              donor.contactNumber.trim() !== ""
-          )
-          .sort((a, b) =>
-            a.orgName.toLowerCase().localeCompare(b.orgName.toLowerCase())
-          );
+         .filter(
+  (donor) =>
+    donor.fullName &&
+    donor.fullName.trim() !== "" &&
+    donor.contactNumber &&
+    donor.contactNumber.trim() !== ""
+)
+
+         .sort((a, b) =>
+  a.fullName.toLowerCase().localeCompare(b.fullName.toLowerCase())
+);
+
         setDonors(data);
       } catch (error) {
         console.error("Error fetching donors:", error);
@@ -117,16 +119,17 @@ export default function OurDonors() {
                     ) : (
                       <div
                         className="w-16 h-16 rounded-full flex items-center justify-center text-white text-3xl font-semibold flex-shrink-0"
-                        style={{ backgroundColor: generateColor(donor.orgName) }}
+                        style={{ backgroundColor: generateColor(donor.fullName) }}
                       >
                         {getInitial(donor.orgName)}
                       </div>
                     )}
 
                     <div className="ml-5 flex-1">
-                      <h2 className="text-xl font-semibold text-gray-900 truncate">
-                        {donor.orgName || "Anonymous Donor"}
-                      </h2>
+                     <h2 className="text-xl font-semibold text-gray-900 truncate">
+  {donor.fullName || "Anonymous Donor"}
+</h2>
+
                       <p className="text-gray-600 text-sm mt-1 truncate">
                         {donor.orgAddress || "No address provided"}
                       </p>

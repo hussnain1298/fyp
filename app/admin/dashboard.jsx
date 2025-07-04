@@ -42,20 +42,22 @@ export default function dashboard() {
 
   return (
     <section className={`${poppins.className} container mx-auto px-6 py-12`}>
+         
       <motion.div
         className="w-full bg-white shadow-md rounded-xl p-8"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
+   
         <h2 className="text-3xl font-bold text-gray-800 mb-4">
           Welcome to Admin Portal
         </h2>
         <p className="text-gray-600 mb-6 leading-relaxed">
           From your account dashboard, you can view your{" "}
-          <span className="text-blue-500 underline cursor-pointer">donations</span>, chat with{" "}
-          <span className="text-blue-500 underline cursor-pointer">orphanages</span>, and manage your{" "}
-          <span className="text-blue-500 underline cursor-pointer">account details</span>.
+          <span className="text-green-500 underline cursor-pointer">donations</span>, chat with{" "}
+          <span className="text-green-500 underline cursor-pointer">orphanages</span>, and manage your{" "}
+          <span className="text-green-500 underline cursor-pointer">account details</span>.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">

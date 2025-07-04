@@ -102,7 +102,7 @@ export default function OurOrphanages() {
                       {orp.orgAddress || "No address provided"}
                     </p>
                     <p className="text-gray-500 text-xs mt-0.5">
-                      {orp.city || "City not set"}, {orp.province || "Province not set"}
+                      {orp.city || "City not set"}
                     </p>
                     <p className="text-gray-500 text-xs mt-0.5">
                       Contact: {orp.contactNumber || "Not provided"}

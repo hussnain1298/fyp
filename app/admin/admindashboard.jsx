@@ -11,13 +11,25 @@ import { useRouter } from "next/navigation";
 import { auth, firestore } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import AdminHome from "./dashboard";
-import Results from "./results";
+import Statistics from "./statistics";
 import MyAccount from "./myAccount";
+import Navbar from "../Navbar/navbar";
+import Contact from "./contact";
+import Footer from "../footer/page";
+import Subscriptions from "./subscribe";
+import Users from "./users";
+import { FaUserFriends } from "react-icons/fa";
+
 
 const tabs = [
   { label: "Dashboard", icon: <FaTachometerAlt /> },
-  { label: "Results", icon: <FaChartBar /> },
-  { label: "MyAccount", icon: <FaUserShield /> },
+   { label: "MyAccount", icon: <FaUserShield /> },
+  { label: "Statistics", icon: <FaChartBar /> },
+ { label: "Users", icon: <FaUserFriends /> },
+
+   { label: "Contact", icon: <FaUserShield/> },
+   { label: "Subscriptions", icon: <FaUserShield /> },
+
   { label: "Logout", icon: <FaSignOutAlt /> },
 ];
 
@@ -60,10 +72,19 @@ export default function AdminDashboard() {
     switch (activeTab) {
       case "Dashboard":
         return <AdminHome user={user} />;
-      case "Results":
-        return <Results />;
+      case "Statistics":
+        return <Statistics />;
       case "MyAccount":
         return <MyAccount />;
+        case "Users":
+  return <Users />;
+
+      case "Contact":
+        return <Contact/>;
+       case "Subscriptions":
+  return <Subscriptions />;
+
+
       default:
         return <div className="text-red-500">Unknown Tab</div>;
     }
@@ -71,9 +92,10 @@ export default function AdminDashboard() {
 
   return (
     <div className=" flex bg-gray-50 text-gray-800">
+          <Navbar/>
       {/* Sidebar */}
-      <aside className="w-72 bg-white shadow-md p-6 sticky top-0 h-90 mt-10 ml-20">
-        <h1 className="text-3xl font-bold text-green-600 mb-10 pl-4">CareConnect.</h1>
+      <aside className="w-72 bg-white shadow-md p-6 sticky top-0 h-90 mt-20 ml-20">
+        
         <nav className="flex flex-col gap-3">
           {tabs.map(({ label, icon }) => (
             <button
@@ -95,6 +117,8 @@ export default function AdminDashboard() {
       {/* Main Content */}
      <main className="ml-50 mt-10 flex-1 p-10">      {renderTab()}
       </main>
+     
     </div>
+    
   );
 }
