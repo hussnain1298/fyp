@@ -13,19 +13,20 @@ export default function Footer() {
 
   const footerLinks = {
     PRODUCT: [
-      { name: "Features", href: "/features" },
-      { name: "Integrations", href: "/integrations" },
-      { name: "Pricing", href: "/pricing" },
-      { name: "FAQ", href: "/faq" },
+      { name: "Home", href: "/features" },
+      { name: "How It Works", href: "/integrations" },
+      { name: "Donate Now", href: "/pricing" },
+     
     ],
     COMPANY: [
-      { name: "Privacy", href: "/privacy" },
-      { name: "Terms of Service", href: "/terms" },
+      { name: "Gallery", href: "/privacy" },
+        { name: "About Us", href: "/guides" },
+      { name: "Contact", href: "/terms" },
     ],
     DEVELOPERS: [
-      { name: "Public API", href: "/api" },
-      { name: "Documentation", href: "/docs" },
-      { name: "Guides", href: "/guides" },
+      { name: "Our Donors", href: "/api" },
+      { name: "Our Orphanages", href: "/docs" },
+    
     ],
   };
 
@@ -90,7 +91,7 @@ export default function Footer() {
       {/* Link Sections */}
       {Object.entries(footerLinks).map(([category, links]) => (
         <div key={category}>
-          <h3 className="font-semibold text-sm text-gray-900 mb-4">
+          <h3 className="font-semibold text-sm text-gray-100 mb-4">
             {category}
           </h3>
           <ul className="space-y-2">

@@ -71,13 +71,16 @@ const LoginPage = () => {
           return;
         }
 
-        if (role === "Donor") {
-          router.push("/donorDashboard");
-        } else if (role === "Orphanage") {
-          router.push("/orphanageDashboard");
-        } else {
-          setError("User role is missing. Please contact support.");
-        }
+      if (role === "Donor") {
+  router.push("/donorDashboard");
+} else if (role === "Orphanage") {
+  router.push("/orphanageDashboard");
+} else if (role === "admin") {
+  router.push("/admin"); // 🔁 this should match your Admin route
+} else {
+  setError("User role is missing. Please contact support.");
+}
+
       } else {
         const newUser = {
           uid: user.uid,
