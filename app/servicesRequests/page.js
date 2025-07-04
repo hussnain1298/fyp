@@ -2,7 +2,14 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { firestore } from "@/lib/firebase";
-import { collection, getDocs, query, where, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
 
 const workshopCategories = [
   "Academic Skills",
@@ -15,11 +22,11 @@ const workshopCategories = [
 
 export default function ServicesDisplay() {
   const [expandedDescriptions, setExpandedDescriptions] = useState([]);
-const toggleExpandDescription = (id) => {
-  setExpandedDescriptions((prev) =>
-    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-  );
-};
+  const toggleExpandDescription = (id) => {
+    setExpandedDescriptions((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
 
   const [services, setServices] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -36,7 +43,10 @@ const toggleExpandDescription = (id) => {
       setError("");
       try {
         const orphanSnap = await getDocs(
-          query(collection(firestore, "users"), where("userType", "==", "Orphanage"))
+          query(
+            collection(firestore, "users"),
+            where("userType", "==", "Orphanage")
+          )
         );
 
         const orphanMap = {};
@@ -100,11 +110,11 @@ const toggleExpandDescription = (id) => {
 
     try {
       console.log("Fulfilling service:", modalService.id, donationNote);
-   await updateDoc(doc(firestore, "services", modalService.id), {
-  status: "In Progress", // ✅ allowed by rules
-  lastFulfillmentNote: donationNote.trim(),
-  lastFulfillmentTime: new Date().toISOString(),
-});
+      await updateDoc(doc(firestore, "services", modalService.id), {
+        status: "In Progress", // ✅ allowed by rules
+        lastFulfillmentNote: donationNote.trim(),
+        lastFulfillmentTime: new Date().toISOString(),
+      });
 
       alert(`Service "${modalService.title}" fulfilled!`);
       setModalService(null);
@@ -118,13 +128,12 @@ const toggleExpandDescription = (id) => {
 
   return (
     <div className="max-w-7xl mx-auto px-6 min-h-screen flex flex-col ">
-     <h2 className="text-2xl justify-center font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl">
-         SERVICES
-        </h2>
-        <p className="text-lg sm:text-xl text-gray-500 mt-4 text-center">
-          Your support can bring hope and change to those in need...
-        </p>
-
+      <h2 className="text-2xl justify-center font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl">
+        SERVICES
+      </h2>
+      <p className="text-lg sm:text-xl text-gray-500 mt-4 text-center">
+        Your support can bring hope and change to those in need...
+      </p>
 
       <div className="flex justify-end items-center mb-2 mt-4">
         <select
@@ -149,7 +158,9 @@ const toggleExpandDescription = (id) => {
       ) : error ? (
         <p className="text-center text-red-600 font-medium">{error}</p>
       ) : filteredServices.length === 0 ? (
-        <p className="text-center text-gray-600 font-semibold">No services found.</p>
+        <p className="text-center text-gray-600 font-semibold">
+          No services found.
+        </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
           {filteredServices.map((svc) => (
@@ -158,8 +169,6 @@ const toggleExpandDescription = (id) => {
               className="relative bg-white rounded-lg shadow-md p-6 flex flex-col justify-between min-h-[200px]"
             >
               <span
-
-             
                 className={`absolute top-4 right-4 px-3 py-1 text-xs font-semibold rounded ${
                   svc.status === "Pending"
                     ? "bg-yellow-400 text-yellow-800"
@@ -172,31 +181,33 @@ const toggleExpandDescription = (id) => {
               </span>
 
               <div className="flex flex-col flex-grow gap-2">
-                <h3 className="text-xl font-bold text-green-800">{svc.title}</h3>
+                <h3 className="text-xl font-bold text-green-800">
+                  {svc.title}
+                </h3>
                 <div className="mt-auto">
-
-
-                 <div className="text-gray-700 text-md flex-grow min-h-[10px] pb-6">
-  {svc.description.length > 70 ? (
-    <>
-      {expandedDescriptions.includes(svc.id)
-        ? svc.description
-        : `${svc.description.slice(0, 70)}... `}
-      <button
-        onClick={() => toggleExpandDescription(svc.id)}
-        className="text-green-600 ml-1 hover:underline text-sm font-medium"
-      >
-        {expandedDescriptions.includes(svc.id) ? "Show Less" : "Read More"}
-      </button>
-    </>
-  ) : (
-    svc.description
-  )}
-</div>
-
+                  <div className="text-gray-700 text-md flex-grow min-h-[10px] pb-6">
+                    {svc.description.length > 70 ? (
+                      <>
+                        {expandedDescriptions.includes(svc.id)
+                          ? svc.description
+                          : `${svc.description.slice(0, 70)}... `}
+                        <button
+                          onClick={() => toggleExpandDescription(svc.id)}
+                          className="text-green-600 ml-1 hover:underline text-sm font-medium"
+                        >
+                          {expandedDescriptions.includes(svc.id)
+                            ? "Show Less"
+                            : "Read More"}
+                        </button>
+                      </>
+                    ) : (
+                      svc.description
+                    )}
+                  </div>
 
                   <p className="text-sm text-gray-500">
-                    <strong>Orphanage:</strong> {svc.orphanInfo?.orgName || "N/A"}
+                    <strong>Orphanage:</strong>{" "}
+                    {svc.orphanInfo?.orgName || "N/A"}
                   </p>
                   <p className="text-sm text-gray-500">
                     <strong>Location:</strong> {svc.orphanInfo?.city || "N/A"}
@@ -224,7 +235,6 @@ const toggleExpandDescription = (id) => {
             return (
               <button
                 key={pageNum}
-                
                 onClick={() => setPage(pageNum)}
                 className={`px-3 py-1 rounded ${
                   page === pageNum
@@ -242,13 +252,17 @@ const toggleExpandDescription = (id) => {
       {modalService && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-            <h2 className="text-xl font-bold mb-4 text-green-900">Confirm Fulfillment</h2>
+            <h2 className="text-xl font-bold mb-4 text-green-900">
+              Confirm Fulfillment
+            </h2>
             <p className="mb-2">
-              Are you sure you want to fulfill the service: <strong>{modalService.title}</strong> for Orphanage: {" "}
+              Are you sure you want to fulfill the service:{" "}
+              <strong>{modalService.title}</strong> for Orphanage:{" "}
               <strong>{modalService.orphanInfo?.orgName || "N/A"}</strong>?
             </p>
             <p className="mb-4">
-              Location: <strong>{modalService.orphanInfo?.city || "N/A"}</strong>
+              Location:{" "}
+              <strong>{modalService.orphanInfo?.city || "N/A"}</strong>
             </p>
             <textarea
               value={donationNote}
@@ -258,7 +272,7 @@ const toggleExpandDescription = (id) => {
               rows={3}
             />
             <div className="flex justify-end gap-3">
-                <button
+              <button
                 onClick={handleFulfill}
                 className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
               >
@@ -270,7 +284,6 @@ const toggleExpandDescription = (id) => {
               >
                 Cancel
               </button>
-            
             </div>
           </div>
         </div>
