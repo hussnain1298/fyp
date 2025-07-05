@@ -1,10 +1,10 @@
-"use client";
+"use client"
 
-import dynamic from "next/dynamic";
+import { withAuth } from "@/lib/withAuth"
+import AdminDashboard from "./admindashboard"
 
-// Dynamically import AdminDashboard with client-only rendering
-const AdminDashboard = dynamic(() => import("./admindashboard"), { ssr: false });
-
-export default function AdminPage() {
-  return <AdminDashboard />;
+function AdminPage({ user }) {
+  return <AdminDashboard user={user} />
 }
+
+export default withAuth(AdminPage, ["admin"])
