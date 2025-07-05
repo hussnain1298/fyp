@@ -1,107 +1,95 @@
-"use client";
+"use client"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { auth, firestore } from "@/lib/firebase"
+import { collection, getDocs, query, where, doc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { Poppins } from "next/font/google"
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { auth, firestore } from "@/lib/firebase";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-import { Poppins } from "next/font/google";
-
-const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
+const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] })
 
 export default function FulfillServices() {
-  const [services, setServices] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [activeModalId, setActiveModalId] = useState(null);
-  const [donationNote, setDonationNote] = useState("");
-  const [processing, setProcessing] = useState(false);
+  const [services, setServices] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [activeModalId, setActiveModalId] = useState(null)
+  const [donationNote, setDonationNote] = useState("")
+  const [processing, setProcessing] = useState(false)
+  const [page, setPage] = useState(1)
+  const pageSize = 6
+  const router = useRouter()
 
-  const [page, setPage] = useState(1);
-  const pageSize = 6;
-  const router = useRouter();
-
-  const totalPages = Math.ceil(services.length / pageSize);
-  const paginatedServices = services.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.ceil(services.length / pageSize)
+  const paginatedServices = services.slice((page - 1) * pageSize, page * pageSize)
 
   useEffect(() => {
     const fetchServices = async () => {
-      setLoading(true);
-      setError("");
+      setLoading(true)
+      setError("")
       try {
-        const snap = await getDocs(collection(firestore, "services"));
-        const raw = snap.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((s) => s.status === "Pending");
+        const snap = await getDocs(collection(firestore, "services"))
+        const raw = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).filter((s) => s.status === "Pending")
 
-        const orphanageIds = [...new Set(raw.map((s) => s.orphanageId).filter(Boolean))];
-        let orphanageMap = {};
-
+        const orphanageIds = [...new Set(raw.map((s) => s.orphanageId).filter(Boolean))]
+        const orphanageMap = {}
         if (orphanageIds.length) {
-          const batches = [];
-          while (orphanageIds.length) batches.push(orphanageIds.splice(0, 10));
-
+          const batches = []
+          while (orphanageIds.length) batches.push(orphanageIds.splice(0, 10))
           for (const batch of batches) {
-            const orphanSnap = await getDocs(
-              query(collection(firestore, "users"), where("__name__", "in", batch))
-            );
+            const orphanSnap = await getDocs(query(collection(firestore, "users"), where("__name__", "in", batch)))
             orphanSnap.forEach((doc) => {
-              orphanageMap[doc.id] = doc.data();
-            });
+              orphanageMap[doc.id] = doc.data()
+            })
           }
         }
 
         const enriched = raw.map((s) => ({
           ...s,
           orphanInfo: orphanageMap[s.orphanageId] || {},
-        }));
+        }))
 
-        setServices(enriched);
-        setPage(1); // Reset page after load
+        setServices(enriched)
+        setPage(1) // Reset page after load
       } catch (err) {
-        setError("Failed to load services: " + err.message);
+        setError("Failed to load services: " + err.message)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
-    fetchServices();
-  }, []);
+    fetchServices()
+  }, [])
 
   const handleFulfill = async (service) => {
     if (!auth.currentUser) {
-      alert("Please log in to fulfill this service.");
-      return;
+      alert("Please log in to fulfill this service.")
+      return
     }
-    setProcessing(true);
+
+    setProcessing(true)
     try {
+      const user = auth.currentUser
       await updateDoc(doc(firestore, "services", service.id), {
         status: "In Progress",
-         
-
         lastFulfillmentNote: donationNote || null,
-      });
-      alert("Fulfillment submitted successfully!");
-      setActiveModalId(null);
-      setDonationNote("");
+        donorId: user.uid, // ADD: Track who fulfilled it
+        donorEmail: user.email, // ADD: Donor email
+        fulfilledAt: serverTimestamp(), // ADD: When it was fulfilled
+      })
+
+      alert("Fulfillment submitted successfully!")
+      setActiveModalId(null)
+      setDonationNote("")
     } catch (err) {
-      alert("Failed to fulfill: " + err.message);
+      alert("Failed to fulfill: " + err.message)
     } finally {
-      setProcessing(false);
+      setProcessing(false)
     }
-  };
+  }
 
   return (
     <div className={`${poppins.className} bg-white min-h-screen`}>
       <div className="container mx-auto px-6 py-10 mt-16">
         <h2 className="text-3xl font-bold text-center text-gray-800 mb-6 border-b pb-2">SERVICES</h2>
-
         {error && <p className="text-red-500 text-center">{error}</p>}
         {loading && <p className="text-gray-500 text-center">Loading...</p>}
 
@@ -114,7 +102,6 @@ export default function FulfillServices() {
                 <span className="absolute top-4 right-4 px-3 py-1 rounded text-white text-sm font-semibold bg-yellow-500">
                   {service.status}
                 </span>
-
                 <h3 className="text-xl font-bold text-gray-800">{service.title}</h3>
                 <p className="text-gray-700 mt-2">{service.description}</p>
                 <p className="mt-2 text-sm">
@@ -123,7 +110,6 @@ export default function FulfillServices() {
                 <p className="text-sm">
                   <strong>Location:</strong> {service.orphanInfo?.city || "N/A"}
                 </p>
-
                 <div className="flex space-x-2">
                   <button
                     className="mt-4 px-4 py-2 rounded text-white bg-green-600 hover:bg-green-700"
@@ -144,7 +130,6 @@ export default function FulfillServices() {
                       <p className="mb-4">
                         Location: <strong>{service.orphanInfo?.city || "N/A"}</strong>
                       </p>
-
                       <textarea
                         value={donationNote}
                         onChange={(e) => setDonationNote(e.target.value)}
@@ -153,7 +138,6 @@ export default function FulfillServices() {
                         rows={3}
                         disabled={processing}
                       />
-
                       <div className="flex justify-end gap-2 mt-4">
                         <button
                           onClick={() => handleFulfill(service)}
@@ -187,9 +171,7 @@ export default function FulfillServices() {
                 key={idx + 1}
                 onClick={() => setPage(idx + 1)}
                 className={`px-4 py-2 rounded ${
-                  page === idx + 1
-                    ? "bg-green-600 text-white"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  page === idx + 1 ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                 }`}
               >
                 {idx + 1}
@@ -199,5 +181,5 @@ export default function FulfillServices() {
         )}
       </div>
     </div>
-  );
+  )
 }
