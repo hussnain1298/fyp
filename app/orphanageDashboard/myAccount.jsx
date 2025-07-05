@@ -13,6 +13,8 @@ import Request from "./requests"
 import Services from "./service"
 import FundRaise from "./fundraise"
 import Messages from "./messages"
+import Navbar from "../Navbar/navbar"
+import Footer from "../footer/page"
 import ConfirmFund from "./confirmation"
 
 export default function MyAccount() {
@@ -99,30 +101,9 @@ export default function MyAccount() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">O</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-800">Orphanage Dashboard</h1>
-                <p className="text-sm text-gray-600">Manage your organization</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
-
+     <Navbar/>
       {/* Main Content */}
-      <div className="flex-1 container mx-auto px-4 py-6">
+      <div className="flex-1 container mx-auto px-4 py-6 mt-20">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Sidebar */}
           <aside className="w-full lg:w-80">
@@ -174,6 +155,7 @@ export default function MyAccount() {
           </main>
         </div>
       </div>
+      <Footer/>
     </div>
   )
 }
