@@ -1,140 +1,179 @@
-"use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { Poppins } from "next/font/google";
-import { auth, firestore } from "@/lib/firebase";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  orderBy,
-} from "firebase/firestore";
+"use client"
+import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
+import { auth, firestore } from "@/lib/firebase"
+import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore"
+import { signOut } from "firebase/auth"
 
 // Tabs Components
-import OrphanageDashboard from "./dashboard";
-import Navbar from "../Navbar/page";
-import AccountDetails from "./accountDetails";
-import Request from "./requests";
-import Services from "./service";
-import FundRaise from "./fundraise";
-import Messages from "./messages";
-import ConfirmFund from "./confirmation";
-import Footer from "../footer/page";
-
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-});
+import OrphanageDashboard from "./dashboard"
+import AccountDetails from "./accountDetails"
+import Request from "./requests"
+import Services from "./service"
+import FundRaise from "./fundraise"
+import Messages from "./messages"
+import ConfirmFund from "./confirmation"
 
 export default function MyAccount() {
-  const [activeTab, setActiveTab] = useState("Dashboard");
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [user, setUser] = useState(null);
-  const router = useRouter();
+  const [activeTab, setActiveTab] = useState("Dashboard")
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-      setUser(currentUser);
-    });
-    return unsubscribe;
-  }, []);
+      setUser(currentUser)
+      setLoading(false)
+    })
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
-    if (!user) return;
-    const notificationsRef = collection(
-      firestore,
-      "notifications",
-      user.uid,
-      "userNotifications"
-    );
-    const q = query(
-      notificationsRef,
-      where("read", "==", false),
-      orderBy("timestamp", "desc")
-    );
+    if (!user) return
+    const notificationsRef = collection(firestore, "notifications", user.uid, "userNotifications")
+    const q = query(notificationsRef, where("read", "==", false), orderBy("timestamp", "desc"))
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setUnreadCount(snapshot.size);
-    });
-    return () => unsubscribe();
-  }, [user]);
+      setUnreadCount(snapshot.size)
+    })
+    return () => unsubscribe()
+  }, [user])
 
   const handleLogout = async () => {
     try {
-      await auth.signOut();
-      localStorage.removeItem("userSession");
-      router.push("/login");
+      await signOut(auth)
+      localStorage.removeItem("userSession")
+      router.push("/login")
     } catch (error) {
-      console.error("Error Logging Out:", error.message);
+      console.error("Error Logging Out:", error.message)
     }
-  };
+  }
 
-  const tabs = [
-    "Dashboard",
-    "Account details",
-    "Messages",
-    "Requests",
-    "Services",
-    "Fund Raise",
-    "Confirm Donations",
-    "Logout",
-  ];
+  const tabs = useMemo(
+    () => [
+      { id: "Dashboard", label: "Dashboard", icon: "🏠" },
+      { id: "Account details", label: "Account Details", icon: "👤" },
+      { id: "Messages", label: "Messages", icon: "💬", badge: unreadCount },
+      { id: "Requests", label: "Requests", icon: "📋" },
+      { id: "Services", label: "Services", icon: "🎓" },
+      { id: "Fund Raise", label: "Fund Raise", icon: "💰" },
+      { id: "Confirm Donations", label: "Confirm Donations", icon: "✅" },
+      { id: "Logout", label: "Logout", icon: "🚪", isAction: true },
+    ],
+    [unreadCount],
+  )
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "Dashboard":
+        return <OrphanageDashboard />
+      case "Account details":
+        return <AccountDetails />
+      case "Messages":
+        return <Messages />
+      case "Requests":
+        return <Request />
+      case "Services":
+        return <Services />
+      case "Fund Raise":
+        return <FundRaise />
+      case "Confirm Donations":
+        return <ConfirmFund />
+      default:
+        return <OrphanageDashboard />
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-   <section className={`${poppins.className} min-h-screen flex flex-col`}>
-  <Navbar />
-
-  {/* Main Content */}
-  <div className="flex-1">
-    <div className="container mx-auto mt-20 px-4 flex flex-col lg:flex-row gap-10">
-      {/* Sidebar */}
-      <aside className="w-full lg:w-1/4 h-full bg-white shadow-md p-6 rounded-lg">
-        <ul className="space-y-2 text-sm font-medium">
-          {tabs.map((tab) => (
-            <li
-              key={tab}
-              onClick={() =>
-                tab === "Logout" ? handleLogout() : setActiveTab(tab)
-              }
-              className={`p-3 rounded flex justify-between items-center cursor-pointer transition ${
-                activeTab === tab
-                  ? "bg-gray-200 font-bold"
-                  : "hover:bg-gray-100"
-              }`}
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">O</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-800">Orphanage Dashboard</h1>
+                <p className="text-sm text-gray-600">Manage your organization</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <span>{tab}</span>
-              {tab === "Messages" && unreadCount > 0 && (
-                <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                  {unreadCount}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </aside>
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </header>
 
-      {/* Main Area */}
-      <motion.div
-        className="w-full lg:w-3/4"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        {activeTab === "Dashboard" && <OrphanageDashboard />}
-        {activeTab === "Account details" && <AccountDetails />}
-        {activeTab === "Messages" && <Messages />}
-        {activeTab === "Requests" && <Request />}
-        {activeTab === "Services" && <Services />}
-        {activeTab === "Fund Raise" && <FundRaise />}
-        {activeTab === "Confirm Donations" && <ConfirmFund />}
-      </motion.div>
+      {/* Main Content */}
+      <div className="flex-1 container mx-auto px-4 py-6">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Sidebar */}
+          <aside className="w-full lg:w-80">
+            <div className="bg-white shadow-sm border border-gray-200 rounded-xl p-6 sticky top-24">
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">Navigation</h2>
+                <div className="h-1 w-12 bg-gray-600 rounded"></div>
+              </div>
+
+              <nav className="space-y-2">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => (tab.isAction ? handleLogout() : setActiveTab(tab.id))}
+                    className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-all duration-200 ${
+                      activeTab === tab.id && !tab.isAction
+                        ? "bg-gray-100 text-gray-800 border-l-4 border-gray-600 font-medium"
+                        : tab.isAction
+                          ? "hover:bg-red-50 text-red-600 hover:text-red-700"
+                          : "hover:bg-gray-50 text-gray-700 hover:text-gray-900"
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-lg">{tab.icon}</span>
+                      <span className="font-medium">{tab.label}</span>
+                    </div>
+                    {tab.badge > 0 && (
+                      <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[20px] text-center">
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          </aside>
+
+          {/* Main Content Area */}
+          <main className="flex-1">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="bg-white shadow-sm border border-gray-200 rounded-xl min-h-[600px]"
+            >
+              {renderTabContent()}
+            </motion.div>
+          </main>
+        </div>
+      </div>
     </div>
-  </div>
-
-  <Footer />
-</section>
-
-    
-  );
+  )
 }

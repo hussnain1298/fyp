@@ -1,57 +1,22 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Poppins } from "next/font/google";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { auth, firestore } from "@/lib/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
-
-const poppins = Poppins({ subsets: ["latin"], weight: ["400", "600", "700"] });
-
-function CustomAvatar3D({ variant = 1 }) {
-  const avatarImages = {
-    1: "https://cdn1.iconfinder.com/data/icons/facely-metapeople-3d-avatar-set/512/17._Designer.png",
-    2: "https://getillustrations.b-cdn.net//photos/pack/3d-avatar-male_lg.png",
-    3: "https://cdn1.iconfinder.com/data/icons/facely-metapeople-3d-avatar-set/512/16._Doctor.png",
-    4: "https://cdn1.iconfinder.com/data/icons/facely-metapeople-3d-avatar-set/512/4._Western_Man.png",
-    5: "https://cdn1.iconfinder.com/data/icons/facely-metapeople-3d-avatar-set/512/3._Black_Man.png",
-    6: "https://cdn1.iconfinder.com/data/icons/facely-metapeople-3d-avatar-set/512/18._Artist.png",
-    7: "https://cdn1.iconfinder.com/data/icons/facely-metapeople-3d-avatar-set/512/1._Asian_Man.png",
-  };
-  const backgroundGradients = {
-    1: "from-green-400 to-green-600",
-    2: "from-blue-400 to-blue-600",
-    3: "from-red-400 to-red-600",
-    4: "from-orange-400 to-orange-600",
-    5: "from-purple-400 to-purple-600",
-    6: "from-pink-400 to-pink-600",
-    7: "from-indigo-400 to-indigo-600",
-  };
-  return (
-    <div className="relative w-32 h-32 mx-auto">
-      <div className={`absolute inset-0 rounded-full bg-gradient-to-br ${backgroundGradients[variant]} shadow-2xl`}>
-        <div className="absolute inset-2 rounded-full bg-gradient-to-br from-white/30 to-transparent"></div>
-      </div>
-      <div className="absolute inset-2 rounded-full overflow-hidden bg-white shadow-inner">
-        <img
-          src={avatarImages[variant]}
-          alt="3D Avatar"
-          className="w-full h-full object-cover"
-          style={{ filter: "contrast(1.1) saturate(1.1) brightness(1.05)" }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-black/20 rounded-full"></div>
-        <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-gray-900/20 to-transparent rounded-b-full"></div>
-      </div>
-      <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 w-28 h-8 bg-black/30 rounded-full blur-lg"></div>
-      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-pulse"></div>
-    </div>
-  );
-}
+import { useState, useEffect, useCallback } from "react"
+import { auth, firestore } from "@/lib/firebase"
+import { doc, getDoc, updateDoc } from "firebase/firestore"
+import { updatePassword, onAuthStateChanged } from "firebase/auth"
+import { toast, ToastContainer } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
 
 export default function AccountDetails() {
+  const [user, setUser] = useState(null)
+  const [loadingAuth, setLoadingAuth] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  })
+
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -63,172 +28,402 @@ export default function AccountDetails() {
     city: "",
     province: "",
     zip: "",
-  });
+  })
 
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [userId, setUserId] = useState(null);
-  const [avatarVariant, setAvatarVariant] = useState(1);
-
-  const generateAvatarVariant = (uid) => {
-    const hash = uid?.split("").reduce((a, b) => (a = (a << 5) - a + b.charCodeAt(0)), 0);
-    return Math.abs(hash % 7) + 1;
-  };
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      const user = auth.currentUser;
-      if (!user) return setLoading(false);
-      setUserId(user.uid);
-      setAvatarVariant(generateAvatarVariant(user.uid));
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser)
+      setLoadingAuth(false)
+    })
+    return unsubscribe
+  }, [])
 
-      try {
-        const userDoc = await getDoc(doc(firestore, "users", user.uid));
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          setFormData((prev) => ({
-            ...prev,
-            email: user.email,
-            fullName: data.fullName || "",
-            contactNumber: data.contactNumber || "",
-            address: data.orgAddress || "",
-            city: data.city || "",
-            province: data.province || "",
-            zip: data.zip || "",
-          }));
-        }
-      } catch (e) {
-        toast.error("Failed to load user data.");
-      } finally {
-        setLoading(false);
+  const fetchUserData = useCallback(async () => {
+    if (!user) return
+
+    try {
+      const userDoc = await getDoc(doc(firestore, "users", user.uid))
+      if (userDoc.exists()) {
+        const data = userDoc.data()
+        setFormData((prev) => ({
+          ...prev,
+          fullName: data.fullName || "",
+          email: user.email || "",
+          contactNumber: data.contactNumber || "",
+          address: data.address || "",
+          city: data.city || "",
+          province: data.province || "",
+          zip: data.zip || "",
+        }))
+      } else {
+        toast.error("User data not found!")
       }
-    };
-    fetchUserData();
-  }, []);
-
-  const validate = () => {
-    const errs = {};
-    if (!formData.fullName) errs.fullName = "Required";
-    if (!/^\d{10,}$/.test(formData.contactNumber)) errs.contactNumber = "Invalid number";
-    if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
-      errs.confirmPassword = "Passwords do not match";
+    } catch (error) {
+      console.error("Error fetching user data:", error)
+      toast.error("Failed to load user data.")
     }
-    if (formData.zip && !/^\d{5,}$/.test(formData.zip)) errs.zip = "Invalid ZIP";
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
+  }, [user])
+
+  useEffect(() => {
+    fetchUserData()
+  }, [fetchUserData])
+
+  const validateForm = useCallback(() => {
+    const newErrors = {}
+
+    if (!formData.fullName?.trim()) {
+      newErrors.fullName = "Full name is required"
+    }
+
+    if (!formData.contactNumber?.trim()) {
+      newErrors.contactNumber = "Contact number is required"
+    } else if (!/^\+?[\d\s-()]+$/.test(formData.contactNumber)) {
+      newErrors.contactNumber = "Please enter a valid contact number"
+    }
+
+    if (formData.newPassword) {
+      if (!formData.currentPassword) {
+        newErrors.currentPassword = "Current password is required to set new password"
+      }
+
+      if (formData.newPassword.length < 6) {
+        newErrors.newPassword = "New password must be at least 6 characters"
+      }
+
+      if (formData.newPassword !== formData.confirmPassword) {
+        newErrors.confirmPassword = "Passwords do not match"
+      }
+    }
+
+    if (formData.zip && !/^\d{5}(-\d{4})?$/.test(formData.zip)) {
+      newErrors.zip = "Please enter a valid ZIP code"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }, [formData])
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: null }));
-  };
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
 
-  const handleSave = async () => {
-    if (!validate()) return toast.error("Please fix validation errors");
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }))
+    }
+  }
 
-    setSaving(true);
+  const togglePasswordVisibility = (field) => {
+    setShowPasswords((prev) => ({
+      ...prev,
+      [field]: !prev[field],
+    }))
+  }
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+
+    if (!validateForm()) {
+      toast.error("Please fix the errors before saving")
+      return
+    }
+
+    setLoading(true)
     try {
-      const user = auth.currentUser;
+      const userRef = doc(firestore, "users", user.uid)
+      await updateDoc(userRef, {
+        fullName: formData.fullName.trim(),
+        contactNumber: formData.contactNumber.trim(),
+        address: formData.address.trim(),
+        city: formData.city.trim(),
+        province: formData.province.trim(),
+        zip: formData.zip.trim(),
+      })
 
-      if (formData.currentPassword && formData.newPassword) {
-        const credential = EmailAuthProvider.credential(user.email, formData.currentPassword);
-        await reauthenticateWithCredential(user, credential);
-        await updatePassword(user, formData.newPassword);
-        toast.success("Password updated");
+      if (formData.newPassword) {
+        await updatePassword(user, formData.newPassword)
+        setFormData((prev) => ({
+          ...prev,
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        }))
       }
 
-      const data = {
-        fullName: formData.fullName,
-        contactNumber: formData.contactNumber,
-        orgAddress: formData.address,
-        city: formData.city,
-        province: formData.province,
-        zip: formData.zip,
-      };
-
-      await updateDoc(doc(firestore, "users", userId), data);
-      toast.success("Profile updated");
-      setFormData((prev) => ({
-        ...prev,
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      }));
-    } catch (err) {
-      toast.error(err.code === "auth/wrong-password" ? "Incorrect password" : "Update failed");
+      toast.success("Profile updated successfully!")
+    } catch (error) {
+      console.error("Error updating profile:", error)
+      if (error.code === "auth/wrong-password") {
+        setErrors({ currentPassword: "Current password is incorrect" })
+        toast.error("Current password is incorrect")
+      } else if (error.code === "auth/requires-recent-login") {
+        toast.error("Please log out and log back in to change your password")
+      } else {
+        toast.error("Failed to update profile. Please try again.")
+      }
     } finally {
-      setSaving(false);
+      setLoading(false)
     }
-  };
+  }
 
-  if (loading) return <p className="text-center py-10">Loading...</p>;
+  if (loadingAuth) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-600"></div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="text-center py-16">
+        <h3 className="text-xl font-semibold text-gray-600 mb-2">Authentication Required</h3>
+        <p className="text-gray-500">Please log in to access your profile.</p>
+      </div>
+    )
+  }
 
   return (
-    <section className={`${poppins.className} container mx-auto px-4 py-8`}>
-      <motion.div
-        className="w-full max-w-6xl mx-auto bg-white rounded-lg shadow-md p-6"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        <h2 className="text-2xl font-bold text-center mb-6 border-b pb-2">Donor Profile</h2>
+    <div className="p-6 lg:p-8">
+      <ToastContainer position="top-right" autoClose={3000} />
 
-        <div className="flex justify-center mb-6">
-          <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 6, repeat: Infinity }}>
-            <CustomAvatar3D variant={avatarVariant} />
-          </motion.div>
-        </div>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-2">Account Details</h1>
+        <p className="text-gray-600">Manage your personal information and settings</p>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <h3 className="font-semibold mb-4">Personal Info</h3>
-            <LabelInput label="Full Name *" name="fullName" value={formData.fullName} onChange={handleChange} error={errors.fullName} />
-            <LabelInput label="Email *" name="email" value={formData.email} readOnly />
-            <LabelInput label="Contact Number *" name="contactNumber" value={formData.contactNumber} onChange={handleChange} error={errors.contactNumber} />
+      {/* Profile Avatar */}
+      <div className="flex justify-center mb-8">
+        <div className="relative">
+          <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full flex items-center justify-center text-white text-3xl sm:text-5xl font-bold shadow-xl bg-gradient-to-br from-gray-500 to-gray-600">
+            {formData.fullName?.charAt(0).toUpperCase() || "U"}
           </div>
-
-          <div>
-            <h3 className="font-semibold mb-4">Password</h3>
-            <LabelInput label="Current Password" name="currentPassword" value={formData.currentPassword} onChange={handleChange} type="password" />
-            <LabelInput label="New Password" name="newPassword" value={formData.newPassword} onChange={handleChange} type="password" />
-            <LabelInput label="Confirm Password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} type="password" error={errors.confirmPassword} />
-          </div>
-
-          <div>
-            <h3 className="font-semibold mb-4">Address</h3>
-            <LabelInput label="Address" name="address" value={formData.address} onChange={handleChange} />
-            <LabelInput label="City" name="city" value={formData.city} onChange={handleChange} />
-            <LabelInput label="Province" name="province" value={formData.province} onChange={handleChange} />
-            <LabelInput label="ZIP" name="zip" value={formData.zip} onChange={handleChange} error={errors.zip} />
+          <div className="absolute -bottom-2 -right-2 w-6 h-6 sm:w-8 sm:h-8 bg-gray-500 rounded-full border-4 border-white flex items-center justify-center">
+            <span className="text-white text-xs">👤</span>
           </div>
         </div>
+      </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`mt-8 w-full py-3 text-white font-semibold rounded-lg transition-all ${saving ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"}`}
-        >
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
-        <ToastContainer position="top-right" autoClose={3000} />
-      </motion.div>
-    </section>
-  );
+      <form onSubmit={handleSave} className="max-w-4xl mx-auto space-y-8">
+        {/* Personal Information */}
+        <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+          <h2 className="text-xl font-bold text-gray-800 mb-6">Personal Information</h2>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
+              <input
+                type="text"
+                name="fullName"
+                value={formData.fullName}
+                onChange={handleChange}
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none transition-colors ${
+                  errors.fullName ? "border-red-300 focus:border-red-500" : "border-gray-300 focus:border-gray-500"
+                }`}
+                placeholder="Enter your full name"
+              />
+              {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                readOnly
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                placeholder="Email address"
+              />
+              <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Number *</label>
+              <input
+                type="tel"
+                name="contactNumber"
+                value={formData.contactNumber}
+                onChange={handleChange}
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none transition-colors ${
+                  errors.contactNumber ? "border-red-300 focus:border-red-500" : "border-gray-300 focus:border-gray-500"
+                }`}
+                placeholder="Enter contact number"
+              />
+              {errors.contactNumber && <p className="text-red-500 text-sm mt-1">{errors.contactNumber}</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* Password Settings */}
+        <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+          <h2 className="text-xl font-bold text-gray-800 mb-6">Password Settings</h2>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Current Password</label>
+              <div className="relative">
+                <input
+                  type={showPasswords.current ? "text" : "password"}
+                  name="currentPassword"
+                  value={formData.currentPassword}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-3 pr-12 border rounded-lg focus:outline-none transition-colors ${
+                    errors.currentPassword
+                      ? "border-red-300 focus:border-red-500"
+                      : "border-gray-300 focus:border-gray-500"
+                  }`}
+                  placeholder="Enter current password"
+                />
+                <button
+                  type="button"
+                  onClick={() => togglePasswordVisibility("current")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPasswords.current ? "🙈" : "👁️"}
+                </button>
+              </div>
+              {errors.currentPassword && <p className="text-red-500 text-sm mt-1">{errors.currentPassword}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
+              <div className="relative">
+                <input
+                  type={showPasswords.new ? "text" : "password"}
+                  name="newPassword"
+                  value={formData.newPassword}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-3 pr-12 border rounded-lg focus:outline-none transition-colors ${
+                    errors.newPassword ? "border-red-300 focus:border-red-500" : "border-gray-300 focus:border-gray-500"
+                  }`}
+                  placeholder="Enter new password"
+                />
+                <button
+                  type="button"
+                  onClick={() => togglePasswordVisibility("new")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPasswords.new ? "🙈" : "👁️"}
+                </button>
+              </div>
+              {errors.newPassword && <p className="text-red-500 text-sm mt-1">{errors.newPassword}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Confirm New Password</label>
+              <div className="relative">
+                <input
+                  type={showPasswords.confirm ? "text" : "password"}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-3 pr-12 border rounded-lg focus:outline-none transition-colors ${
+                    errors.confirmPassword
+                      ? "border-red-300 focus:border-red-500"
+                      : "border-gray-300 focus:border-gray-500"
+                  }`}
+                  placeholder="Confirm new password"
+                />
+                <button
+                  type="button"
+                  onClick={() => togglePasswordVisibility("confirm")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPasswords.confirm ? "🙈" : "👁️"}
+                </button>
+              </div>
+              {errors.confirmPassword && <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>}
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-700">
+              <strong>Password Requirements:</strong> Minimum 6 characters. Leave blank to keep current password.
+            </p>
+          </div>
+        </div>
+
+        {/* Address Information */}
+        <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+          <h2 className="text-xl font-bold text-gray-800 mb-6">Address Information</h2>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="lg:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+              <input
+                type="text"
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gray-500 transition-colors"
+                placeholder="Enter complete address"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">City</label>
+              <input
+                type="text"
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gray-500 transition-colors"
+                placeholder="Enter city"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Province/State</label>
+              <input
+                type="text"
+                name="province"
+                value={formData.province}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-gray-500 transition-colors"
+                placeholder="Enter province or state"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">ZIP/Postal Code</label>
+              <input
+                type="text"
+                name="zip"
+                value={formData.zip}
+                onChange={handleChange}
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none transition-colors ${
+                  errors.zip ? "border-red-300 focus:border-red-500" : "border-gray-300 focus:border-gray-500"
+                }`}
+                placeholder="Enter ZIP or postal code"
+              />
+              {errors.zip && <p className="text-red-500 text-sm mt-1">{errors.zip}</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* Save Button */}
+        <div className="flex justify-center">
+          <button
+            type="submit"
+            disabled={loading}
+            className={`px-8 py-4 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-all duration-200 shadow-lg ${
+              loading ? "cursor-not-allowed opacity-70" : "hover:shadow-xl"
+            }`}
+          >
+            {loading ? (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Saving Changes...
+              </div>
+            ) : (
+              "Save Changes"
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
 }
-
-const LabelInput = ({ label, name, value, onChange, type = "text", readOnly = false, error }) => (
-  <div className="mb-4">
-    <label className="block text-sm font-medium text-gray-700">{label}</label>
-    <input
-      type={type}
-      name={name}
-      value={value}
-      onChange={onChange}
-      readOnly={readOnly}
-      className={`w-full mt-1 p-2 border ${error ? "border-red-500" : "border-gray-300"} rounded-md focus:ring-2 focus:ring-green-500`}
-    />
-    {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
-  </div>
-);
