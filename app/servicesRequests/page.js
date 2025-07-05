@@ -217,11 +217,17 @@ export default function ServicesDisplay() {
 
               <div className="pt-4">
                 <button
-                  onClick={() => setModalService(svc)}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded"
-                >
-                  Fulfill
-                </button>
+  onClick={() => svc.status !== "Fulfilled" && setModalService(svc)}
+  disabled={svc.status === "Fulfilled"}
+  className={`w-full py-2 rounded text-white transition-colors ${
+    svc.status === "Fulfilled"
+      ? "bg-gray-400 cursor-not-allowed"
+      : "bg-green-600 hover:bg-green-700"
+  }`}
+>
+  {svc.status === "Fulfilled" ? "Fulfilled" : "Fulfill"}
+</button>
+
               </div>
             </div>
           ))}
