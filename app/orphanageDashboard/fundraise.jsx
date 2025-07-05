@@ -13,8 +13,11 @@ import {
   addDoc,
   getDoc,
 } from "firebase/firestore";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const MAX_DONATION_AMOUNT = 1000000;
+const PAGE_SIZE = 5;
 
 const FundRaise = () => {
   const [fundraisers, setFundraisers] = useState([]);
@@ -23,17 +26,14 @@ const FundRaise = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editFundraiser, setEditFundraiser] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    customTitle: "",
-    description: "",
-    totalAmount: "",
-  });
+  const [form, setForm] = useState({ title: "", customTitle: "", description: "", totalAmount: "" });
+  const [page, setPage] = useState(1);
 
   const titleOptions = ["Books", "School Uniforms", "Nutrition", "Medical Aid", "Other"];
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchFundraisers = async () => {
+      setLoading(true);
       const user = auth.currentUser;
       if (!user) return;
       try {
@@ -43,22 +43,25 @@ const FundRaise = () => {
         setFundraisers(list);
       } catch (err) {
         setError(err.message);
+        toast.error("Failed to load fundraisers.");
       } finally {
         setLoading(false);
       }
     };
-    fetch();
+    fetchFundraisers();
   }, []);
 
   const handleDelete = async (id) => {
     if (!confirm("Delete this fundraiser?")) return;
     await deleteDoc(doc(firestore, "fundraisers", id));
     setFundraisers((prev) => prev.filter((f) => f.id !== id));
+    toast.success("Fundraiser deleted.");
   };
 
   const handleEdit = (f) => {
     setEditFundraiser(f);
     setIsEditing(true);
+    setModalOpen(true);
   };
 
   const handleSaveEdit = async (e) => {
@@ -71,11 +74,11 @@ const FundRaise = () => {
     const ref = doc(firestore, "fundraisers", editFundraiser.id);
     await updateDoc(ref, { title, description, totalAmount: amt });
     setFundraisers((prev) =>
-      prev.map((f) =>
-        f.id === editFundraiser.id ? { ...f, title, description, totalAmount: amt } : f
-      )
+      prev.map((f) => (f.id === editFundraiser.id ? { ...f, title, description, totalAmount: amt } : f))
     );
+    toast.success("Fundraiser updated.");
     setIsEditing(false);
+    setModalOpen(false);
   };
 
   const handleSubmitNew = async (e) => {
@@ -99,26 +102,28 @@ const FundRaise = () => {
       orphanageId: user.uid,
       orphanageName: name,
       image: "/raise.jpg",
-
     };
 
     const ref = await addDoc(collection(firestore, "fundraisers"), data);
     setFundraisers((prev) => [...prev, { id: ref.id, ...data }]);
+    toast.success("Fundraiser created.");
     setForm({ title: "", customTitle: "", description: "", totalAmount: "" });
     setModalOpen(false);
   };
 
+  const totalPages = Math.ceil(fundraisers.length / PAGE_SIZE);
+  const paginatedFundraisers = fundraisers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div className="container mx-auto px-6 py-10 mt-16">
-         <h2 className="text-4xl font-bold text-gray-800 mb-6 border-b pb-2 text-center">
-        FUNDRAISE
-        </h2>
+      <ToastContainer />
+      <h2 className="text-4xl font-bold text-gray-800 mb-6 border-b pb-2 text-center">FUNDRAISE</h2>
       <div className="flex justify-end mb-6">
-       
         <button
           onClick={() => {
             setForm({ title: "", customTitle: "", description: "", totalAmount: "" });
             setModalOpen(true);
+            setIsEditing(false);
           }}
           className="bg-green-600 text-white py-2 px-4 rounded"
         >
@@ -130,7 +135,7 @@ const FundRaise = () => {
         <p className="text-gray-600">Loading...</p>
       ) : (
         <div className="space-y-4">
-          {fundraisers.map((f) => (
+          {paginatedFundraisers.map((f) => (
             <div key={f.id} className="bg-gray-100 p-4 rounded shadow flex justify-between items-start">
               <div>
                 <h3 className="text-lg font-bold">{f.title}</h3>
@@ -139,23 +144,32 @@ const FundRaise = () => {
                   Raised: Rs.{f.raisedAmount || 0} / Rs.{f.totalAmount}
                 </p>
                 <div className="flex space-x-2 mt-2">
-                  <button onClick={() => handleEdit(f)} className="bg-green-600 text-white px-3 py-1 rounded text-sm">
-                    Edit
-                  </button>
-                  <button onClick={() => handleDelete(f.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm">
-                    Delete
-                  </button>
+                  <button onClick={() => handleEdit(f)} className="bg-green-600 text-white px-3 py-1 rounded text-sm">Edit</button>
+                  <button onClick={() => handleDelete(f.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm">Delete</button>
                 </div>
-              </div>
-              <div>
-                
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {(modalOpen || isEditing) && (
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-6 space-x-2">
+          {Array.from({ length: totalPages }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => setPage(i + 1)}
+              className={`px-4 py-2 rounded ${
+                page === i + 1 ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+              }`}
+            >
+              {i + 1}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {modalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <form
             onSubmit={isEditing ? handleSaveEdit : handleSubmitNew}
@@ -174,9 +188,7 @@ const FundRaise = () => {
                 >
                   <option value="">Select Title</option>
                   {titleOptions.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
+                    <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
                 {form.title === "Other" && (
@@ -218,14 +230,19 @@ const FundRaise = () => {
             />
 
             <div className="flex justify-end">
-                 <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded ">
+              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded ">
                 {isEditing ? "Save" : "Post"}
               </button>
-
-              <button type="button"  className="px-4 py-2 rounded border border-gray-400 ml-4" onClick={() => (isEditing ? setIsEditing(false) : setModalOpen(false))}>
+              <button
+                type="button"
+                className="px-4 py-2 rounded border border-gray-400 ml-4"
+                onClick={() => {
+                  setModalOpen(false);
+                  setIsEditing(false);
+                }}
+              >
                 Cancel
               </button>
-           
             </div>
           </form>
         </div>
