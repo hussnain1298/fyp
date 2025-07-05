@@ -1,7 +1,5 @@
-"use client"
-
-import LocationProvider from "./location-provider"
-import RequestsDisplay from "./requests-display"
+import LocationProvider from "./location-provider";
+import RequestsDisplay from "./requests-display";
 
 export default function DonationRequest() {
   return (
@@ -13,8 +11,10 @@ export default function DonationRequest() {
         <p className="text-gray-500 text-center text-sm md:text-base lg:text-lg xl:text-xl">
           Serving Humanity is the Spirit of All Religions
         </p>
-        <LocationProvider>{(locationProps) => <RequestsDisplay {...locationProps} />}</LocationProvider>
+        <LocationProvider>
+          {(locationProps) => <RequestsDisplay {...locationProps} />}
+        </LocationProvider>
       </div>
     </main>
-  )
+  );
 }

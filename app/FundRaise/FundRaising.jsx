@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Slider from "react-slick";
+import { useState, useEffect } from "react";
 import { firestore } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import FundRaiserCard from "./FundRaiserCard";
-import { auth } from "@/lib/firebase"; // 👈 load user manually
+import { auth } from "@/lib/firebase";
+import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
@@ -84,7 +84,6 @@ const FundRaising = () => {
         const fundraiserSnapshot = await getDocs(
           collection(firestore, "fundraisers")
         );
-
         const fundraiserList = fundraiserSnapshot.docs.map((doc) => {
           const data = doc.data();
           return {
@@ -107,6 +106,7 @@ const FundRaising = () => {
 
   if (loading)
     return <div className="text-center py-8 text-gray-500">Loading...</div>;
+
   if (error)
     return <div className="text-center py-8 text-red-500">{error}</div>;
 
@@ -117,8 +117,7 @@ const FundRaising = () => {
     slidesToShow: fundraisers.length >= 4 ? 4 : fundraisers.length,
     slidesToScroll: 1,
     arrows: true,
-    autoplay: fundraisers.length > 4,
-    autoplaySpeed: 3000,
+    autoplay: false, // 👈 DISABLED AUTOPLAY
     pauseOnHover: true,
     nextArrow: <NextArrow />,
     prevArrow: <PrevArrow />,
@@ -139,8 +138,8 @@ const FundRaising = () => {
   };
 
   return (
-    <div className="bg-gray-50 w-full min-h-screen px-4 py-20 relative">
-      <div className="text-center max-w-4xl mx-auto mb-8">
+    <div className="bg-gray-50 w-full min-h-screen pl-8 pr-0 py-20">
+      <div className="text-center w-full mx-auto mb-8">
         <h2 className="text-2xl font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl">
           FUND RAISING
         </h2>
@@ -149,28 +148,43 @@ const FundRaising = () => {
         </p>
       </div>
 
-      <Slider {...settings}>
-        {fundraisers.map((fundraiser) => (
-          <div key={fundraiser.id} className="px-16">
-            <FundRaiserCard
-              id={fundraiser.id}
-              bgImage={fundraiser.image || "/raise.jpg"}
-              title={fundraiser.title}
-              description={fundraiser.description}
-              raisedAmount={fundraiser.raisedAmount || 0}
-              totalAmount={fundraiser.totalAmount || 1}
-              filledhr={Math.min(
-                (Number(fundraiser.raisedAmount) /
-                  Number(fundraiser.totalAmount)) *
-                  100,
-                100
-              )}
-              orphanageName={fundraiser.orphanageName}
-              user={user}
-            />
+      {/* SLIDER WITH LEFT PADDING, RIGHT FULL WIDTH */}
+      <div className="w-full">
+        <Slider {...settings}>
+          {fundraisers.map((fundraiser) => (
+            <div key={fundraiser.id} className="px-2">
+              <FundRaiserCard
+                id={fundraiser.id}
+                bgImage={fundraiser.image || "/raise.jpg"}
+                title={fundraiser.title}
+                description={fundraiser.description}
+                raisedAmount={fundraiser.raisedAmount || 0}
+                totalAmount={fundraiser.totalAmount || 1}
+                filledhr={Math.min(
+                  (Number(fundraiser.raisedAmount) /
+                    Number(fundraiser.totalAmount)) *
+                    100,
+                  100
+                )}
+                orphanageName={fundraiser.orphanageName}
+                user={user}
+              />
+            </div>
+          ))}
+        </Slider>
+
+        {/* Show message if no fundraisers */}
+        {fundraisers.length === 0 && !loading && (
+          <div className="text-center py-12">
+            <h3 className="text-xl font-semibold text-gray-600 mb-2">
+              No fundraisers available
+            </h3>
+            <p className="text-gray-500">
+              Check back later for new fundraising campaigns.
+            </p>
           </div>
-        ))}
-      </Slider>
+        )}
+      </div>
     </div>
   );
 };
