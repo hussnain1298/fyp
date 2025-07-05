@@ -1,19 +1,21 @@
-// components/ServicesDashboard.jsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { auth, firestore } from "@/lib/firebase";
+import React, { useState, useEffect } from "react";
+import { firestore, auth } from "@/lib/firebase";
 import {
   collection,
   query,
-  where,
   getDocs,
-  updateDoc,
-  doc,
   deleteDoc,
+  doc,
+  updateDoc,
+  where,
   addDoc,
   serverTimestamp,
+  getDoc,
 } from "firebase/firestore";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const categories = [
   "Academic Skills",
@@ -24,6 +26,8 @@ const categories = [
   "Social Learning",
 ];
 
+const PAGE_SIZE = 5;
+
 export default function ServicesDashboard() {
   const [services, setServices] = useState([]);
   const [form, setForm] = useState({});
@@ -31,20 +35,31 @@ export default function ServicesDashboard() {
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchServices = async () => {
       const user = auth.currentUser;
       if (!user) return;
-      const q = query(
-        collection(firestore, "services"),
-        where("orphanageId", "==", user.uid)
-      );
-      const snap = await getDocs(q);
-      setServices(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      setLoading(true);
+
+      try {
+        const q = query(collection(firestore, "services"), where("orphanageId", "==", user.uid));
+        const snapshot = await getDocs(q);
+        const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setServices(list);
+      } catch (err) {
+        toast.error("Failed to load services: " + err.message);
+      } finally {
+        setLoading(false);
+      }
     };
-    fetch();
+
+    fetchServices();
   }, []);
+
+  const totalPages = Math.ceil(services.length / PAGE_SIZE);
+  const paginatedServices = services.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -54,14 +69,23 @@ export default function ServicesDashboard() {
 
     const isEdit = !!form.id;
     const payload = {
-      ...form,
+      title: form.title,
+      description: form.description,
+      frequency: form.frequency || "Daily",
+      mode: form.mode || "Online",
+      duration: form.duration || "One Day",
       numberOfStudents: Number(form.numberOfStudents),
       orphanageId: user.uid,
       orphanageEmail: user.email,
     };
 
-    if (!payload.title || !payload.description || !payload.frequency || !payload.mode) {
-      return setFormError("Please fill all required fields.");
+    if (
+      !payload.title?.trim() ||
+      !payload.description?.trim() ||
+      !payload.numberOfStudents ||
+      Number(payload.numberOfStudents) <= 0
+    ) {
+      return setFormError("Please provide Title, Description, and valid Number of Students.");
     }
 
     try {
@@ -69,21 +93,22 @@ export default function ServicesDashboard() {
       if (isEdit) {
         const ref = doc(firestore, "services", form.id);
         await updateDoc(ref, payload);
-        setServices((prev) =>
-          prev.map((s) => (s.id === form.id ? { ...s, ...payload } : s))
-        );
+        setServices((prev) => prev.map((s) => (s.id === form.id ? { ...s, ...payload } : s)));
+        toast.success("Service updated successfully");
       } else {
-        await addDoc(collection(firestore, "services"), {
+        const ref = await addDoc(collection(firestore, "services"), {
           ...payload,
           status: "Pending",
           timestamp: serverTimestamp(),
         });
-        location.reload();
+        setServices((prev) => [...prev, { id: ref.id, ...payload, status: "Pending" }]);
+        toast.success("Service posted successfully");
       }
       setModalOpen(false);
       setForm({});
     } catch (err) {
       setFormError(err.message);
+      toast.error("Error: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -93,15 +118,16 @@ export default function ServicesDashboard() {
     if (!confirm("Delete this service?")) return;
     await deleteDoc(doc(firestore, "services", id));
     setServices((prev) => prev.filter((s) => s.id !== id));
+    toast.success("Service deleted successfully");
   };
 
   return (
     <div className="bg-white min-h-screen container mx-auto px-6 py-10 mt-16">
-        <h2 className="text-4xl font-bold text-gray-800 mb-6 border-b pb-2 text-center">
+      <ToastContainer />
+      <h2 className="text-4xl font-bold text-gray-800 mb-6 border-b pb-2 text-center">
         SERVICES
-        </h2>
+      </h2>
       <div className="flex justify-end mb-6">
-       
         <button
           onClick={() => {
             setForm({});
@@ -115,7 +141,7 @@ export default function ServicesDashboard() {
       </div>
 
       <div className="space-y-4">
-        {services.map((s) => (
+        {paginatedServices.map((s) => (
           <div
             key={s.id}
             className="bg-gray-100 p-4 rounded-lg shadow flex justify-between items-start"
@@ -124,10 +150,9 @@ export default function ServicesDashboard() {
               <h3 className="text-lg font-bold">{s.title}</h3>
               <p className="text-gray-700">{s.description}</p>
               <p className="text-sm mt-1 text-gray-600">
-                Frequency: {s.frequency}, Mode: {s.mode}, Duration: {s.duration},{" "}
-                Students: {s.numberOfStudents}
+                Frequency: {s.frequency}, Mode: {s.mode}, Duration: {s.duration}, Students: {s.numberOfStudents}
               </p>
-                <div className="flex  space-x-2 mt-2">
+              <div className="flex space-x-2 mt-2">
                 <button
                   onClick={() => {
                     setForm(s);
@@ -146,20 +171,34 @@ export default function ServicesDashboard() {
                 </button>
               </div>
             </div>
-            <div className="text-right space-y-2">
+            <div className="text-right">
               <span
-           
                 className={`inline-block text-xs font-semibold px-2 py-1 rounded text-white ${
                   s.status === "Fulfilled" ? "bg-green-600" : "bg-yellow-500"
                 }`}
               >
                 {s.status || "Pending"}
               </span>
-           
             </div>
           </div>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-6 space-x-2">
+          {Array.from({ length: totalPages }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => setPage(i + 1)}
+              className={`px-4 py-2 rounded ${
+                page === i + 1 ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+              }`}
+            >
+              {i + 1}
+            </button>
+          ))}
+        </div>
+      )}
 
       {modalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
@@ -168,9 +207,7 @@ export default function ServicesDashboard() {
               {editMode ? "Edit Service" : "Add Service"}
             </h2>
             <form onSubmit={handleSave} className="space-y-4">
-              {formError && (
-                <p className="text-sm text-red-600 text-center">{formError}</p>
-              )}
+              {formError && <p className="text-sm text-red-600 text-center">{formError}</p>}
               <div>
                 <label className="block mb-1 font-medium">Title</label>
                 <select
@@ -190,9 +227,7 @@ export default function ServicesDashboard() {
                 <label className="block mb-1 font-medium">Description</label>
                 <textarea
                   value={form.description || ""}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="w-full p-2 border rounded"
                   rows={3}
                 />
@@ -202,9 +237,7 @@ export default function ServicesDashboard() {
                   <label className="block mb-1 font-medium">Frequency</label>
                   <select
                     value={form.frequency || ""}
-                    onChange={(e) =>
-                      setForm({ ...form, frequency: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, frequency: e.target.value })}
                     className="w-full p-2 border rounded"
                   >
                     <option value="Daily">Daily</option>
@@ -227,9 +260,7 @@ export default function ServicesDashboard() {
                 <label className="block mb-1 font-medium">Duration</label>
                 <select
                   value={form.duration || ""}
-                  onChange={(e) =>
-                    setForm({ ...form, duration: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, duration: e.target.value })}
                   className="w-full p-2 border rounded"
                 >
                   <option value="One Day">One Day</option>
@@ -242,15 +273,12 @@ export default function ServicesDashboard() {
                 <input
                   type="number"
                   value={form.numberOfStudents || ""}
-                  onChange={(e) =>
-                    setForm({ ...form, numberOfStudents: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, numberOfStudents: e.target.value })}
                   className="w-full p-2 border rounded"
                 />
               </div>
               <div className="flex justify-end mt-4">
-
-                    <button
+                <button
                   type="submit"
                   className="px-4 py-2 bg-green-600 text-white rounded"
                   disabled={loading}
@@ -263,7 +291,6 @@ export default function ServicesDashboard() {
                     ? "Save"
                     : "Post"}
                 </button>
-
                 <button
                   type="button"
                   onClick={() => {
@@ -275,8 +302,6 @@ export default function ServicesDashboard() {
                 >
                   Cancel
                 </button>
-
-            
               </div>
             </form>
           </div>
