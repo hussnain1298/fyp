@@ -25,7 +25,7 @@ export default function ServiceConfirmations({ activeStatus }) {
         const serviceQuery = query(
           collection(firestore, "services"),
           where("orphanageId", "==", user.uid),
-          where("status", "in", ["Pending", "In Progress", "Fulfilled"])
+          where("status", "in", [ "In Progress"])
         );
         const serviceSnap = await getDocs(serviceQuery);
         const serviceList = serviceSnap.docs.map((doc) => ({
