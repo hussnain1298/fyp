@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { auth, firestore, updateDoc, deleteDoc } from "@/lib/firebase"
-import { doc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy, limit } from "firebase/firestore"
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore"
 import { motion } from "framer-motion"
 import { AlertTriangle, X, MessageSquare, Trash2, Calendar, User } from "lucide-react"
 
@@ -29,9 +29,15 @@ const OrphanageDashboard = () => {
           const userDoc = await getDoc(doc(firestore, "users", currentUser.uid))
           if (userDoc.exists()) {
             const userData = userDoc.data()
-            setUser({ ...userData, uid: currentUser.uid })
+            const userWithId = { ...userData, uid: currentUser.uid }
+            setUser(userWithId)
+            console.log("=== USER DATA LOADED ===")
+            console.log("User UID:", currentUser.uid)
+            console.log("User Data:", userData)
+            console.log("Org Name:", userData.orgName)
+
             loadDashboardData(currentUser.uid)
-            loadAdminNotifications(currentUser.uid)
+            loadAdminNotifications(currentUser.uid, userData)
           }
         } catch (error) {
           console.error("Error fetching user data:", error)
@@ -79,27 +85,186 @@ const OrphanageDashboard = () => {
     }
   }
 
-  const loadAdminNotifications = (userId) => {
-    const notificationsQuery = query(
-      collection(firestore, "adminNotifications"),
-      where("orphanageId", "==", userId),
-      orderBy("createdAt", "desc"),
-      limit(10),
+  const loadAdminNotifications = (userId, userData) => {
+    console.log("=== LOADING ADMIN NOTIFICATIONS ===")
+    console.log("User ID:", userId)
+    console.log("User Data:", userData)
+
+    const orgName = userData.orgName || userData.organizationName || userData.fullName || userData.name
+
+    // Strategy 1: Simple query by orphanageId (no orderBy to avoid index issues)
+    const simpleQuery = query(collection(firestore, "adminNotifications"), where("orphanageId", "==", userId))
+
+    console.log("Trying simple query by orphanageId:", userId)
+
+    const unsubscribe = onSnapshot(
+      simpleQuery,
+      (snapshot) => {
+        console.log(`Simple query returned ${snapshot.docs.length} documents`)
+
+        if (snapshot.docs.length > 0) {
+          const notifications = snapshot.docs.map((doc) => {
+            const data = doc.data()
+            console.log("Notification found:", data)
+            return {
+              id: doc.id,
+              ...data,
+            }
+          })
+
+          // Sort notifications client-side by createdAt
+          notifications.sort((a, b) => {
+            const aTime = a.createdAt?.toDate?.() || new Date(0)
+            const bTime = b.createdAt?.toDate?.() || new Date(0)
+            return bTime - aTime
+          })
+
+          setAdminNotifications(notifications)
+          console.log(`Successfully loaded ${notifications.length} notifications`)
+
+          // Show notifications panel if there are unread notifications
+          const unreadCount = notifications.filter((n) => !n.read).length
+          console.log("Unread notifications:", unreadCount)
+          if (unreadCount > 0) {
+            setShowNotifications(true)
+          }
+        } else {
+          console.log("No notifications found with simple query, trying fallback...")
+
+          // Fallback: Try by orgName if no results
+          if (orgName) {
+            const fallbackQuery = query(
+              collection(firestore, "adminNotifications"),
+              where("orphanageName", "==", orgName),
+            )
+
+            onSnapshot(
+              fallbackQuery,
+              (fallbackSnapshot) => {
+                console.log(`Fallback query returned ${fallbackSnapshot.docs.length} documents`)
+
+                const notifications = fallbackSnapshot.docs.map((doc) => ({
+                  id: doc.id,
+                  ...doc.data(),
+                }))
+
+                // Sort client-side
+                notifications.sort((a, b) => {
+                  const aTime = a.createdAt?.toDate?.() || new Date(0)
+                  const bTime = b.createdAt?.toDate?.() || new Date(0)
+                  return bTime - aTime
+                })
+
+                setAdminNotifications(notifications)
+
+                const unreadCount = notifications.filter((n) => !n.read).length
+                if (unreadCount > 0) {
+                  setShowNotifications(true)
+                }
+              },
+              (error) => {
+                console.error("Fallback query also failed:", error)
+
+                // Last resort: Get all notifications and filter client-side
+                console.log("Trying last resort: get all notifications")
+
+                const allNotificationsQuery = collection(firestore, "adminNotifications")
+
+                onSnapshot(
+                  allNotificationsQuery,
+                  (allSnapshot) => {
+                    console.log(`Got ${allSnapshot.docs.length} total notifications for client-side filtering`)
+
+                    const allNotifications = allSnapshot.docs.map((doc) => ({
+                      id: doc.id,
+                      ...doc.data(),
+                    }))
+
+                    // Filter for this specific orphanage
+                    const filteredNotifications = allNotifications.filter((notification) => {
+                      const matchesId = notification.orphanageId === userId
+                      const matchesOrgName = notification.orphanageName === orgName
+                      const matchesTarget = notification.targetOrganization === orgName
+
+                      if (matchesId || matchesOrgName || matchesTarget) {
+                        console.log("Found matching notification:", notification)
+                      }
+
+                      return matchesId || matchesOrgName || matchesTarget
+                    })
+
+                    // Sort client-side
+                    filteredNotifications.sort((a, b) => {
+                      const aTime = a.createdAt?.toDate?.() || new Date(0)
+                      const bTime = b.createdAt?.toDate?.() || new Date(0)
+                      return bTime - aTime
+                    })
+
+                    console.log(`Client-side filtering found ${filteredNotifications.length} matching notifications`)
+                    setAdminNotifications(filteredNotifications)
+
+                    const unreadCount = filteredNotifications.filter((n) => !n.read).length
+                    if (unreadCount > 0) {
+                      setShowNotifications(true)
+                    }
+                  },
+                  (finalError) => {
+                    console.error("All notification loading strategies failed:", finalError)
+                    setAdminNotifications([])
+                  },
+                )
+              },
+            )
+          }
+        }
+      },
+      (error) => {
+        console.error("Primary query failed:", error)
+        console.log("Error details:", error.code, error.message)
+
+        // If we get permission errors, try a different approach
+        if (error.code === "permission-denied") {
+          console.log("Permission denied, trying alternative approach...")
+
+          // Try to get notifications without real-time updates
+          getDocs(collection(firestore, "adminNotifications"))
+            .then((snapshot) => {
+              console.log(`Static query returned ${snapshot.docs.length} documents`)
+
+              const allNotifications = snapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+              }))
+
+              const filteredNotifications = allNotifications.filter((notification) => {
+                return (
+                  notification.orphanageId === userId ||
+                  notification.orphanageName === orgName ||
+                  notification.targetOrganization === orgName
+                )
+              })
+
+              filteredNotifications.sort((a, b) => {
+                const aTime = a.createdAt?.toDate?.() || new Date(0)
+                const bTime = b.createdAt?.toDate?.() || new Date(0)
+                return bTime - aTime
+              })
+
+              console.log(`Static filtering found ${filteredNotifications.length} matching notifications`)
+              setAdminNotifications(filteredNotifications)
+
+              const unreadCount = filteredNotifications.filter((n) => !n.read).length
+              if (unreadCount > 0) {
+                setShowNotifications(true)
+              }
+            })
+            .catch((staticError) => {
+              console.error("Static query also failed:", staticError)
+              setAdminNotifications([])
+            })
+        }
+      },
     )
-
-    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
-      const notifications = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
-      setAdminNotifications(notifications)
-
-      // Show notifications panel if there are unread notifications
-      const unreadCount = notifications.filter((n) => !n.read).length
-      if (unreadCount > 0) {
-        setShowNotifications(true)
-      }
-    })
 
     return unsubscribe
   }
@@ -109,6 +274,7 @@ const OrphanageDashboard = () => {
       await updateDoc(doc(firestore, "adminNotifications", notificationId), {
         read: true,
       })
+      console.log("Notification marked as read:", notificationId)
     } catch (error) {
       console.error("Error marking notification as read:", error)
     }
@@ -117,6 +283,7 @@ const OrphanageDashboard = () => {
   const deleteNotification = async (notificationId) => {
     try {
       await deleteDoc(doc(firestore, "adminNotifications", notificationId))
+      console.log("Notification deleted:", notificationId)
     } catch (error) {
       console.error("Error deleting notification:", error)
     }
@@ -144,7 +311,7 @@ const OrphanageDashboard = () => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-600">Welcome back, {user?.name}</p>
+            <p className="text-gray-600">Welcome back, {user?.orgName || user?.name}</p>
           </div>
 
           {/* Notifications Button */}
@@ -162,6 +329,8 @@ const OrphanageDashboard = () => {
             </button>
           </div>
         </div>
+
+      
 
         {/* Admin Notifications Panel */}
         {showNotifications && (
@@ -192,6 +361,7 @@ const OrphanageDashboard = () => {
                   <div className="p-6 text-center text-gray-500">
                     <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                     <p>No notifications from admin</p>
+                    <p className="text-xs mt-2">If you expect notifications, check the console for debugging info</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-200">
@@ -236,6 +406,8 @@ const OrphanageDashboard = () => {
                                 Admin
                               </div>
                             </div>
+
+                           
                           </div>
 
                           <div className="flex items-center gap-2">

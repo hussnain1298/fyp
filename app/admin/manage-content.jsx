@@ -1,7 +1,17 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { auth, firestore, collection, onSnapshot, deleteDoc, doc, addDoc, serverTimestamp } from "@/lib/firebase"
+import {
+  auth,
+  firestore,
+  collection,
+  onSnapshot,
+  deleteDoc,
+  doc,
+  addDoc,
+  serverTimestamp,
+  getDoc,
+} from "@/lib/firebase"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Search,
@@ -35,29 +45,41 @@ const ManageContent = () => {
 
   useEffect(() => {
     const unsubscribeRequests = onSnapshot(collection(firestore, "requests"), (snapshot) => {
-      const requestsData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        type: "request",
-        ...doc.data(),
-      }))
+      const requestsData = snapshot.docs.map((doc) => {
+        const data = doc.data()
+        console.log("Request data:", data) // Debug log
+        return {
+          id: doc.id,
+          type: "request",
+          ...data,
+        }
+      })
       setRequests(requestsData)
     })
 
     const unsubscribeServices = onSnapshot(collection(firestore, "services"), (snapshot) => {
-      const servicesData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        type: "service",
-        ...doc.data(),
-      }))
+      const servicesData = snapshot.docs.map((doc) => {
+        const data = doc.data()
+        console.log("Service data:", data) // Debug log
+        return {
+          id: doc.id,
+          type: "service",
+          ...data,
+        }
+      })
       setServices(servicesData)
     })
 
     const unsubscribeFundraisers = onSnapshot(collection(firestore, "fundraisers"), (snapshot) => {
-      const fundraisersData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        type: "fundraiser",
-        ...doc.data(),
-      }))
+      const fundraisersData = snapshot.docs.map((doc) => {
+        const data = doc.data()
+        console.log("Fundraiser data:", data) // Debug log
+        return {
+          id: doc.id,
+          type: "fundraiser",
+          ...data,
+        }
+      })
       setFundraisers(fundraisersData)
       setLoading(false)
     })
@@ -85,8 +107,7 @@ const ManageContent = () => {
         (item) =>
           item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.orgName
-?.toLowerCase().includes(searchTerm.toLowerCase()),
+          item.orgName?.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
@@ -107,6 +128,7 @@ const ManageContent = () => {
   }, [allContent, requests, services, fundraisers])
 
   const handleDelete = async (item) => {
+    console.log("Item to delete:", item) // Debug log
     setItemToDelete(item)
     setShowDeleteModal(true)
   }
@@ -116,38 +138,109 @@ const ManageContent = () => {
       alert("Please provide a reason for deletion")
       return
     }
-    if (!itemToDelete.orgName) {
-  console.warn("Missing orphanage name for item:", itemToDelete)
-}
-
 
     setDeleting(true)
     try {
+      console.log("=== DELETION PROCESS STARTED ===")
+      console.log("Item to delete:", itemToDelete)
+
+      // Try multiple ways to get orphanage ID
+      let orphanageId = null
+      let orphanageName = "Unknown Orphanage"
+
+      // Check different possible field names for orphanage ID
+      if (itemToDelete.orphanageId) {
+        orphanageId = itemToDelete.orphanageId
+        console.log("Found orphanageId:", orphanageId)
+      } else if (itemToDelete.userId) {
+        orphanageId = itemToDelete.userId
+        console.log("Found userId as orphanageId:", orphanageId)
+      } else if (itemToDelete.createdBy) {
+        orphanageId = itemToDelete.createdBy
+        console.log("Found createdBy as orphanageId:", orphanageId)
+      } else if (itemToDelete.uid) {
+        orphanageId = itemToDelete.uid
+        console.log("Found uid as orphanageId:", orphanageId)
+      }
+
+      // If we have orgName directly in the item, use it
+      if (itemToDelete.orgName) {
+        orphanageName = itemToDelete.orgName
+        console.log("Using orgName from item:", orphanageName)
+      }
+
+      // Try to fetch additional orphanage info if we have an ID
+      if (orphanageId) {
+        try {
+          console.log("Attempting to fetch user document for ID:", orphanageId)
+          const userDoc = await getDoc(doc(firestore, "users", orphanageId))
+
+          if (userDoc.exists()) {
+            const userData = userDoc.data()
+            console.log("User document found:", userData)
+
+            // Try different field names for organization name
+            if (userData.orgName) {
+              orphanageName = userData.orgName
+            } else if (userData.organizationName) {
+              orphanageName = userData.organizationName
+            } else if (userData.fullName) {
+              orphanageName = userData.fullName
+            } else if (userData.name) {
+              orphanageName = userData.name
+            } else if (userData.displayName) {
+              orphanageName = userData.displayName
+            }
+
+            console.log("Final orphanage name:", orphanageName)
+          } else {
+            console.log("No user document found for ID:", orphanageId)
+          }
+        } catch (userFetchError) {
+          console.error("Error fetching user document:", userFetchError)
+        }
+      } else {
+        console.log("No orphanage ID found in item")
+      }
+
       // Delete the item from its collection
       const collectionName =
         itemToDelete.type === "request" ? "requests" : itemToDelete.type === "service" ? "services" : "fundraisers"
 
+      console.log("Deleting from collection:", collectionName)
       await deleteDoc(doc(firestore, collectionName, itemToDelete.id))
+      console.log("Item successfully deleted from collection")
 
-      // Create notification for the orphanage
-  await addDoc(collection(firestore, "adminNotifications"), {
-  orphanageId: itemToDelete.orphanageId || "",
-  orphanageName: itemToDelete.orgName || "Unknown Orphanage",
-  itemType: itemToDelete.type,
-  itemTitle: itemToDelete.title || "Untitled",
-  itemId: itemToDelete.id,
-  reason: deleteReason,
-  adminId: auth.currentUser?.uid || "unknown",
-  createdAt: serverTimestamp(),
-  read: false,
-})
+      // Create notification with all available data
+      const notificationData = {
+        orphanageId: orphanageId || "",
+        orphanageName: orphanageName,
+        itemType: itemToDelete.type,
+        itemTitle: itemToDelete.title || "Untitled",
+        itemId: itemToDelete.id,
+        reason: deleteReason,
+        adminId: auth.currentUser?.uid || "unknown",
+        createdAt: serverTimestamp(),
+        read: false,
+        // Add additional fields for better querying
+        targetOrganization: orphanageName,
+        notificationType: "content_deletion",
+      }
 
+      console.log("Creating notification with data:", notificationData)
+      const notificationRef = await addDoc(collection(firestore, "adminNotifications"), notificationData)
+      console.log("Notification created with ID:", notificationRef.id)
+
+      // Reset modal state
       setShowDeleteModal(false)
       setDeleteReason("")
       setItemToDelete(null)
-      alert("Content deleted successfully and notification sent to orphanage")
+
+      alert(`Content deleted successfully! Notification sent to ${orphanageName}`)
+      console.log("=== DELETION PROCESS COMPLETED ===")
     } catch (error) {
-      console.error("Error deleting content:", error)
+      console.error("=== DELETION PROCESS FAILED ===")
+      console.error("Error details:", error)
       alert("Error deleting content. Please try again.")
     } finally {
       setDeleting(false)
@@ -376,7 +469,7 @@ const ManageContent = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm text-gray-900">{item.orgName}</span>
+                        <span className="text-sm text-gray-900">{item.orgName || "Unknown"}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -505,6 +598,19 @@ const ManageContent = () => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Created At</label>
                       <p className="text-gray-900">{selectedItem.createdAt?.toDate?.()?.toLocaleString() || "N/A"}</p>
+                    </div>
+
+                    {/* Debug Information */}
+                    <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Debug Info</label>
+                      <div className="text-xs text-gray-600 space-y-1">
+                        <p>
+                          Orphanage ID:{" "}
+                          {selectedItem.orphanageId || selectedItem.userId || selectedItem.createdBy || "Not found"}
+                        </p>
+                        <p>Org Name: {selectedItem.orgName || "Not found"}</p>
+                        <p>Item ID: {selectedItem.id}</p>
+                      </div>
                     </div>
                   </div>
 
