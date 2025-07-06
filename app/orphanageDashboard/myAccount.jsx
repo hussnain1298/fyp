@@ -109,7 +109,7 @@ export default function MyAccount() {
           <aside className="w-full lg:w-80">
             <div className="bg-white shadow-sm border border-gray-200 rounded-xl p-6 sticky top-24">
               <div className="mb-6">
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">Navigation</h2>
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">Orphanage Profile</h2>
                 <div className="h-1 w-12 bg-gray-600 rounded"></div>
               </div>
 

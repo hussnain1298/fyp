@@ -111,7 +111,7 @@ export default function Footer() {
 
       {/* Subscribe Section */}
       <div className="flex flex-col gap-4">
-        <h1 className="text-gray-600 hover:text-gray-900 text-sm mt-9">Want to get notified?</h1>
+        <h1 className="text-gray-600 hover:text-gray-900 font-semibold text-sm mt-9">Want to get notified?</h1>
         <input
           className="w-full px-3 py-2 border rounded-sm text-sm"
           type="email"
