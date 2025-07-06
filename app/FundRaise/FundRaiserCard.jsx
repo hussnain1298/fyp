@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import React from "react";
+
 import PaymentModule from "../payment/paymentModule";
 import { firestore } from "@/lib/firebase";
 import {
@@ -21,20 +22,27 @@ const AmountInputModal = ({
   onConfirm,
   orphanageName,
   totalAmount,
+  raisedAmount,
 }) => {
   const [amount, setAmount] = useState("");
   const [customAmount, setCustomAmount] = useState("");
   const [selectedAmount, setSelectedAmount] = useState(null);
 
-  // Calculate dynamic amounts based on totalAmount percentages
+  // Calculate remaining amount
+  const remainingAmount = Math.max(0, totalAmount - (raisedAmount || 0));
+  const isCompleted = remainingAmount <= 0;
+
+  // Update calculatePredefinedAmounts function:
   const calculatePredefinedAmounts = () => {
+    if (isCompleted) return []; // No amounts if completed
+
     const percentages = [2.5, 5, 10, 20, 30, 40];
     const amounts = percentages
       .map((percentage) => {
         const amount = Math.round((totalAmount * percentage) / 100);
         return amount;
       })
-      .filter((amount) => amount >= 100); // Filter out amounts less than 100
+      .filter((amount) => amount >= 100 && amount <= remainingAmount); // Filter by remaining amount
 
     // Remove duplicates and sort
     const uniqueAmounts = [...new Set(amounts)].sort((a, b) => a - b);
@@ -43,7 +51,7 @@ const AmountInputModal = ({
     if (uniqueAmounts.length < 4) {
       const standardAmounts = [100, 500, 1000, 2000];
       standardAmounts.forEach((amt) => {
-        if (amt <= totalAmount && !uniqueAmounts.includes(amt)) {
+        if (amt <= remainingAmount && !uniqueAmounts.includes(amt)) {
           uniqueAmounts.push(amt);
         }
       });
@@ -63,6 +71,7 @@ const AmountInputModal = ({
     onClose();
   };
 
+  // Update handleConfirm function:
   const handleConfirm = () => {
     const finalAmount =
       selectedAmount === "custom"
@@ -71,6 +80,13 @@ const AmountInputModal = ({
 
     if (!finalAmount || finalAmount < 100) {
       alert("Minimum donation amount is Rs. 100");
+      return;
+    }
+
+    if (finalAmount > remainingAmount) {
+      alert(
+        `Maximum donation amount is Rs. ${remainingAmount.toLocaleString()} (remaining amount)`
+      );
       return;
     }
 
@@ -154,9 +170,15 @@ const AmountInputModal = ({
 
         {/* Content */}
         <div className="p-6">
+          {/* Add remaining amount display in modal: */}
           <p className="text-gray-600 mb-4">
             How much would you like to donate to{" "}
             <strong>{orphanageName}</strong>?
+            <br />
+            <span className="text-sm text-green-600">
+              Remaining: Rs. {remainingAmount.toLocaleString()} of Rs.{" "}
+              {totalAmount.toLocaleString()}
+            </span>
           </p>
 
           {/* Predefined Amounts */}
@@ -192,11 +214,12 @@ const AmountInputModal = ({
             {selectedAmount === "custom" && (
               <input
                 type="number"
-                placeholder="Enter amount (minimum Rs. 100)"
+                placeholder={`Enter amount (max Rs. ${remainingAmount.toLocaleString()})`}
                 value={customAmount}
                 onChange={(e) => setCustomAmount(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 min="100"
+                max={remainingAmount}
                 autoFocus
               />
             )}
@@ -343,13 +366,16 @@ const FundRaiserCard = ({
     }
   };
 
-  const filledhr = Math.min((raisedAmount / totalAmount) * 100, 100);
+  // Calculate remaining amount and completion status
+  const remainingAmount = Math.max(0, totalAmount - raisedAmount);
+  const isCompleted = remainingAmount <= 0;
+  const progressPercentage = Math.min((raisedAmount / totalAmount) * 100, 100);
 
   return (
     <>
       <div className="w-full sm:w-[340px] min-h-[480px] bg-white rounded-sm shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300 ease-in-out flex flex-col justify-between mb-10">
         <div>
-          <div className="relative h-48 overflow-hidden rounded-t-sm shadow-inner">
+          <div className="relative h-56 overflow-hidden rounded-t-sm shadow-inner">
             <img
               src={bgImage || "/placeholder.svg"}
               alt={title}
@@ -382,32 +408,59 @@ const FundRaiserCard = ({
               ORPHANAGE: <span className="font-thin">{orphanageName}</span>
             </p>
           )}
+          {/* Update progress bar: */}
           <div className="w-full h-2 bg-gray-300 rounded-md overflow-hidden shadow-inner mb-4">
             <div
-              className="h-full bg-gradient-to-r from-green-500 to-green-700 transition-all duration-500 ease-in-out"
-              style={{ width: `${filledhr}%` }}
+              className={`h-full transition-all duration-500 ease-in-out ${
+                isCompleted
+                  ? "bg-gradient-to-r from-green-500 to-green-700"
+                  : "bg-gradient-to-r from-green-400 to-green-600"
+              }`}
+              style={{ width: `${progressPercentage}%` }}
             />
           </div>
+          {/* Update progress display: */}
           <div className="text-sm text-gray-700 font-semibold mb-6">
-            Raised <span className="text-green-700">Rs. {raisedAmount}</span> of
-            Rs. {totalAmount}
+            Raised{" "}
+            <span className="text-green-700">
+              Rs. {raisedAmount.toLocaleString()}
+            </span>{" "}
+            of Rs. {totalAmount.toLocaleString()}
+            {!isCompleted && (
+              <div className="text-xs text-gray-500 mt-1">
+                Remaining: Rs. {remainingAmount.toLocaleString()}
+              </div>
+            )}
+            {isCompleted && (
+              <div className="text-xs text-green-600 mt-1 font-semibold">
+                🎉 Target Achieved!
+              </div>
+            )}
           </div>
+          {/* Update donate button: */}
           <button
             onClick={handleDonate}
-            className="w-full py-3 rounded-md text-white font-semibold bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
+            disabled={isCompleted}
+            className={`w-full py-3 rounded-md font-semibold transition ${
+              isCompleted
+                ? "bg-gray-400 text-white cursor-not-allowed"
+                : "bg-green-600 hover:bg-green-700 text-white focus:outline-none focus:ring-2 focus:ring-green-400"
+            }`}
           >
-            Donate
+            {isCompleted ? "✅ Completed" : "Donate"}
           </button>
         </div>
       </div>
 
       {/* Amount Input Modal */}
+      {/* Pass remaining amount to AmountInputModal: */}
       <AmountInputModal
         isOpen={showAmountModal}
         onClose={closeAmountModal}
         onConfirm={handleAmountConfirm}
         orphanageName={orphanageName}
         totalAmount={totalAmount}
+        raisedAmount={raisedAmount}
       />
 
       {/* Payment Modal */}
