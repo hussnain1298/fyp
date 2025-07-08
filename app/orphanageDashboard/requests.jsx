@@ -30,9 +30,9 @@ const REQUEST_TYPES = [
 
 const STATUS_COLORS = {
   Pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  "In Progress": "bg-blue-50 text-blue-700 border-blue-200",
+ 
   Fulfilled: "bg-green-50 text-green-700 border-green-200",
-  Rejected: "bg-red-50 text-red-700 border-red-200",
+
 }
 
 // Read More/Less Component
@@ -97,51 +97,80 @@ export default function RequestsDashboard() {
   const [filterType, setFilterType] = useState("All")
   const [filterStatus, setFilterStatus] = useState("All")
 
-  const fetchRequests = useCallback(async () => {
-    const user = auth.currentUser
-    if (!user) {
-      toast.error("Please log in to view requests")
-      return
-    }
-    setLoading(true)
+const fetchRequests = useCallback(async () => {
+  const user = auth.currentUser
+  if (!user) {
+    toast.error("Please log in to view requests")
+    return
+  }
+  setLoading(true)
 
-    try {
-      const q = query(collection(firestore, "requests"), where("orphanageId", "==", user.uid))
-      const snapshot = await getDocs(q)
-      const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      setRequests(list)
-    } catch (err) {
-      toast.error("Failed to load requests: " + err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  try {
+    const q = query(collection(firestore, "requests"), where("orphanageId", "==", user.uid))
+    const snapshot = await getDocs(q)
+    const list = await Promise.all(
+      snapshot.docs.map(async (docSnap) => {
+        const request = { id: docSnap.id, ...docSnap.data() }
+
+        // Fetch related donations
+        const donationQuery = query(
+          collection(firestore, "donations"),
+          where("requestId", "==", request.id),
+          where("confirmed", "==", true)
+        )
+        const donationSnap = await getDocs(donationQuery)
+
+        let donated = 0
+        donationSnap.forEach((don) => {
+          const data = don.data()
+          if (request.requestType === "Money") donated += Number(data.amount || 0)
+          if (request.requestType === "Clothes") donated += Number(data.numClothes || 0)
+          if (request.requestType === "Food") donated += Number(data.numMeals || 0)
+        })
+
+        return {
+          ...request,
+          donatedAmount: donated,
+          progress: request.quantity ? Math.min((donated / request.quantity) * 100, 100) : 0,
+        }
+      })
+    )
+
+    setRequests(list)
+  } catch (err) {
+    toast.error("Failed to load requests: " + err.message)
+  } finally {
+    setLoading(false)
+  }
+}, [])
 
   useEffect(() => {
     fetchRequests()
   }, [fetchRequests])
 
-  const validateForm = useCallback(() => {
-    const errors = []
+ const validateForm = useCallback(() => {
+  const errors = []
 
-    if (!form.title?.trim()) {
-      errors.push("Title is required")
-    }
+  if (!form.title?.trim()) {
+    errors.push("Title is required")
+  }
 
-    if (!form.description?.trim()) {
-      errors.push("Description is required")
-    }
+  if (!form.description?.trim()) {
+    errors.push("Description is required")
+  }
 
-    if (!form.requestType) {
-      errors.push("Request type is required")
-    }
+  if (!form.requestType) {
+    errors.push("Request type is required")
+  }
 
-    if (form.quantity && (isNaN(form.quantity) || Number(form.quantity) <= 0)) {
-      errors.push("Quantity must be a positive number")
-    }
+  // ✅ Enforce quantity for all types
+  if (!form.quantity || isNaN(form.quantity) || Number(form.quantity) <= 0) {
+    errors.push("Quantity is required and must be a positive number")
+  }
 
-    return errors
-  }, [form])
+  return errors
+}, [form])
+
 
   const filteredRequests = useMemo(() => {
     return requests.filter((request) => {
@@ -296,9 +325,9 @@ export default function RequestsDashboard() {
               >
                 <option value="All">All Status</option>
                 <option value="Pending">Pending</option>
-                <option value="In Progress">In Progress</option>
+             
                 <option value="Fulfilled">Fulfilled</option>
-                <option value="Rejected">Rejected</option>
+               
               </select>
             </div>
 
@@ -403,12 +432,32 @@ export default function RequestsDashboard() {
                       <span className="text-gray-500 font-medium">Type:</span>
                       <span className="font-semibold text-green-600">{request.requestType}</span>
                     </div>
-                    {request.quantity && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500 font-medium">Quantity:</span>
-                        <span className="font-semibold text-green-600">{request.quantity}</span>
-                      </div>
-                    )}
+
+                   {request.quantity && (
+  <div className="flex justify-between text-sm">
+    <span className="text-gray-500 font-medium">Donated:</span>
+    <span className="font-semibold text-green-600">
+      {request.donatedAmount || 0} / {request.quantity}
+    </span>
+  </div>
+)}
+
+
+             <div className="h-2 w-full bg-gray-100 rounded-full mt-1">
+  <div
+    className="h-2 bg-gradient-to-r from-green-500 to-green-600 rounded-full"
+    style={{ width: `${request.progress}%` }}
+  ></div>
+</div>
+{typeof request.progress === "number" ? (
+  <p className="text-xs text-green-600 font-medium mt-1">
+    {request.progress.toFixed(1)}% completed
+  </p>
+) : (
+  <p className="text-xs text-gray-400 font-medium mt-1">No data</p>
+)}
+
+
                   </div>
 
                   <div className="flex space-x-2 mt-auto">
