@@ -3,6 +3,50 @@
 import { useState, useEffect } from "react"
 import { firestore, auth } from "@/lib/firebase"
 import { collection, query, getDocs, doc, addDoc, updateDoc, serverTimestamp, where } from "firebase/firestore"
+import { toast, ToastContainer } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
+import { Target, MapPin, Building, TrendingUp, X, Loader2 } from "lucide-react"
+
+// Read More/Less Component
+const ReadMoreText = ({ text, maxLength = 50 }) => {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  if (!text || text.length <= maxLength) {
+    return <span>{text}</span>
+  }
+
+  return (
+    <span>
+      {isExpanded ? text : `${text.substring(0, maxLength)}...`}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="ml-2 text-green-600 hover:text-green-700 font-medium text-sm transition-colors"
+      >
+        {isExpanded ? "Read Less" : "Read More"}
+      </button>
+    </span>
+  )
+}
+
+// Loading skeleton component
+const FundraiserSkeleton = () => (
+  <div className="bg-white rounded-2xl p-6 shadow-sm border border-green-100 animate-pulse h-[420px]">
+    <div className="flex items-center justify-between mb-4">
+      <div className="h-6 bg-green-100 rounded w-1/2"></div>
+      <div className="h-4 bg-green-100 rounded w-16"></div>
+    </div>
+    <div className="space-y-2 mb-4">
+      <div className="h-4 bg-gray-100 rounded w-full"></div>
+      <div className="h-4 bg-gray-100 rounded w-3/4"></div>
+    </div>
+    <div className="h-3 bg-gray-100 rounded w-full mb-4"></div>
+    <div className="space-y-2 mb-4">
+      <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+      <div className="h-3 bg-gray-100 rounded w-1/3"></div>
+    </div>
+    <div className="h-10 bg-green-100 rounded-xl w-full mt-auto"></div>
+  </div>
+)
 
 export default function FulfillFundRaise() {
   const [fundraisers, setFundraisers] = useState([])
@@ -42,11 +86,13 @@ export default function FulfillFundRaise() {
           ...f,
           orphanageName: orphanageMap[f.orphanageId]?.orgName || "N/A",
           orphanageLocation: orphanageMap[f.orphanageId]?.city || "N/A",
+          progress: f.totalAmount > 0 ? Math.min(((f.raisedAmount || 0) / f.totalAmount) * 100, 100) : 0,
         }))
 
         setFundraisers(enriched)
       } catch (err) {
         setError("Failed to load fundraisers: " + err.message)
+        toast.error("Failed to load fundraisers")
       } finally {
         setLoading(false)
       }
@@ -62,7 +108,10 @@ export default function FulfillFundRaise() {
   }
 
   const handleDonate = async (fundraiserId) => {
-    if (!user) return alert("Please log in as donor to donate.")
+    if (!user) {
+      toast.error("Please log in as donor to donate.")
+      return
+    }
 
     const trimmed = donationAmount.trim()
     const amountNum = Number(trimmed)
@@ -116,11 +165,15 @@ export default function FulfillFundRaise() {
         })
       }
 
-      alert("✅ Thank you! Awaiting orphanage confirmation.")
+      toast.success("Thank you! Your donation is awaiting orphanage confirmation.")
       closeModal()
+
+      // Refresh the fundraisers list
+      window.location.reload()
     } catch (err) {
       console.error("Donation failed:", err)
       setAmountError("Donation failed: " + err.message)
+      toast.error("Donation failed")
     } finally {
       setDonating(false)
     }
@@ -128,83 +181,198 @@ export default function FulfillFundRaise() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-white">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+              <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800">Loading Fundraisers...</h2>
+            <p className="text-gray-600">Finding opportunities to make a difference</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <FundraiserSkeleton key={i} />
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Fundraiser Requests</h2>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-white">
+      <ToastContainer position="top-right" autoClose={5000} />
 
-      {error && <p className="text-red-500 text-center mb-4">{error}</p>}
-
-      <div className="space-y-4">
-        {fundraisers.map((f) => (
-          <div key={f.id} className="bg-white border border-gray-200 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">{f.title}</h3>
-            <p className="text-gray-600 mb-3">{f.description}</p>
-            <p className="text-sm mb-2">
-              Raised: Rs. {f.raisedAmount || 0} of Rs. {f.totalAmount}
-            </p>
-            <p className="text-sm text-gray-600 mb-1">
-              <strong>Orphanage:</strong> {f.orphanageName}
-            </p>
-            <p className="text-sm text-gray-600 mb-4">
-              <strong>Location:</strong> {f.orphanageLocation}
-            </p>
-
-            <button
-              onClick={() => setActiveModalId(f.id)}
-              className="px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-            >
-              Donate
-            </button>
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
+            <Target className="w-10 h-10 text-green-600" />
           </div>
-        ))}
-      </div>
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">Support Fundraising Campaigns</h1>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Help orphanages reach their fundraising goals and make a lasting impact on children's lives
+          </p>
+        </div>
 
-      {/* Donation Modal */}
-      {activeModalId && (
-        <div
-          className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4"
-          onClick={closeModal}
-        >
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Donate to Fundraiser</h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 text-xl font-bold">
-                &times;
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl mb-8 flex items-center">
+            <X className="w-5 h-5 mr-3" />
+            {error}
+          </div>
+        )}
+
+        {/* Fundraisers Grid */}
+        {fundraisers.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="inline-flex items-center justify-center w-24 h-24 bg-green-100 rounded-full mb-6">
+              <Target className="w-12 h-12 text-green-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-600 mb-4">No active fundraisers</h3>
+            <p className="text-gray-500 text-lg">Check back later for new fundraising opportunities</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            {fundraisers.map((fundraiser) => (
+              <div
+                key={fundraiser.id}
+                className="bg-white rounded-2xl p-6 shadow-sm border border-green-100 hover:shadow-lg hover:border-green-200 transition-all duration-300 group h-[420px] flex flex-col"
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                      <Target className="w-5 h-5 text-green-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 group-hover:text-green-700 transition-colors">
+                      {fundraiser.title}
+                    </h3>
+                  </div>
+                  <TrendingUp className="w-5 h-5 text-green-600" />
+                </div>
+
+                {/* Description */}
+                <div className="text-gray-600 mb-4 leading-relaxed flex-1">
+                  <ReadMoreText text={fundraiser.description} maxLength={50} />
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-600 font-medium">Progress</span>
+                    <span className="font-bold text-green-600">{fundraiser.progress.toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div
+                      className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500"
+                      style={{ width: `${fundraiser.progress}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Amount Details */}
+                <div className="space-y-3 mb-4 p-4 bg-green-50 rounded-xl">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 font-medium">Raised:</span>
+                    <span className="font-bold text-green-700">
+                      Rs. {(fundraiser.raisedAmount || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 font-medium">Goal:</span>
+                    <span className="font-bold text-gray-800">Rs. {fundraiser.totalAmount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 font-medium">Remaining:</span>
+                    <span className="font-bold text-orange-600">
+                      Rs. {Math.max(0, fundraiser.totalAmount - (fundraiser.raisedAmount || 0)).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Orphanage Details */}
+                <div className="space-y-2 mb-4 p-3 bg-gray-50 rounded-xl">
+                  <div className="flex items-center text-gray-600 text-sm">
+                    <Building className="w-4 h-4 mr-2 text-green-600" />
+                    <span className="font-semibold">{fundraiser.orphanageName}</span>
+                  </div>
+                  <div className="flex items-center text-gray-600 text-sm">
+                    <MapPin className="w-4 h-4 mr-2 text-green-600" />
+                    <span>{fundraiser.orphanageLocation}</span>
+                  </div>
+                </div>
+
+                {/* Donate Button */}
+                <button
+                  onClick={() => setActiveModalId(fundraiser.id)}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold hover:from-green-600 hover:to-green-700 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition-all duration-300 mt-auto"
+                >
+                  Donate Now
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Donation Modal */}
+        {activeModalId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div
+              className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Support this Fundraiser</h2>
+                <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Donation Input */}
+              <div className="mb-6">
+                <label htmlFor="donationAmount" className="block text-gray-700 text-sm font-bold mb-2">
+                  Enter Amount (Rs.)
+                </label>
+                <input
+                  type="number"
+                  id="donationAmount"
+                  placeholder="100"
+                  min="1"
+                  max="1000000"
+                  value={donationAmount}
+                  onChange={(e) => {
+                    const input = e.target.value
+                    if (/^\d*$/.test(input)) {
+                      setDonationAmount(input)
+                      setAmountError("")
+                    }
+                  }}
+                  className="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+                {amountError && <p className="text-red-500 text-sm mt-2">{amountError}</p>}
+              </div>
+
+              {/* Donate Button */}
+              <button
+                onClick={() => handleDonate(activeModalId)}
+                disabled={donating}
+                className="w-full py-3 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold hover:from-green-600 hover:to-green-700 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {donating ? (
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Processing...
+                  </div>
+                ) : (
+                  "Donate Now"
+                )}
               </button>
             </div>
-
-            <input
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="Enter amount (1 to 1,000,000)"
-              value={donationAmount}
-              onChange={(e) => {
-                const input = e.target.value
-                if (/^\d*$/.test(input)) {
-                  setDonationAmount(input)
-                  setAmountError("")
-                }
-              }}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {amountError && <p className="text-sm text-red-600 mb-3">{amountError}</p>}
-
-            <button
-              onClick={() => handleDonate(activeModalId)}
-              disabled={donating}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
-            >
-              {donating ? "Processing..." : "Donate Now"}
-            </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

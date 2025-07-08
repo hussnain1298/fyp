@@ -1,406 +1,292 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import {
-  auth,
-  firestore,
-  collection,
-  onSnapshot,
-  deleteDoc,
-  doc,
-  addDoc,
-  serverTimestamp,
-  getDoc,
-} from "@/lib/firebase"
+import { useState, useEffect } from "react"
+import { firestore } from "@/lib/firebase"
+import { collection, getDocs, deleteDoc, doc, addDoc, getDoc, serverTimestamp } from "firebase/firestore"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Search,
   Filter,
-  Eye,
   Trash2,
+  Eye,
   AlertTriangle,
-  X,
-  Calendar,
-  User,
+  FileText,
   DollarSign,
+  GraduationCap,
   Heart,
-  Briefcase,
-  MessageSquare,
-  CheckCircle,
-  Clock,
+  Building,
+  Calendar,
+  X,
 } from "lucide-react"
 
-const ManageContent = () => {
-  const [requests, setRequests] = useState([])
-  const [services, setServices] = useState([])
-  const [fundraisers, setFundraisers] = useState([])
+export default function ManageContent() {
+  const [content, setContent] = useState([])
+  const [filteredContent, setFilteredContent] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState("all")
   const [selectedItem, setSelectedItem] = useState(null)
+  const [showDetailModal, setShowDetailModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteReason, setDeleteReason] = useState("")
   const [itemToDelete, setItemToDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    const unsubscribeRequests = onSnapshot(collection(firestore, "requests"), (snapshot) => {
-      const requestsData = snapshot.docs.map((doc) => {
-        const data = doc.data()
-        console.log("Request data:", data) // Debug log
-        return {
-          id: doc.id,
-          type: "request",
-          ...data,
-        }
-      })
-      setRequests(requestsData)
-    })
-
-    const unsubscribeServices = onSnapshot(collection(firestore, "services"), (snapshot) => {
-      const servicesData = snapshot.docs.map((doc) => {
-        const data = doc.data()
-        console.log("Service data:", data) // Debug log
-        return {
-          id: doc.id,
-          type: "service",
-          ...data,
-        }
-      })
-      setServices(servicesData)
-    })
-
-    const unsubscribeFundraisers = onSnapshot(collection(firestore, "fundraisers"), (snapshot) => {
-      const fundraisersData = snapshot.docs.map((doc) => {
-        const data = doc.data()
-        console.log("Fundraiser data:", data) // Debug log
-        return {
-          id: doc.id,
-          type: "fundraiser",
-          ...data,
-        }
-      })
-      setFundraisers(fundraisersData)
-      setLoading(false)
-    })
-
-    return () => {
-      unsubscribeRequests()
-      unsubscribeServices()
-      unsubscribeFundraisers()
-    }
+    fetchAllContent()
   }, [])
 
-  const allContent = useMemo(() => {
-    return [...requests, ...services, ...fundraisers]
-  }, [requests, services, fundraisers])
+  useEffect(() => {
+    filterContent()
+  }, [content, searchTerm, filterType])
 
-  const filteredContent = useMemo(() => {
-    let filtered = allContent
+  const fetchAllContent = async () => {
+    setLoading(true)
+    try {
+      const collections = [
+        { name: "requests", type: "Request" },
+        { name: "services", type: "Service" },
+        { name: "fundraisers", type: "Fundraiser" },
+      ]
 
+      const allContent = []
+
+      for (const col of collections) {
+        const snapshot = await getDocs(collection(firestore, col.name))
+        const items = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          type: col.type,
+          collection: col.name,
+          ...doc.data(),
+        }))
+        allContent.push(...items)
+      }
+
+      // Fetch orphanage names for all items
+      const orphanageIds = [...new Set(allContent.map((item) => item.orphanageId).filter(Boolean))]
+      const orphanageMap = {}
+
+      if (orphanageIds.length > 0) {
+        for (const id of orphanageIds) {
+          try {
+            const userDoc = await getDoc(doc(firestore, "users", id))
+            if (userDoc.exists()) {
+              orphanageMap[id] = userDoc.data()
+            }
+          } catch (error) {
+            console.error(`Error fetching user ${id}:`, error)
+          }
+        }
+      }
+
+      // Enrich content with orphanage info
+      const enrichedContent = allContent.map((item) => ({
+        ...item,
+        orphanageName:
+          orphanageMap[item.orphanageId]?.orgName || orphanageMap[item.orphanageId]?.fullName || "Unknown Organization",
+      }))
+
+      // Sort by creation date (newest first)
+      enrichedContent.sort((a, b) => {
+        const aDate = a.createdAt?.toDate?.() || a.timestamp?.toDate?.() || new Date(0)
+        const bDate = b.createdAt?.toDate?.() || b.timestamp?.toDate?.() || new Date(0)
+        return bDate - aDate
+      })
+
+      setContent(enrichedContent)
+    } catch (error) {
+      console.error("Error fetching content:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filterContent = () => {
+    let filtered = content
+
+    // Filter by type
     if (filterType !== "all") {
-      filtered = filtered.filter((item) => item.type === filterType)
+      filtered = filtered.filter((item) => item.type.toLowerCase() === filterType.toLowerCase())
     }
 
+    // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter(
         (item) =>
           item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.orgName?.toLowerCase().includes(searchTerm.toLowerCase()),
+          item.orphanageName?.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
-    return filtered.sort(
-      (a, b) => new Date(b.createdAt?.toDate?.() || b.createdAt) - new Date(a.createdAt?.toDate?.() || a.createdAt),
-    )
-  }, [allContent, filterType, searchTerm])
+    setFilteredContent(filtered)
+  }
 
-  const statistics = useMemo(() => {
-    return {
-      total: allContent.length,
-      requests: requests.length,
-      services: services.length,
-      fundraisers: fundraisers.length,
-      active: allContent.filter((item) => item.status === "Active" || item.status === "Open").length,
-      completed: allContent.filter((item) => item.status === "Completed" || item.status === "Fulfilled").length,
-    }
-  }, [allContent, requests, services, fundraisers])
-
-  const handleDelete = async (item) => {
-    console.log("Item to delete:", item) // Debug log
+  const handleDeleteClick = (item) => {
     setItemToDelete(item)
+    setDeleteReason("")
     setShowDeleteModal(true)
   }
 
-  const confirmDelete = async () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteReason.trim()) {
       alert("Please provide a reason for deletion")
       return
     }
 
+    if (!itemToDelete) return
+
     setDeleting(true)
     try {
-      console.log("=== DELETION PROCESS STARTED ===")
-      console.log("Item to delete:", itemToDelete)
+      // Delete the item
+      await deleteDoc(doc(firestore, itemToDelete.collection, itemToDelete.id))
 
-      // Try multiple ways to get orphanage ID
-      let orphanageId = null
-      let orphanageName = "Unknown Orphanage"
-
-      // Check different possible field names for orphanage ID
-      if (itemToDelete.orphanageId) {
-        orphanageId = itemToDelete.orphanageId
-        console.log("Found orphanageId:", orphanageId)
-      } else if (itemToDelete.userId) {
-        orphanageId = itemToDelete.userId
-        console.log("Found userId as orphanageId:", orphanageId)
-      } else if (itemToDelete.createdBy) {
-        orphanageId = itemToDelete.createdBy
-        console.log("Found createdBy as orphanageId:", orphanageId)
-      } else if (itemToDelete.uid) {
-        orphanageId = itemToDelete.uid
-        console.log("Found uid as orphanageId:", orphanageId)
-      }
-
-      // If we have orgName directly in the item, use it
-      if (itemToDelete.orgName) {
-        orphanageName = itemToDelete.orgName
-        console.log("Using orgName from item:", orphanageName)
-      }
-
-      // Try to fetch additional orphanage info if we have an ID
-      if (orphanageId) {
-        try {
-          console.log("Attempting to fetch user document for ID:", orphanageId)
-          const userDoc = await getDoc(doc(firestore, "users", orphanageId))
-
-          if (userDoc.exists()) {
-            const userData = userDoc.data()
-            console.log("User document found:", userData)
-
-            // Try different field names for organization name
-            if (userData.orgName) {
-              orphanageName = userData.orgName
-            } else if (userData.organizationName) {
-              orphanageName = userData.organizationName
-            } else if (userData.fullName) {
-              orphanageName = userData.fullName
-            } else if (userData.name) {
-              orphanageName = userData.name
-            } else if (userData.displayName) {
-              orphanageName = userData.displayName
-            }
-
-            console.log("Final orphanage name:", orphanageName)
-          } else {
-            console.log("No user document found for ID:", orphanageId)
-          }
-        } catch (userFetchError) {
-          console.error("Error fetching user document:", userFetchError)
-        }
-      } else {
-        console.log("No orphanage ID found in item")
-      }
-
-      // Delete the item from its collection
-      const collectionName =
-        itemToDelete.type === "request" ? "requests" : itemToDelete.type === "service" ? "services" : "fundraisers"
-
-      console.log("Deleting from collection:", collectionName)
-      await deleteDoc(doc(firestore, collectionName, itemToDelete.id))
-      console.log("Item successfully deleted from collection")
-
-      // Create notification with all available data
-      const notificationData = {
-        orphanageId: orphanageId || "",
-        orphanageName: orphanageName,
-        itemType: itemToDelete.type,
-        itemTitle: itemToDelete.title || "Untitled",
+      // Create admin notification
+      await addDoc(collection(firestore, "adminNotifications"), {
+        orphanageId: itemToDelete.orphanageId,
+        orphanageName: itemToDelete.orphanageName,
+        targetOrganization: itemToDelete.orphanageName,
         itemId: itemToDelete.id,
-        reason: deleteReason,
-        adminId: auth.currentUser?.uid || "unknown",
-        createdAt: serverTimestamp(),
-        read: false,
-        // Add additional fields for better querying
-        targetOrganization: orphanageName,
+        itemTitle: itemToDelete.title,
+        itemType: itemToDelete.type,
+        reason: deleteReason.trim(),
         notificationType: "content_deletion",
-      }
+        read: false,
+        createdAt: serverTimestamp(),
+        adminId: "admin", // You might want to get actual admin ID
+      })
 
-      console.log("Creating notification with data:", notificationData)
-      const notificationRef = await addDoc(collection(firestore, "adminNotifications"), notificationData)
-      console.log("Notification created with ID:", notificationRef.id)
+      // Update local state
+      setContent((prev) => prev.filter((item) => item.id !== itemToDelete.id))
 
-      // Reset modal state
       setShowDeleteModal(false)
-      setDeleteReason("")
       setItemToDelete(null)
+      setDeleteReason("")
 
-      alert(`Content deleted successfully! Notification sent to ${orphanageName}`)
-      console.log("=== DELETION PROCESS COMPLETED ===")
+      alert(`${itemToDelete.type} deleted successfully and notification sent to orphanage.`)
     } catch (error) {
-      console.error("=== DELETION PROCESS FAILED ===")
-      console.error("Error details:", error)
-      alert("Error deleting content. Please try again.")
+      console.error("Error deleting content:", error)
+      alert("Failed to delete content. Please try again.")
     } finally {
       setDeleting(false)
     }
   }
 
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case "active":
-      case "open":
-        return "text-green-600 bg-green-100"
-      case "completed":
-      case "fulfilled":
-        return "text-blue-600 bg-blue-100"
-      case "in progress":
-        return "text-yellow-600 bg-yellow-100"
-      case "cancelled":
-        return "text-red-600 bg-red-100"
-      default:
-        return "text-gray-600 bg-gray-100"
-    }
+  const handleViewDetails = (item) => {
+    setSelectedItem(item)
+    setShowDetailModal(true)
   }
 
   const getTypeIcon = (type) => {
-    switch (type) {
+    switch (type.toLowerCase()) {
       case "request":
-        return <Heart className="w-4 h-4" />
+        return <Heart className="w-5 h-5 text-red-500" />
       case "service":
-        return <Briefcase className="w-4 h-4" />
+        return <GraduationCap className="w-5 h-5 text-blue-500" />
       case "fundraiser":
-        return <DollarSign className="w-4 h-4" />
+        return <DollarSign className="w-5 h-5 text-green-500" />
       default:
-        return <MessageSquare className="w-4 h-4" />
+        return <FileText className="w-5 h-5 text-gray-500" />
     }
+  }
+
+  const getTypeColor = (type) => {
+    switch (type.toLowerCase()) {
+      case "request":
+        return "bg-red-50 text-red-700 border-red-200"
+      case "service":
+        return "bg-blue-50 text-blue-700 border-blue-200"
+      case "fundraiser":
+        return "bg-green-50 text-green-700 border-green-200"
+      default:
+        return "bg-gray-50 text-gray-700 border-gray-200"
+    }
+  }
+
+  const stats = {
+    total: content.length,
+    requests: content.filter((item) => item.type === "Request").length,
+    services: content.filter((item) => item.type === "Service").length,
+    fundraisers: content.filter((item) => item.type === "Fundraiser").length,
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading content...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-500 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading content...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Content Management</h1>
-          <p className="text-gray-600">Monitor and manage all orphanage content</p>
-        </div>
-
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-lg p-4 shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Content</p>
-                <p className="text-2xl font-bold text-gray-900">{statistics.total}</p>
-              </div>
-              <MessageSquare className="w-8 h-8 text-blue-600" />
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-3 bg-green-100 rounded-xl">
+              <FileText className="w-8 h-8 text-green-600" />
             </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white rounded-lg p-4 shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Requests</p>
-                <p className="text-2xl font-bold text-red-600">{statistics.requests}</p>
-              </div>
-              <Heart className="w-8 h-8 text-red-600" />
+            <div>
+              <h1 className="text-3xl lg:text-4xl font-bold text-gray-900">Content Management</h1>
+              <p className="text-gray-600 text-lg">Monitor and manage platform content</p>
             </div>
-          </motion.div>
+          </div>
+        </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white rounded-lg p-4 shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Services</p>
-                <p className="text-2xl font-bold text-purple-600">{statistics.services}</p>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {[
+            { title: "Total Content", value: stats.total, icon: FileText, color: "from-blue-500 to-cyan-500" },
+            { title: "Requests", value: stats.requests, icon: Heart, color: "from-red-500 to-pink-500" },
+            { title: "Services", value: stats.services, icon: GraduationCap, color: "from-purple-500 to-indigo-500" },
+            {
+              title: "Fundraisers",
+              value: stats.fundraisers,
+              icon: DollarSign,
+              color: "from-green-500 to-emerald-500",
+            },
+          ].map((stat, index) => (
+            <motion.div
+              key={stat.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-600 text-sm font-medium">{stat.title}</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                </div>
+                <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.color}`}>
+                  <stat.icon className="w-6 h-6 text-white" />
+                </div>
               </div>
-              <Briefcase className="w-8 h-8 text-purple-600" />
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white rounded-lg p-4 shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Fundraisers</p>
-                <p className="text-2xl font-bold text-green-600">{statistics.fundraisers}</p>
-              </div>
-              <DollarSign className="w-8 h-8 text-green-600" />
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white rounded-lg p-4 shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Active</p>
-                <p className="text-2xl font-bold text-green-600">{statistics.active}</p>
-              </div>
-              <CheckCircle className="w-8 h-8 text-green-600" />
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-white rounded-lg p-4 shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-2xl font-bold text-blue-600">{statistics.completed}</p>
-              </div>
-              <Clock className="w-8 h-8 text-blue-600" />
-            </div>
-          </motion.div>
+            </motion.div>
+          ))}
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg p-6 shadow-sm border mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8"
+        >
+          <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
                   type="text"
-                  placeholder="Search content..."
+                  placeholder="Search content by title, description, or organization..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
                 />
               </div>
             </div>
@@ -409,7 +295,7 @@ const ManageContent = () => {
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white min-w-[150px]"
               >
                 <option value="all">All Types</option>
                 <option value="request">Requests</option>
@@ -418,215 +304,236 @@ const ManageContent = () => {
               </select>
             </div>
           </div>
-        </div>
 
-        {/* Content List */}
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Content
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Orphanage
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredContent.map((item) => (
-                  <motion.tr
-                    key={item.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="hover:bg-gray-50"
-                  >
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900 truncate max-w-xs">{item.title}</div>
-                        <div className="text-sm text-gray-500 truncate max-w-xs">{item.description}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        {getTypeIcon(item.type)}
-                        <span className="text-sm text-gray-900 capitalize">{item.type}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm text-gray-900">{item.orgName || "Unknown"}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.status)}`}
-                      >
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm text-gray-900">
-                          {item.createdAt?.toDate?.()?.toLocaleDateString() || "N/A"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setSelectedItem(item)}
-                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                          title="View Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item)}
-                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                          title="Delete Content"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {filteredContent.length === 0 && (
-            <div className="text-center py-12">
-              <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No content found matching your criteria</p>
+          {filteredContent.length > 0 && (
+            <div className="mt-4 text-sm text-gray-600">
+              Showing {filteredContent.length} of {content.length} items
             </div>
           )}
+        </motion.div>
+
+        {/* Content List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden"
+        >
+          {filteredContent.length === 0 ? (
+            <div className="text-center py-16">
+              <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-600 mb-2">No content found</h3>
+              <p className="text-gray-500">
+                {searchTerm || filterType !== "all"
+                  ? "Try adjusting your search or filter criteria"
+                  : "No content has been posted yet"}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Content
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Organization
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Created
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredContent.map((item, index) => (
+                    <motion.tr
+                      key={item.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="hover:bg-gray-50 transition-colors"
+                    >
+                   <td className="px-6 py-4">
+  <div className="flex items-start gap-3">
+    {getTypeIcon(item.type)}
+    <div className="min-w-0 flex-1">
+      <h3 className="text-sm font-semibold text-gray-900 truncate">{item.title}</h3>
+      <p className="text-sm text-gray-500 line-clamp-2 mt-1">{item.description}</p>
+
+      {/* ✅ Add requestType and quantity if present */}
+      {item.requestType && (
+        <div className="text-xs text-gray-600 mt-1">
+          <span className="font-semibold">Type:</span> {item.requestType}
+          {item.quantity !== undefined && (
+            <>
+              {" | "}
+              <span className=" font-semibold ">Quantity:</span> {item.quantity}
+            </>
+          )}
         </div>
+      )}
+    </div>
+  </div>
+</td>
+
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Building className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm text-gray-900">{item.orphanageName}</span>
+                        </div>
+                      </td>
+                      
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getTypeColor(item.type)}`}
+                        >
+                          {item.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <Calendar className="w-4 h-4" />
+                          {(
+                            item.createdAt?.toDate?.() ||
+                            item.timestamp?.toDate?.() ||
+                            new Date()
+                          ).toLocaleDateString()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleViewDetails(item)}
+                            className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleDeleteClick(item)}
+                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                            title="Delete Content"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </motion.button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </motion.div>
 
         {/* Detail Modal */}
         <AnimatePresence>
-          {selectedItem && (
+          {showDetailModal && selectedItem && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-              onClick={() => setSelectedItem(null)}
+              onClick={() => setShowDetailModal(false)}
             >
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-gray-900">Content Details</h3>
-                    <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-100 rounded-lg">
-                      <X className="w-5 h-5" />
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      {getTypeIcon(selectedItem.type)}
+                      <h3 className="text-2xl font-bold text-gray-900">Content Details</h3>
+                    </div>
+                    <button
+                      onClick={() => setShowDetailModal(false)}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <X className="w-6 h-6 text-gray-500" />
                     </button>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                      <p className="text-gray-900">{selectedItem.title}</p>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                      <p className="text-lg font-semibold text-gray-900">{selectedItem.title}</p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                      <p className="text-gray-900">{selectedItem.description}</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                        <p className="text-gray-900 capitalize">{selectedItem.type}</p>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <p className="text-gray-900 whitespace-pre-wrap">{selectedItem.description}</p>
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
                         <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedItem.status)}`}
+                          className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full border ${getTypeColor(selectedItem.type)}`}
                         >
-                          {selectedItem.status}
+                          {selectedItem.type}
                         </span>
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Orphanage</label>
-                      <p className="text-gray-900">{selectedItem.orgName}</p>
-                    </div>
-
-                    {selectedItem.type === "fundraiser" && (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Target Amount</label>
-                          <p className="text-gray-900">${selectedItem.targetAmount?.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Raised Amount</label>
-                          <p className="text-gray-900">${selectedItem.raisedAmount?.toLocaleString() || 0}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedItem.type === "request" && selectedItem.requestType && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Request Type</label>
-                        <p className="text-gray-900">{selectedItem.requestType}</p>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Organization</label>
+                        <p className="text-gray-900">{selectedItem.orphanageName}</p>
+                      </div>
+                    </div>
+
+                    {selectedItem.type === "Fundraiser" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Target Amount</label>
+                          <p className="text-gray-900">Rs. {selectedItem.totalAmount?.toLocaleString() || 0}</p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Raised Amount</label>
+                          <p className="text-gray-900">Rs. {selectedItem.raisedAmount?.toLocaleString() || 0}</p>
+                        </div>
                       </div>
                     )}
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Created At</label>
-                      <p className="text-gray-900">{selectedItem.createdAt?.toDate?.()?.toLocaleString() || "N/A"}</p>
-                    </div>
-
-                    {/* Debug Information */}
-                    <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Debug Info</label>
-                      <div className="text-xs text-gray-600 space-y-1">
-                        <p>
-                          Orphanage ID:{" "}
-                          {selectedItem.orphanageId || selectedItem.userId || selectedItem.createdBy || "Not found"}
-                        </p>
-                        <p>Org Name: {selectedItem.orgName || "Not found"}</p>
-                        <p>Item ID: {selectedItem.id}</p>
-                      </div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Created Date</label>
+                      <p className="text-gray-900">
+                        {(
+                          selectedItem.createdAt?.toDate?.() ||
+                          selectedItem.timestamp?.toDate?.() ||
+                          new Date()
+                        ).toLocaleString()}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+                  <div className="flex justify-end gap-3 mt-8 pt-6 border-t">
                     <button
-                      onClick={() => setSelectedItem(null)}
-                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                      onClick={() => setShowDetailModal(false)}
+                      className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                     >
                       Close
                     </button>
                     <button
                       onClick={() => {
-                        setSelectedItem(null)
-                        handleDelete(selectedItem)
+                        setShowDetailModal(false)
+                        handleDeleteClick(selectedItem)
                       }}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
                       Delete Content
@@ -640,71 +547,65 @@ const ManageContent = () => {
 
         {/* Delete Confirmation Modal */}
         <AnimatePresence>
-          {showDeleteModal && (
+          {showDeleteModal && itemToDelete && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+              onClick={() => !deleting && setShowDeleteModal(false)}
             >
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white rounded-lg max-w-md w-full"
+                className="bg-white rounded-2xl max-w-md w-full shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-red-100 rounded-full">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-red-100 rounded-full">
                       <AlertTriangle className="w-6 h-6 text-red-600" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Delete Content</h3>
-                      <p className="text-sm text-gray-600">This action cannot be undone</p>
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <p className="text-sm text-gray-700 mb-2">
-                      You are about to delete: <strong>{itemToDelete?.title}</strong>
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Please provide a reason for deletion. This will be sent to the orphanage.
-                    </p>
+                    <h3 className="text-xl font-bold text-gray-900">Delete Content</h3>
                   </div>
 
                   <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Deletion Reason *</label>
-                    <textarea
-                      value={deleteReason}
-                      onChange={(e) => setDeleteReason(e.target.value)}
-                      placeholder="Please explain why this content is being deleted..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-                      rows={4}
-                      required
-                    />
+                    <p className="text-gray-600 mb-4">
+                      Are you sure you want to delete "{itemToDelete.title}"? This action cannot be undone.
+                    </p>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Reason for deletion <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={deleteReason}
+                        onChange={(e) => setDeleteReason(e.target.value)}
+                        placeholder="Please provide a reason for deleting this content..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+                        rows={3}
+                        disabled={deleting}
+                      />
+                    </div>
                   </div>
 
                   <div className="flex justify-end gap-3">
                     <button
-                      onClick={() => {
-                        setShowDeleteModal(false)
-                        setDeleteReason("")
-                        setItemToDelete(null)
-                      }}
-                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                      onClick={() => setShowDeleteModal(false)}
                       disabled={deleting}
+                      className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
-                      onClick={confirmDelete}
+                      onClick={handleDeleteConfirm}
                       disabled={deleting || !deleteReason.trim()}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {deleting ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                           Deleting...
                         </>
                       ) : (
@@ -724,5 +625,3 @@ const ManageContent = () => {
     </div>
   )
 }
-
-export default ManageContent

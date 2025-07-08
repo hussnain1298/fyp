@@ -1,57 +1,59 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useMemo } from "react"
-import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
-import { auth, firestore } from "@/lib/firebase"
-import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore"
-import { signOut } from "firebase/auth"
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { auth, firestore } from "@/lib/firebase";
+import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
+import { signOut } from "firebase/auth";
 
-// Tabs Components
-import Dashboard from "./dashboard"
-import AccountDetails from "./accountDetails"
-import FulfillRequests from "./fulfillRequest"
-import FulfillServices from "./fullfillServices"
-import Messages from "./messages"
-import DonationsHistory from "./donationHistory"
-import FulfillFundraise from "./fullfillFundraise"
-import Navbar from "../Navbar/navbar"
-import Footer from "../footer/page"
+// Tab Components
+import Dashboard from "./dashboard";
+import AccountDetails from "./accountDetails";
+import FulfillRequests from "./fulfillRequest";
+import FulfillServices from "./fullfillServices";
+import Messages from "./messages";
+import DonationsHistory from "./donationHistory";
+import FulfillFundraise from "./fullfillFundraise";
+import Navbar from "../Navbar/navbar";
+import Footer from "../footer/page";
+import GoalAndChartSection from "./Goal";
+import PredictiveAnalytics from "@/components/predectiveanalytics";
 
 export default function MyAccount() {
-  const [activeTab, setActiveTab] = useState("Dashboard")
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
+  const [activeTab, setActiveTab] = useState("Dashboard");
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-      setUser(currentUser)
-      setLoading(false)
-    })
-    return unsubscribe
-  }, [])
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
-    if (!user) return
-    const notificationsRef = collection(firestore, "notifications", user.uid, "userNotifications")
-    const q = query(notificationsRef, where("read", "==", false), orderBy("timestamp", "desc"))
+    if (!user) return;
+    const notificationsRef = collection(firestore, "notifications", user.uid, "userNotifications");
+    const q = query(notificationsRef, where("read", "==", false), orderBy("timestamp", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setUnreadCount(snapshot.size)
-    })
-    return () => unsubscribe()
-  }, [user])
+      setUnreadCount(snapshot.size);
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   const handleLogout = async () => {
     try {
-      await signOut(auth)
-      localStorage.removeItem("userSession")
-      router.push("/login")
+      await signOut(auth);
+      localStorage.removeItem("userSession");
+      router.push("/login");
     } catch (error) {
-      console.error("Error Logging Out:", error.message)
+      console.error("Error Logging Out:", error.message);
     }
-  }
+  };
 
   const tabs = useMemo(
     () => [
@@ -62,49 +64,51 @@ export default function MyAccount() {
       { id: "Fulfill Services", label: "Fulfill Services", icon: "🎓" },
       { id: "Fulfill FundRaise", label: "Fulfill Fundraise", icon: "💰" },
       { id: "Donations", label: "Donation History", icon: "📊" },
+      // 🔥 NEW TAB
+      { id: "My Goal", label: "My Goal", icon: "🎯" },
       { id: "Logout", label: "Logout", icon: "🚪", isAction: true },
     ],
-    [unreadCount],
-  )
+    [unreadCount]
+  );
 
   const renderTabContent = () => {
     switch (activeTab) {
       case "Dashboard":
-        return <Dashboard />
+        return <Dashboard />;
       case "Account details":
-        return <AccountDetails />
+        return <AccountDetails />;
       case "Messages":
-        return <Messages />
+        return <Messages />;
       case "Fulfill Requests":
-        return <FulfillRequests />
+        return <FulfillRequests />;
       case "Fulfill Services":
-        return <FulfillServices />
+        return <FulfillServices />;
       case "Fulfill FundRaise":
-        return <FulfillFundraise />
+        return <FulfillFundraise />;
       case "Donations":
-        return <DonationsHistory />
+        return <DonationsHistory />;
+      // 🔥 NEW CASE
+      case "My Goal":
+        return <GoalAndChartSection />;
       default:
-        return <Dashboard />
+        return <Dashboard />;
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-       
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading dashboard...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-       <Navbar/>
-     
-      {/* Main Content */}
+      <Navbar />
       <div className="flex-1 container mx-auto px-4 py-6 mt-12">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Sidebar */}
@@ -124,8 +128,8 @@ export default function MyAccount() {
                       activeTab === tab.id && !tab.isAction
                         ? "bg-gray-100 text-gray-800 border-l-4 border-gray-600 font-medium"
                         : tab.isAction
-                          ? "hover:bg-red-50 text-red-600 hover:text-red-700"
-                          : "hover:bg-gray-50 text-gray-700 hover:text-gray-900"
+                        ? "hover:bg-red-50 text-red-600 hover:text-red-700"
+                        : "hover:bg-gray-50 text-gray-700 hover:text-gray-900"
                     }`}
                   >
                     <div className="flex items-center space-x-3">
@@ -150,15 +154,14 @@ export default function MyAccount() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="bg-white shadow-sm border border-gray-200 rounded-xl min-h-[600px]"
+              className="bg-white shadow-sm border border-gray-200 rounded-xl min-h-[600px] p-6"
             >
               {renderTabContent()}
             </motion.div>
           </main>
         </div>
       </div>
-       <Footer/>
+      <Footer />
     </div>
-   
-  )
+  );
 }
