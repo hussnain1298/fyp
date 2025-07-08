@@ -1,5 +1,7 @@
 import { Poppins, Inter, Roboto_Mono } from "next/font/google";
 import "./globals.css";
+import "@fortawesome/fontawesome-free/css/all.min.css";
+
 
 // Load fonts
 const poppins = Poppins({

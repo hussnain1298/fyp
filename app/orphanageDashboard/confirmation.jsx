@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react"
 import { auth, firestore } from "@/lib/firebase"
 import RequestConfirmations from "./RequestConfirmation"
-import FundraiserConfirmations from "./FundRaiserConfirmation"
 import ServiceConfirmations from "./ServiceConfirmation"
 import { collection, getDocs, query, where } from "firebase/firestore"
 import { motion } from "framer-motion"
@@ -12,7 +11,7 @@ import { FaClipboardList, FaDollarSign, FaCog, FaFilter } from "react-icons/fa"
 const ConfirmFund = () => {
   const [activeStatus, setActiveStatus] = useState("pending")
   const [activeCategory, setActiveCategory] = useState("requests")
-  const [counts, setCounts] = useState({ requests: 0, fundraisers: 0, services: 0 })
+  const [counts, setCounts] = useState({ requests: 0, services: 0 })
   const [loading, setLoading] = useState(true)
 
   const matchesStatus = useMemo(
@@ -43,15 +42,15 @@ const ConfirmFund = () => {
       }
 
       try {
-        const [requestsSnap, fundraisersSnap, servicesSnap] = await Promise.all([
+        const [requestsSnap,  servicesSnap] = await Promise.all([
           getDocs(query(collection(firestore, "requests"), where("orphanageId", "==", user.uid))),
-          getDocs(query(collection(firestore, "fundraisers"), where("orphanageId", "==", user.uid))),
+         
           getDocs(query(collection(firestore, "services"), where("orphanageId", "==", user.uid))),
         ])
 
         setCounts({
           requests: requestsSnap.size,
-          fundraisers: fundraisersSnap.size,
+       
           services: servicesSnap.size,
         })
       } catch (error) {
@@ -72,13 +71,7 @@ const ConfirmFund = () => {
       color: "blue",
       description: "Donation requests from your organization",
     },
-    {
-      key: "fundraisers",
-      label: "Fundraisers",
-      icon: FaDollarSign,
-      color: "green",
-      description: "Active fundraising campaigns",
-    },
+
     {
       key: "services",
       label: "Services",
@@ -160,7 +153,7 @@ const ConfirmFund = () => {
           transition={{ delay: 0.1 }}
           className="mb-6"
         >
-          <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center sm:text-left">Categories</h3>
+         
           <div className="flex flex-col sm:flex-row gap-3 justify-center sm:justify-start">
             {categoryConfig.map(({ key, label, icon: Icon, color, description }) => (
               <button
@@ -190,7 +183,7 @@ const ConfirmFund = () => {
           transition={{ delay: 0.2 }}
           className="mb-8"
         >
-          <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center sm:text-left">Status</h3>
+       
           <div className="flex flex-col sm:flex-row gap-3 justify-center sm:justify-start">
             {statusConfig.map(({ key, label, color, description }) => (
               <button
@@ -219,9 +212,7 @@ const ConfirmFund = () => {
           {activeCategory === "requests" && (
             <RequestConfirmations activeStatus={activeStatus} matchesStatus={matchesStatus} />
           )}
-          {activeCategory === "fundraisers" && (
-            <FundraiserConfirmations activeStatus={activeStatus} matchesStatus={matchesStatus} />
-          )}
+        
           {activeCategory === "services" && (
             <ServiceConfirmations activeStatus={activeStatus} matchesStatus={matchesStatus} />
           )}

@@ -3,8 +3,26 @@
 import { useEffect, useState, useMemo } from "react"
 import { auth, firestore, updateDoc, deleteDoc } from "@/lib/firebase"
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore"
-import { motion } from "framer-motion"
-import { AlertTriangle, X, MessageSquare, Trash2, Calendar, User } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import {
+  AlertTriangle,
+  X,
+  MessageSquare,
+  Trash2,
+  Calendar,
+  User,
+  TrendingUp,
+  Heart,
+  DollarSign,
+  GraduationCap,
+  Bell,
+  Building,
+  Activity,
+  Users,
+  Target,
+  Award,
+  Sparkles,
+} from "lucide-react"
 
 const OrphanageDashboard = () => {
   const [user, setUser] = useState(null)
@@ -18,9 +36,12 @@ const OrphanageDashboard = () => {
     completedRequests: 0,
     pendingServices: 0,
     activeFundraisers: 0,
+    totalRaised: 0,
+    monthlyDonations: 0,
   })
   const [adminNotifications, setAdminNotifications] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
+  const [recentActivity, setRecentActivity] = useState([])
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -31,13 +52,10 @@ const OrphanageDashboard = () => {
             const userData = userDoc.data()
             const userWithId = { ...userData, uid: currentUser.uid }
             setUser(userWithId)
-            console.log("=== USER DATA LOADED ===")
-            console.log("User UID:", currentUser.uid)
-            console.log("User Data:", userData)
-            console.log("Org Name:", userData.orgName)
 
             loadDashboardData(currentUser.uid)
             loadAdminNotifications(currentUser.uid, userData)
+            loadRecentActivity(currentUser.uid)
           }
         } catch (error) {
           console.error("Error fetching user data:", error)
@@ -51,68 +69,109 @@ const OrphanageDashboard = () => {
 
   const loadDashboardData = async (userId) => {
     try {
-      // Load requests
+      // Real-time listeners for better performance
       const requestsQuery = query(collection(firestore, "requests"), where("orphanageId", "==", userId))
-      const requestsSnapshot = await getDocs(requestsQuery)
-      const requests = requestsSnapshot.docs.map((doc) => doc.data())
-
-      // Load services
       const servicesQuery = query(collection(firestore, "services"), where("orphanageId", "==", userId))
-      const servicesSnapshot = await getDocs(servicesQuery)
-      const services = servicesSnapshot.docs.map((doc) => doc.data())
-
-      // Load fundraisers
       const fundraisersQuery = query(collection(firestore, "fundraisers"), where("orphanageId", "==", userId))
-      const fundraisersSnapshot = await getDocs(fundraisersQuery)
-      const fundraisers = fundraisersSnapshot.docs.map((doc) => doc.data())
-
-      // Load donations
       const donationsQuery = query(collection(firestore, "donations"), where("orphanageId", "==", userId))
-      const donationsSnapshot = await getDocs(donationsQuery)
 
-      setStats({
-        totalRequests: requests.length,
-        totalServices: services.length,
-        totalFundraisers: fundraisers.length,
-        totalDonations: donationsSnapshot.size,
-        activeRequests: requests.filter((r) => r.status === "Active").length,
-        completedRequests: requests.filter((r) => r.status === "Completed").length,
-        pendingServices: services.filter((s) => s.status === "Open").length,
-        activeFundraisers: fundraisers.filter((f) => f.status === "Active").length,
+      // Set up real-time listeners
+      const unsubscribeRequests = onSnapshot(requestsQuery, (snapshot) => {
+        const requests = snapshot.docs.map((doc) => doc.data())
+        setStats((prev) => ({
+          ...prev,
+          totalRequests: requests.length,
+          activeRequests: requests.filter((r) => r.status === "Active" || r.status === "Pending").length,
+          completedRequests: requests.filter((r) => r.status === "Completed" || r.status === "Fulfilled").length,
+        }))
       })
+
+      const unsubscribeServices = onSnapshot(servicesQuery, (snapshot) => {
+        const services = snapshot.docs.map((doc) => doc.data())
+        setStats((prev) => ({
+          ...prev,
+          totalServices: services.length,
+          pendingServices: services.filter((s) => s.status === "Pending").length,
+        }))
+      })
+
+      const unsubscribeFundraisers = onSnapshot(fundraisersQuery, (snapshot) => {
+        const fundraisers = snapshot.docs.map((doc) => doc.data())
+        const totalRaised = fundraisers.reduce((sum, f) => sum + (f.raisedAmount || 0), 0)
+        setStats((prev) => ({
+          ...prev,
+          totalFundraisers: fundraisers.length,
+          activeFundraisers: fundraisers.filter((f) => f.status === "Active" || !f.status).length,
+          totalRaised,
+        }))
+      })
+
+      const unsubscribeDonations = onSnapshot(donationsQuery, (snapshot) => {
+        const donations = snapshot.docs.map((doc) => doc.data())
+        const thisMonth = new Date()
+        thisMonth.setDate(1)
+        const monthlyDonations = donations.filter((d) => {
+          const donationDate = d.timestamp?.toDate()
+          return donationDate && donationDate >= thisMonth
+        }).length
+
+        setStats((prev) => ({
+          ...prev,
+          totalDonations: donations.length,
+          monthlyDonations,
+        }))
+      })
+
+      return () => {
+        unsubscribeRequests()
+        unsubscribeServices()
+        unsubscribeFundraisers()
+        unsubscribeDonations()
+      }
     } catch (error) {
       console.error("Error loading dashboard data:", error)
     }
   }
 
-  const loadAdminNotifications = (userId, userData) => {
-    console.log("=== LOADING ADMIN NOTIFICATIONS ===")
-    console.log("User ID:", userId)
-    console.log("User Data:", userData)
+  const loadRecentActivity = async (userId) => {
+    try {
+      // Load recent donations
+      const donationsQuery = query(
+        collection(firestore, "donations"),
+        where("orphanageId", "==", userId),
+        // orderBy("timestamp", "desc"),
+        // limit(5)
+      )
+      const donationsSnap = await getDocs(donationsQuery)
+      const recentDonations = donationsSnap.docs
+        .map((doc) => ({
+          id: doc.id,
+          type: "donation",
+          ...doc.data(),
+        }))
+        .sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0))
+        .slice(0, 5)
 
+      setRecentActivity(recentDonations)
+    } catch (error) {
+      console.error("Error loading recent activity:", error)
+    }
+  }
+
+  const loadAdminNotifications = (userId, userData) => {
     const orgName = userData.orgName || userData.organizationName || userData.fullName || userData.name
 
-    // Strategy 1: Simple query by orphanageId (no orderBy to avoid index issues)
     const simpleQuery = query(collection(firestore, "adminNotifications"), where("orphanageId", "==", userId))
-
-    console.log("Trying simple query by orphanageId:", userId)
 
     const unsubscribe = onSnapshot(
       simpleQuery,
       (snapshot) => {
-        console.log(`Simple query returned ${snapshot.docs.length} documents`)
-
         if (snapshot.docs.length > 0) {
-          const notifications = snapshot.docs.map((doc) => {
-            const data = doc.data()
-            console.log("Notification found:", data)
-            return {
-              id: doc.id,
-              ...data,
-            }
-          })
+          const notifications = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
 
-          // Sort notifications client-side by createdAt
           notifications.sort((a, b) => {
             const aTime = a.createdAt?.toDate?.() || new Date(0)
             const bTime = b.createdAt?.toDate?.() || new Date(0)
@@ -120,149 +179,72 @@ const OrphanageDashboard = () => {
           })
 
           setAdminNotifications(notifications)
-          console.log(`Successfully loaded ${notifications.length} notifications`)
 
-          // Show notifications panel if there are unread notifications
           const unreadCount = notifications.filter((n) => !n.read).length
-          console.log("Unread notifications:", unreadCount)
           if (unreadCount > 0) {
             setShowNotifications(true)
           }
-        } else {
-          console.log("No notifications found with simple query, trying fallback...")
+        } else if (orgName) {
+          const fallbackQuery = query(
+            collection(firestore, "adminNotifications"),
+            where("orphanageName", "==", orgName),
+          )
 
-          // Fallback: Try by orgName if no results
-          if (orgName) {
-            const fallbackQuery = query(
-              collection(firestore, "adminNotifications"),
-              where("orphanageName", "==", orgName),
-            )
+          onSnapshot(fallbackQuery, (fallbackSnapshot) => {
+            const notifications = fallbackSnapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }))
 
-            onSnapshot(
-              fallbackQuery,
-              (fallbackSnapshot) => {
-                console.log(`Fallback query returned ${fallbackSnapshot.docs.length} documents`)
+            notifications.sort((a, b) => {
+              const aTime = a.createdAt?.toDate?.() || new Date(0)
+              const bTime = b.createdAt?.toDate?.() || new Date(0)
+              return bTime - aTime
+            })
 
-                const notifications = fallbackSnapshot.docs.map((doc) => ({
-                  id: doc.id,
-                  ...doc.data(),
-                }))
+            setAdminNotifications(notifications)
 
-                // Sort client-side
-                notifications.sort((a, b) => {
-                  const aTime = a.createdAt?.toDate?.() || new Date(0)
-                  const bTime = b.createdAt?.toDate?.() || new Date(0)
-                  return bTime - aTime
-                })
-
-                setAdminNotifications(notifications)
-
-                const unreadCount = notifications.filter((n) => !n.read).length
-                if (unreadCount > 0) {
-                  setShowNotifications(true)
-                }
-              },
-              (error) => {
-                console.error("Fallback query also failed:", error)
-
-                // Last resort: Get all notifications and filter client-side
-                console.log("Trying last resort: get all notifications")
-
-                const allNotificationsQuery = collection(firestore, "adminNotifications")
-
-                onSnapshot(
-                  allNotificationsQuery,
-                  (allSnapshot) => {
-                    console.log(`Got ${allSnapshot.docs.length} total notifications for client-side filtering`)
-
-                    const allNotifications = allSnapshot.docs.map((doc) => ({
-                      id: doc.id,
-                      ...doc.data(),
-                    }))
-
-                    // Filter for this specific orphanage
-                    const filteredNotifications = allNotifications.filter((notification) => {
-                      const matchesId = notification.orphanageId === userId
-                      const matchesOrgName = notification.orphanageName === orgName
-                      const matchesTarget = notification.targetOrganization === orgName
-
-                      if (matchesId || matchesOrgName || matchesTarget) {
-                        console.log("Found matching notification:", notification)
-                      }
-
-                      return matchesId || matchesOrgName || matchesTarget
-                    })
-
-                    // Sort client-side
-                    filteredNotifications.sort((a, b) => {
-                      const aTime = a.createdAt?.toDate?.() || new Date(0)
-                      const bTime = b.createdAt?.toDate?.() || new Date(0)
-                      return bTime - aTime
-                    })
-
-                    console.log(`Client-side filtering found ${filteredNotifications.length} matching notifications`)
-                    setAdminNotifications(filteredNotifications)
-
-                    const unreadCount = filteredNotifications.filter((n) => !n.read).length
-                    if (unreadCount > 0) {
-                      setShowNotifications(true)
-                    }
-                  },
-                  (finalError) => {
-                    console.error("All notification loading strategies failed:", finalError)
-                    setAdminNotifications([])
-                  },
-                )
-              },
-            )
-          }
+            const unreadCount = notifications.filter((n) => !n.read).length
+            if (unreadCount > 0) {
+              setShowNotifications(true)
+            }
+          })
         }
       },
       (error) => {
-        console.error("Primary query failed:", error)
-        console.log("Error details:", error.code, error.message)
+        console.error("Notification query failed:", error)
+        getDocs(collection(firestore, "adminNotifications"))
+          .then((snapshot) => {
+            const allNotifications = snapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }))
 
-        // If we get permission errors, try a different approach
-        if (error.code === "permission-denied") {
-          console.log("Permission denied, trying alternative approach...")
-
-          // Try to get notifications without real-time updates
-          getDocs(collection(firestore, "adminNotifications"))
-            .then((snapshot) => {
-              console.log(`Static query returned ${snapshot.docs.length} documents`)
-
-              const allNotifications = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-              }))
-
-              const filteredNotifications = allNotifications.filter((notification) => {
-                return (
-                  notification.orphanageId === userId ||
-                  notification.orphanageName === orgName ||
-                  notification.targetOrganization === orgName
-                )
-              })
-
-              filteredNotifications.sort((a, b) => {
-                const aTime = a.createdAt?.toDate?.() || new Date(0)
-                const bTime = b.createdAt?.toDate?.() || new Date(0)
-                return bTime - aTime
-              })
-
-              console.log(`Static filtering found ${filteredNotifications.length} matching notifications`)
-              setAdminNotifications(filteredNotifications)
-
-              const unreadCount = filteredNotifications.filter((n) => !n.read).length
-              if (unreadCount > 0) {
-                setShowNotifications(true)
-              }
+            const filteredNotifications = allNotifications.filter((notification) => {
+              return (
+                notification.orphanageId === userId ||
+                notification.orphanageName === orgName ||
+                notification.targetOrganization === orgName
+              )
             })
-            .catch((staticError) => {
-              console.error("Static query also failed:", staticError)
-              setAdminNotifications([])
+
+            filteredNotifications.sort((a, b) => {
+              const aTime = a.createdAt?.toDate?.() || new Date(0)
+              const bTime = b.createdAt?.toDate?.() || new Date(0)
+              return bTime - aTime
             })
-        }
+
+            setAdminNotifications(filteredNotifications)
+
+            const unreadCount = filteredNotifications.filter((n) => !n.read).length
+            if (unreadCount > 0) {
+              setShowNotifications(true)
+            }
+          })
+          .catch((staticError) => {
+            console.error("Static query also failed:", staticError)
+            setAdminNotifications([])
+          })
       },
     )
 
@@ -274,7 +256,6 @@ const OrphanageDashboard = () => {
       await updateDoc(doc(firestore, "adminNotifications", notificationId), {
         read: true,
       })
-      console.log("Notification marked as read:", notificationId)
     } catch (error) {
       console.error("Error marking notification as read:", error)
     }
@@ -283,7 +264,6 @@ const OrphanageDashboard = () => {
   const deleteNotification = async (notificationId) => {
     try {
       await deleteDoc(doc(firestore, "adminNotifications", notificationId))
-      console.log("Notification deleted:", notificationId)
     } catch (error) {
       console.error("Error deleting notification:", error)
     }
@@ -295,247 +275,414 @@ const OrphanageDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+            className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"
+          />
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-gray-600 text-lg font-medium">
+            Loading your dashboard...
+          </motion.p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-600">Welcome back, {user?.orgName || user?.name}</p>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Enhanced Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8"
+        >
+          <div className="mb-4 sm:mb-0">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-green-100 rounded-xl">
+                <Building className="w-8 h-8 text-green-600" />
+              </div>
+              <div>
+                <h1 className="text-3xl lg:text-4xl font-bold text-gray-900">Welcome back! 👋</h1>
+                <p className="text-gray-600 text-lg">{user?.orgName || user?.name}</p>
+              </div>
+            </div>
+            <p className="text-sm text-green-600 font-medium flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Manage your organization's activities
+            </p>
           </div>
 
-          {/* Notifications Button */}
+          {/* Enhanced Notifications Button */}
           <div className="relative">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-3 bg-white rounded-lg shadow-sm border hover:bg-gray-50 transition-colors"
+              className="relative p-4 bg-white rounded-xl shadow-lg border border-green-100 hover:shadow-xl transition-all duration-200"
             >
-              <MessageSquare className="w-6 h-6 text-gray-600" />
+              <Bell className="w-6 h-6 text-green-600" />
               {unreadNotifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold"
+                >
                   {unreadNotifications.length}
-                </span>
+                </motion.span>
               )}
-            </button>
+            </motion.button>
+          </div>
+        </motion.div>
+
+        {/* Enhanced Admin Notifications Panel */}
+        <AnimatePresence>
+          {showNotifications && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="mb-8"
+            >
+              <div className="bg-white rounded-2xl shadow-xl border border-red-100 overflow-hidden">
+                <div className="p-6 bg-gradient-to-r from-red-50 to-orange-50 border-b">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-red-100 rounded-full">
+                        <AlertTriangle className="w-6 h-6 text-red-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-xl text-gray-900">Admin Notifications</h3>
+                        <p className="text-gray-600">
+                          {unreadNotifications.length} unread notification{unreadNotifications.length !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setShowNotifications(false)}
+                      className="p-2 hover:bg-red-100 rounded-full transition-colors"
+                    >
+                      <X className="w-6 h-6 text-gray-500" />
+                    </motion.button>
+                  </div>
+                </div>
+
+                <div className="max-h-96 overflow-y-auto">
+                  {adminNotifications.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">
+                      <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                      <p className="text-lg font-medium">No notifications from admin</p>
+                      <p className="text-sm">You're all caught up!</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {adminNotifications.map((notification, index) => (
+                        <motion.div
+                          key={notification.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className={`p-6 hover:bg-gray-50 transition-colors ${
+                            !notification.read ? "bg-red-50 border-l-4 border-l-red-500" : ""
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-3">
+                                <AlertTriangle className="w-5 h-5 text-red-500" />
+                                <span className="font-semibold text-red-700">Content Deleted by Admin</span>
+                                {!notification.read && (
+                                  <span className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium">
+                                    New
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="space-y-2 mb-4">
+                                <p className="text-gray-900">
+                                  <strong>Item:</strong> {notification.itemTitle}
+                                </p>
+                                <p className="text-gray-900">
+                                  <strong>Type:</strong> {notification.itemType}
+                                </p>
+                                <p className="text-gray-900">
+                                  <strong>Reason:</strong> {notification.reason}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-6 text-sm text-gray-500">
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-4 h-4" />
+                                  {notification.createdAt?.toDate?.()?.toLocaleDateString() || "N/A"}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <User className="w-4 h-4" />
+                                  Admin
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {!notification.read && (
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => markNotificationAsRead(notification.id)}
+                                  className="px-4 py-2 bg-green-100 text-green-700 text-sm rounded-full hover:bg-green-200 transition-colors font-medium"
+                                >
+                                  Mark Read
+                                </motion.button>
+                              )}
+                              <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => deleteNotification(notification.id)}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                                title="Delete notification"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </motion.button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Enhanced Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {[
+            {
+              title: "Total Requests",
+              value: stats.totalRequests,
+              icon: Heart,
+              color: "from-red-500 to-pink-500",
+              bgColor: "bg-red-50",
+              textColor: "text-red-600",
+              subtitle: `${stats.activeRequests} active, ${stats.completedRequests} completed`,
+              trend: "+12%",
+            },
+            {
+              title: "Services",
+              value: stats.totalServices,
+              icon: GraduationCap,
+              color: "from-purple-500 to-indigo-500",
+              bgColor: "bg-purple-50",
+              textColor: "text-purple-600",
+              subtitle: `${stats.pendingServices} pending`,
+              trend: "+8%",
+            },
+            {
+              title: "Fundraisers",
+              value: stats.totalFundraisers,
+              icon: DollarSign,
+              color: "from-green-500 to-emerald-500",
+              bgColor: "bg-green-50",
+              textColor: "text-green-600",
+              subtitle: `Rs. ${stats.totalRaised.toLocaleString()} raised`,
+              trend: "+15%",
+            },
+            {
+              title: "Total Donations",
+              value: stats.totalDonations,
+              icon: TrendingUp,
+              color: "from-blue-500 to-cyan-500",
+              bgColor: "bg-blue-50",
+              textColor: "text-blue-600",
+              subtitle: `${stats.monthlyDonations} this month`,
+              trend: "+20%",
+            },
+          ].map((stat, index) => (
+            <motion.div
+              key={stat.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ scale: 1.02, y: -2 }}
+              className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-200"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.color}`}>
+                  <stat.icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                  <span className="text-xs text-green-600 font-medium">{stat.trend}</span>
+                </div>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 mb-1">{stat.title}</p>
+                <p className="text-sm text-gray-500">{stat.subtitle}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Recent Activity & Quick Actions Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* Recent Activity */}
+          <div className="lg:col-span-2">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 }}
+              className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Activity className="w-6 h-6 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">Recent Activity</h3>
+              </div>
+
+              <div className="space-y-4">
+                {recentActivity.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Activity className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p>No recent activity</p>
+                  </div>
+                ) : (
+                  recentActivity.map((activity, index) => (
+                    <motion.div
+                      key={activity.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5 + index * 0.1 }}
+                      className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <Heart className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">New donation received</p>
+                        <p className="text-sm text-gray-500">
+                          {activity.donationType} - {activity.timestamp?.toDate?.()?.toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                        New
+                      </span>
+                    </motion.div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="lg:col-span-1">
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.5 }}
+              className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Target className="w-6 h-6 text-green-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">Quick Actions</h3>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  {
+                    title: "Create Request",
+                    description: "Post a new donation request",
+                    icon: Heart,
+                    color: "from-red-500 to-pink-500",
+                  },
+                  {
+                    title: "Add Service",
+                    description: "Offer educational services",
+                    icon: GraduationCap,
+                    color: "from-purple-500 to-indigo-500",
+                  },
+                  {
+                    title: "Start Fundraiser",
+                    description: "Launch a fundraising campaign",
+                    icon: DollarSign,
+                    color: "from-green-500 to-emerald-500",
+                  },
+                ].map((action, index) => (
+                  <motion.button
+                    key={action.title}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 + index * 0.1 }}
+                    whileHover={{ scale: 1.02, x: 4 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-300 hover:shadow-md transition-all duration-200 text-left group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={`p-3 rounded-lg bg-gradient-to-r ${action.color} group-hover:scale-110 transition-transform`}
+                      >
+                        <action.icon className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-gray-900 group-hover:text-green-600 transition-colors">
+                          {action.title}
+                        </div>
+                        <div className="text-sm text-gray-600">{action.description}</div>
+                      </div>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
           </div>
         </div>
 
-      
+        {/* Enhanced Welcome Message */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.7 }}
+          className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-8 text-white relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white bg-opacity-10 rounded-full -translate-y-20 translate-x-20"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-white bg-opacity-10 rounded-full translate-y-16 -translate-x-16"></div>
 
-        {/* Admin Notifications Panel */}
-        {showNotifications && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-            <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-              <div className="p-4 bg-gradient-to-r from-red-50 to-orange-50 border-b">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-red-100 rounded-full">
-                      <AlertTriangle className="w-5 h-5 text-red-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Admin Notifications</h3>
-                      <p className="text-sm text-gray-600">{unreadNotifications.length} unread notifications</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowNotifications(false)}
-                    className="p-1 hover:bg-red-100 rounded-full transition-colors"
-                  >
-                    <X className="w-5 h-5 text-gray-500" />
-                  </button>
+          <div className="relative z-10 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-white bg-opacity-20 rounded-full">
+                  <Award className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold mb-2">Making a Difference Together</h3>
+                  <p className="text-green-100 text-lg">
+                    Your organization is helping create positive change in the community.
+                  </p>
                 </div>
               </div>
 
-              <div className="max-h-96 overflow-y-auto">
-                {adminNotifications.length === 0 ? (
-                  <div className="p-6 text-center text-gray-500">
-                    <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p>No notifications from admin</p>
-                    <p className="text-xs mt-2">If you expect notifications, check the console for debugging info</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-200">
-                    {adminNotifications.map((notification) => (
-                      <motion.div
-                        key={notification.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className={`p-4 hover:bg-gray-50 transition-colors ${
-                          !notification.read ? "bg-red-50 border-l-4 border-l-red-500" : ""
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <AlertTriangle className="w-4 h-4 text-red-500" />
-                              <span className="text-sm font-medium text-red-700">Content Deleted by Admin</span>
-                              {!notification.read && (
-                                <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">New</span>
-                              )}
-                            </div>
-
-                            <div className="space-y-2">
-                              <p className="text-sm text-gray-900">
-                                <strong>Item:</strong> {notification.itemTitle}
-                              </p>
-                              <p className="text-sm text-gray-900">
-                                <strong>Type:</strong> {notification.itemType}
-                              </p>
-                              <p className="text-sm text-gray-900">
-                                <strong>Reason:</strong> {notification.reason}
-                              </p>
-                            </div>
-
-                            <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-                              <div className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {notification.createdAt?.toDate?.()?.toLocaleDateString() || "N/A"}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <User className="w-3 h-3" />
-                                Admin
-                              </div>
-                            </div>
-
-                           
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {!notification.read && (
-                              <button
-                                onClick={() => markNotificationAsRead(notification.id)}
-                                className="px-3 py-1 bg-blue-100 text-blue-700 text-xs rounded-full hover:bg-blue-200 transition-colors"
-                              >
-                                Mark Read
-                              </button>
-                            )}
-                            <button
-                              onClick={() => deleteNotification(notification.id)}
-                              className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
-                              title="Delete notification"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
+              <div className="flex items-center gap-6 text-green-100 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></div>
+                  <span>Active Organization</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  <span>Community Partner</span>
+                </div>
               </div>
             </div>
-          </motion.div>
-        )}
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-lg p-6 shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Requests</p>
-                <p className="text-3xl font-bold text-red-600">{stats.totalRequests}</p>
-              </div>
-              <div className="p-3 bg-red-100 rounded-full">
-                <MessageSquare className="w-6 h-6 text-red-600" />
+            <div className="hidden md:block">
+              <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                <Building className="w-10 h-10 text-white" />
               </div>
             </div>
-            <div className="mt-4 flex items-center gap-4 text-sm">
-              <span className="text-green-600">Active: {stats.activeRequests}</span>
-              <span className="text-blue-600">Completed: {stats.completedRequests}</span>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white rounded-lg p-6 shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Services</p>
-                <p className="text-3xl font-bold text-purple-600">{stats.totalServices}</p>
-              </div>
-              <div className="p-3 bg-purple-100 rounded-full">
-                <MessageSquare className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-            <div className="mt-4 text-sm text-gray-600">Pending: {stats.pendingServices}</div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white rounded-lg p-6 shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Fundraisers</p>
-                <p className="text-3xl font-bold text-green-600">{stats.totalFundraisers}</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-full">
-                <MessageSquare className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-            <div className="mt-4 text-sm text-gray-600">Active: {stats.activeFundraisers}</div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white rounded-lg p-6 shadow-sm border"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Donations</p>
-                <p className="text-3xl font-bold text-blue-600">{stats.totalDonations}</p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-full">
-                <MessageSquare className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Quick Actions */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-white rounded-lg p-6 shadow-sm border"
-        >
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left">
-              <div className="font-medium text-gray-900">Create Request</div>
-              <div className="text-sm text-gray-600">Post a new donation request</div>
-            </button>
-
-            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left">
-              <div className="font-medium text-gray-900">Add Service</div>
-              <div className="text-sm text-gray-600">Offer a new service</div>
-            </button>
-
-            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left">
-              <div className="font-medium text-gray-900">Start Fundraiser</div>
-              <div className="text-sm text-gray-600">Launch a fundraising campaign</div>
-            </button>
           </div>
         </motion.div>
       </div>

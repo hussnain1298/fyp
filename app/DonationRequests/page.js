@@ -26,7 +26,7 @@ const LoadingSpinner = () => (
 
 // Enhanced hero section
 const HeroSection = () => (
-  <div className="relative overflow-hidden bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 rounded-3xl p-8 mb-8 border border-green-100">
+  <div className="relative overflow-hidden  from-green-50 via-blue-50 to-purple-50 rounded-3xl p-8 mb-8 border border-green-100">
     {/* Background decoration */}
     <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-green-200/20 to-blue-200/20 rounded-full -translate-y-32 translate-x-32"></div>
     <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-200/20 to-pink-200/20 rounded-full translate-y-24 -translate-x-24"></div>
@@ -55,14 +55,14 @@ const HeroSection = () => (
       </div>
 
       {/* Main title */}
-      <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-6">
-        <span className="bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 bg-clip-text text-transparent">
+      <h1 className="text-4xl md:text-4xl lg:text-4xl xl:text-5xl font-bold mb-6">
+        <span className=" text-black bg-clip-text ">
           DONATION REQUESTS
         </span>
       </h1>
 
       {/* Subtitle */}
-      <p className="text-gray-700 text-lg md:text-xl lg:text-2xl xl:text-3xl mb-8 leading-relaxed font-medium">
+      <p className="text-gray-700 text-lg md:text-xl lg:text-2xl xl:text-2xl mb-8 leading-relaxed font-medium">
         <span className="text-green-600">Serving Humanity</span> is the{" "}
         <span className="text-blue-600">Spirit of All Religions</span>
       </p>
