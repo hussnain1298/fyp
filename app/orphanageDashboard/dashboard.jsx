@@ -11,7 +11,6 @@ import {
   Trash2,
   Calendar,
   User,
-  TrendingUp,
   Heart,
   DollarSign,
   GraduationCap,
@@ -22,6 +21,16 @@ import {
   Target,
   Award,
   Sparkles,
+  Gift,
+  MapPin,
+  Phone,
+  Clock,
+  Package,
+  Shirt,
+  UtensilsCrossed,
+  Star,
+  Eye,
+  TrendingUp,
 } from "lucide-react"
 
 const OrphanageDashboard = () => {
@@ -42,6 +51,10 @@ const OrphanageDashboard = () => {
   const [adminNotifications, setAdminNotifications] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
   const [recentActivity, setRecentActivity] = useState([])
+  const [publicDonations, setPublicDonations] = useState([])
+  const [orphanageRequests, setOrphanageRequests] = useState([])
+  const [showDonations, setShowDonations] = useState(false)
+  const [donationFilter, setDonationFilter] = useState("All")
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -56,6 +69,8 @@ const OrphanageDashboard = () => {
             loadDashboardData(currentUser.uid)
             loadAdminNotifications(currentUser.uid, userData)
             loadRecentActivity(currentUser.uid)
+            loadPublicDonations()
+            loadOrphanageRequests(currentUser.uid)
           }
         } catch (error) {
           console.error("Error fetching user data:", error)
@@ -66,6 +81,131 @@ const OrphanageDashboard = () => {
 
     return () => unsubscribe()
   }, [])
+
+  const loadPublicDonations = async () => {
+    try {
+      const donationsQuery = query(collection(firestore, "publicDonations"))
+      const unsubscribe = onSnapshot(donationsQuery, (snapshot) => {
+        const donations = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+
+        // Sort by timestamp (newest first)
+        donations.sort((a, b) => {
+          const aTime = a.timestamp?.toDate?.() || new Date(0)
+          const bTime = b.timestamp?.toDate?.() || new Date(0)
+          return bTime - aTime
+        })
+
+        setPublicDonations(donations)
+      })
+
+      return unsubscribe
+    } catch (error) {
+      console.error("Error loading public donations:", error)
+    }
+  }
+
+  const loadOrphanageRequests = async (userId) => {
+    try {
+      const requestsQuery = query(collection(firestore, "requests"), where("orphanageId", "==", userId))
+      const unsubscribe = onSnapshot(requestsQuery, (snapshot) => {
+        const requests = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        setOrphanageRequests(requests)
+      })
+
+      return unsubscribe
+    } catch (error) {
+      console.error("Error loading orphanage requests:", error)
+    }
+  }
+
+  // Enhanced smart donation matching and prioritization
+  const prioritizedDonations = useMemo(() => {
+    if (!publicDonations.length || !orphanageRequests.length) {
+      return []
+    }
+
+    const activeRequests = orphanageRequests.filter(
+      (req) => req.status === "Active" || req.status === "Pending" || !req.status,
+    )
+
+    if (activeRequests.length === 0) {
+      return []
+    }
+
+    const requestTypes = activeRequests.map((req) => req.requestType?.toLowerCase())
+
+    // Categorize donations with priority scoring
+    const matchedDonations = []
+    const otherDonations = []
+
+    publicDonations.forEach((donation) => {
+      const donationType = donation.donationType?.toLowerCase()
+      let priorityScore = 0
+
+      // Check if donation type matches any of our requests
+      const isDirectMatch = requestTypes.includes(donationType)
+
+      if (isDirectMatch) {
+        priorityScore = 3 // High priority for direct matches
+        matchedDonations.push({ ...donation, priority: "high", priorityScore })
+      } else {
+        // Lower priority for non-matching donations
+        priorityScore = 1
+        otherDonations.push({ ...donation, priority: "normal", priorityScore })
+      }
+    })
+
+    // Only return donations if we have priority matches (priorityScore > 1)
+    const highPriorityDonations = matchedDonations.filter((d) => d.priorityScore > 1)
+
+    if (highPriorityDonations.length === 0) {
+      return [] // Don't show any donations if no priority matches
+    }
+
+    // Return only high priority donations first, then some normal ones
+    return [...highPriorityDonations, ...otherDonations.slice(0, 3)]
+  }, [publicDonations, orphanageRequests])
+
+  const filteredDonations = useMemo(() => {
+    if (donationFilter === "All") return prioritizedDonations
+    return prioritizedDonations.filter(
+      (donation) => donation.donationType?.toLowerCase() === donationFilter.toLowerCase(),
+    )
+  }, [prioritizedDonations, donationFilter])
+
+  // Count high priority matches
+  const priorityMatchCount = useMemo(() => {
+    return prioritizedDonations.filter((d) => d.priority === "high").length
+  }, [prioritizedDonations])
+
+  const getDonationIcon = (type) => {
+    switch (type?.toLowerCase()) {
+      case "money":
+        return DollarSign
+      case "clothes":
+        return Shirt
+      case "food":
+        return UtensilsCrossed
+      default:
+        return Package
+    }
+  }
+
+  const getDonationColor = (type, priority) => {
+    const baseColors = {
+      money: priority === "high" ? "from-green-500 to-emerald-600" : "from-green-400 to-green-500",
+      clothes: priority === "high" ? "from-blue-500 to-indigo-600" : "from-blue-400 to-blue-500",
+      food: priority === "high" ? "from-orange-500 to-red-600" : "from-orange-400 to-orange-500",
+      default: priority === "high" ? "from-purple-500 to-pink-600" : "from-purple-400 to-purple-500",
+    }
+    return baseColors[type?.toLowerCase()] || baseColors.default
+  }
 
   const loadDashboardData = async (userId) => {
     try {
@@ -136,12 +276,7 @@ const OrphanageDashboard = () => {
   const loadRecentActivity = async (userId) => {
     try {
       // Load recent donations
-      const donationsQuery = query(
-        collection(firestore, "donations"),
-        where("orphanageId", "==", userId),
-        // orderBy("timestamp", "desc"),
-        // limit(5)
-      )
+      const donationsQuery = query(collection(firestore, "donations"), where("orphanageId", "==", userId))
       const donationsSnap = await getDocs(donationsQuery)
       const recentDonations = donationsSnap.docs
         .map((doc) => ({
@@ -316,7 +451,28 @@ const OrphanageDashboard = () => {
           </div>
 
           {/* Enhanced Notifications Button */}
-          <div className="relative">
+          <div className="flex items-center gap-4">
+            {/* Available Donations Button - Only show if there are priority matches */}
+            {priorityMatchCount > 0 && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowDonations(!showDonations)}
+                className="relative p-4 bg-white rounded-xl shadow-lg border border-green-100 hover:shadow-xl transition-all duration-200"
+              >
+                <Gift className="w-6 h-6 text-green-600" />
+                {priorityMatchCount > 0 && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-2 -right-2 bg-green-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold"
+                  >
+                    {priorityMatchCount}
+                  </motion.span>
+                )}
+              </motion.button>
+            )}
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -336,6 +492,187 @@ const OrphanageDashboard = () => {
             </motion.button>
           </div>
         </motion.div>
+
+        {/* Available Donations Panel - Only show if there are priority matches */}
+        <AnimatePresence>
+          {showDonations && priorityMatchCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="mb-8"
+            >
+              <div className="bg-white rounded-2xl shadow-xl border border-green-100 overflow-hidden">
+                <div className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-b">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-green-100 rounded-full">
+                        <Gift className="w-6 h-6 text-green-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-xl text-gray-900">Priority Donation Matches</h3>
+                        <p className="text-gray-600">
+                          {priorityMatchCount} donations matching your requests • {filteredDonations.length} total
+                          available
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 bg-green-100 px-3 py-1 rounded-full">
+                        <TrendingUp className="w-4 h-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-700">High Priority</span>
+                      </div>
+                      <select
+                        value={donationFilter}
+                        onChange={(e) => setDonationFilter(e.target.value)}
+                        className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      >
+                        <option value="All">All Types</option>
+                        <option value="Money">Money</option>
+                        <option value="Clothes">Clothes</option>
+                        <option value="Food">Food</option>
+                      </select>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setShowDonations(false)}
+                        className="p-2 hover:bg-green-100 rounded-full transition-colors"
+                      >
+                        <X className="w-6 h-6 text-gray-500" />
+                      </motion.button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="max-h-96 overflow-y-auto">
+                  {filteredDonations.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">
+                      <Gift className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                      <p className="text-lg font-medium">No matching donations found</p>
+                      <p className="text-sm">Try adjusting your filter or check back later!</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
+                      {filteredDonations.map((donation, index) => {
+                        const IconComponent = getDonationIcon(donation.donationType)
+                        const isHighPriority = donation.priority === "high"
+
+                        return (
+                          <motion.div
+                            key={donation.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            className={`relative bg-white rounded-xl p-4 border-2 transition-all duration-300 hover:shadow-lg ${
+                              isHighPriority ? "border-green-300 bg-green-50" : "border-gray-200 hover:border-green-200"
+                            }`}
+                          >
+                            {isHighPriority && (
+                              <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                                <Star className="w-3 h-3" />
+                                Priority Match
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-3 mb-3">
+                              <div
+                                className={`p-2 rounded-lg bg-gradient-to-r ${getDonationColor(donation.donationType, donation.priority)}`}
+                              >
+                                <IconComponent className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-gray-900 capitalize">{donation.donationType} Donation</h4>
+                                <p className="text-sm text-gray-600">
+                                  {donation.firstName} {donation.lastName}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 text-sm">
+                              {donation.donationType === "money" && (
+                                <div className="flex items-center gap-2">
+                                  <DollarSign className="w-4 h-4 text-green-600" />
+                                  <span className="font-semibold text-green-600">
+                                    Rs. {Number(donation.donationAmount).toLocaleString()}
+                                  </span>
+                                </div>
+                              )}
+
+                              {donation.donationType === "clothes" && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <Shirt className="w-4 h-4 text-blue-600" />
+                                    <span>Qty: {donation.clothesQty}</span>
+                                  </div>
+                                  {donation.clothesDesc && (
+                                    <p className="text-gray-600 text-xs">{donation.clothesDesc}</p>
+                                  )}
+                                </div>
+                              )}
+
+                              {donation.donationType === "food" && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <UtensilsCrossed className="w-4 h-4 text-orange-600" />
+                                    <span>
+                                      {donation.foodType} - {donation.foodQty}
+                                    </span>
+                                  </div>
+                                  {donation.foodExpiry && (
+                                    <div className="flex items-center gap-2 text-xs text-orange-600">
+                                      <Clock className="w-3 h-3" />
+                                      <span>Expires: {donation.foodExpiry}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-2 text-gray-500">
+                                <MapPin className="w-4 h-4" />
+                                <span className="text-xs">
+                                  {donation.city}, {donation.state}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2 text-gray-500">
+                                <Phone className="w-4 h-4" />
+                                <span className="text-xs">{donation.phone}</span>
+                              </div>
+
+                              <div className="flex items-center gap-2 text-gray-500">
+                                <Calendar className="w-4 h-4" />
+                                <span className="text-xs">
+                                  {donation.timestamp?.toDate?.()?.toLocaleDateString() || "Recently"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100">
+                              <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                className={`w-full py-2 px-4 rounded-lg font-medium text-sm transition-all duration-200 ${
+                                  isHighPriority
+                                    ? "bg-green-600 hover:bg-green-700 text-white"
+                                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                                }`}
+                              >
+                                <div className="flex items-center justify-center gap-2">
+                                  <Eye className="w-4 h-4" />
+                                  Contact Donor
+                                </div>
+                              </motion.button>
+                            </div>
+                          </motion.div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Enhanced Admin Notifications Panel */}
         <AnimatePresence>
@@ -492,14 +829,14 @@ const OrphanageDashboard = () => {
               trend: "+15%",
             },
             {
-              title: "Total Donations",
-              value: stats.totalDonations,
-              icon: TrendingUp,
+              title: "Priority Matches",
+              value: priorityMatchCount,
+              icon: Gift,
               color: "from-blue-500 to-cyan-500",
               bgColor: "bg-blue-50",
               textColor: "text-blue-600",
-              subtitle: `${stats.monthlyDonations} this month`,
-              trend: "+20%",
+              subtitle: `${filteredDonations.length} total available donations`,
+              trend: priorityMatchCount > 0 ? "New!" : "None",
             },
           ].map((stat, index) => (
             <motion.div
@@ -516,7 +853,9 @@ const OrphanageDashboard = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-                  <span className="text-xs text-green-600 font-medium">{stat.trend}</span>
+                  <span className={`text-xs font-medium ${stat.trend === "None" ? "text-gray-500" : "text-green-600"}`}>
+                    {stat.trend}
+                  </span>
                 </div>
               </div>
               <div>
@@ -600,18 +939,21 @@ const OrphanageDashboard = () => {
                     description: "Post a new donation request",
                     icon: Heart,
                     color: "from-red-500 to-pink-500",
+                    path: "/orphanageDashboard/requests",
                   },
                   {
                     title: "Add Service",
                     description: "Offer educational services",
                     icon: GraduationCap,
                     color: "from-purple-500 to-indigo-500",
+                    path: "/orphanageDashboard/services",
                   },
                   {
                     title: "Start Fundraiser",
                     description: "Launch a fundraising campaign",
                     icon: DollarSign,
                     color: "from-green-500 to-emerald-500",
+                    path: "/orphanageDashboard/fundraise",
                   },
                 ].map((action, index) => (
                   <motion.button
@@ -621,6 +963,7 @@ const OrphanageDashboard = () => {
                     transition={{ delay: 0.6 + index * 0.1 }}
                     whileHover={{ scale: 1.02, x: 4 }}
                     whileTap={{ scale: 0.98 }}
+                    onClick={() => (window.location.href = action.path)}
                     className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-300 hover:shadow-md transition-all duration-200 text-left group"
                   >
                     <div className="flex items-center gap-4">
@@ -675,6 +1018,10 @@ const OrphanageDashboard = () => {
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4" />
                   <span>Community Partner</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Gift className="w-4 h-4" />
+                  <span>{priorityMatchCount} Priority Matches</span>
                 </div>
               </div>
             </div>
