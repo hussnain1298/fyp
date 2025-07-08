@@ -1,8 +1,13 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { firestore } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  onSnapshot,
+} from "firebase/firestore";
 import FundRaiserCard from "./FundRaiserCard";
 import { auth } from "@/lib/firebase";
 import Slider from "react-slick";
@@ -12,12 +17,12 @@ import "slick-carousel/slick/slick-theme.css";
 const NextArrow = ({ onClick }) => (
   <button
     onClick={onClick}
-    className="absolute right-2 top-1/2 transform -translate-y-1/2 z-20 bg-white rounded-full shadow p-2 hover:bg-gray-100"
+    className="absolute right-2 top-1/2 transform -translate-y-1/2 z-20 bg-white rounded-full shadow-lg p-3 hover:bg-gray-50 transition-colors"
     aria-label="Next Slide"
   >
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      className="h-6 w-6 text-gray-700"
+      className="h-5 w-5 text-gray-700"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -31,12 +36,12 @@ const NextArrow = ({ onClick }) => (
 const PrevArrow = ({ onClick }) => (
   <button
     onClick={onClick}
-    className="absolute left-2 top-1/2 transform -translate-y-1/2 z-20 bg-white rounded-full shadow p-2 hover:bg-gray-100"
+    className="absolute left-2 top-1/2 transform -translate-y-1/2 z-20 bg-white rounded-full shadow-lg p-3 hover:bg-gray-50 transition-colors"
     aria-label="Previous Slide"
   >
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      className="h-6 w-6 text-gray-700"
+      className="h-5 w-5 text-gray-700"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -52,6 +57,32 @@ const FundRaising = () => {
   const [fundraisers, setFundraisers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [useCarousel, setUseCarousel] = useState(false);
+
+  // Add custom CSS for the slider
+  useEffect(() => {
+    // Add custom CSS to ensure slider shows full content
+    const style = document.createElement("style");
+    style.textContent = `
+    .slick-track {
+      display: flex !important;
+    }
+    .slick-slide {
+      height: inherit !important;
+      display: flex !important;
+    }
+    .slick-slide > div {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+  `;
+    document.head.appendChild(style);
+
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -63,14 +94,19 @@ const FundRaising = () => {
         setUser(null);
       }
     });
+
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    const fetchFundraisers = async () => {
+    let unsubscribeFundraisers = null;
+
+    const setupRealTimeListener = async () => {
       setLoading(true);
       setError("");
+
       try {
+        // Get orphanages first
         const orphanQuery = query(
           collection(firestore, "users"),
           where("userType", "==", "Orphanage")
@@ -81,107 +117,230 @@ const FundRaising = () => {
           orphanMap[doc.id] = doc.data();
         });
 
-        const fundraiserSnapshot = await getDocs(
-          collection(firestore, "fundraisers")
+        // Set up real-time listener for fundraisers with error handling
+        unsubscribeFundraisers = onSnapshot(
+          collection(firestore, "fundraisers"),
+          (snapshot) => {
+            const fundraiserList = snapshot.docs.map((doc) => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                ...data,
+                orphanageName: orphanMap[data.orphanageId]?.orgName || "",
+              };
+            });
+            setFundraisers(fundraiserList);
+            setLoading(false);
+          },
+          (err) => {
+            console.warn("Fundraisers listener error:", err.message);
+            // Fallback to one-time fetch if real-time fails
+            getDocs(collection(firestore, "fundraisers"))
+              .then((snapshot) => {
+                const fundraiserList = snapshot.docs.map((doc) => {
+                  const data = doc.data();
+                  return {
+                    id: doc.id,
+                    ...data,
+                    orphanageName: orphanMap[data.orphanageId]?.orgName || "",
+                  };
+                });
+                setFundraisers(fundraiserList);
+                setLoading(false);
+              })
+              .catch((fallbackErr) => {
+                setError("Failed to load fundraisers: " + fallbackErr.message);
+                setLoading(false);
+              });
+          }
         );
-        const fundraiserList = fundraiserSnapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            orphanageName: orphanMap[data.orphanageId]?.orgName || "",
-          };
-        });
-
-        setFundraisers(fundraiserList);
       } catch (err) {
-        setError("Failed to load fundraisers: " + err.message);
-      } finally {
+        console.warn("Setup error:", err.message);
+        setError("Failed to setup fundraiser updates: " + err.message);
         setLoading(false);
       }
     };
 
-    fetchFundraisers();
+    setupRealTimeListener();
+
+    // Cleanup function
+    return () => {
+      if (unsubscribeFundraisers) {
+        try {
+          unsubscribeFundraisers();
+        } catch (cleanupError) {
+          console.warn("Cleanup warning:", cleanupError.message);
+          // Don't throw error, just log it
+        }
+      }
+    };
   }, []);
 
+  // Check if carousel is needed based on screen size and number of cards
+  useEffect(() => {
+    const checkCarouselNeed = () => {
+      const screenWidth = window.innerWidth;
+      let maxCards = 1;
+
+      if (screenWidth >= 1280) maxCards = 4;
+      else if (screenWidth >= 1024) maxCards = 3;
+      else if (screenWidth >= 640) maxCards = 2;
+      else maxCards = 1;
+
+      setUseCarousel(fundraisers.length > maxCards);
+    };
+
+    checkCarouselNeed();
+    window.addEventListener("resize", checkCarouselNeed);
+
+    return () => window.removeEventListener("resize", checkCarouselNeed);
+  }, [fundraisers.length]);
+
   if (loading)
-    return <div className="text-center py-8 text-gray-500">Loading...</div>;
+    return (
+      <div className="text-center py-12 text-gray-500 text-lg">
+        Loading fundraisers...
+      </div>
+    );
 
   if (error)
-    return <div className="text-center py-8 text-red-500">{error}</div>;
+    return (
+      <div className="text-center py-12 text-red-500 text-lg">{error}</div>
+    );
 
-  const settings = {
+  const sliderSettings = {
     dots: true,
-    infinite: fundraisers.length > 4,
+    infinite: true,
     speed: 600,
-    slidesToShow: fundraisers.length >= 4 ? 4 : fundraisers.length,
+    slidesToShow: 4,
     slidesToScroll: 1,
     arrows: true,
-    autoplay: false, // 👈 DISABLED AUTOPLAY
+    autoplay: true,
+    autoplaySpeed: 4000,
     pauseOnHover: true,
     nextArrow: <NextArrow />,
     prevArrow: <PrevArrow />,
+    adaptiveHeight: true, // Enable adaptive height
+    variableWidth: false,
+    centerMode: false,
     responsive: [
       {
         breakpoint: 1280,
-        settings: { slidesToShow: Math.min(fundraisers.length, 3) },
+        settings: {
+          slidesToShow: 3,
+          autoplay: true,
+          autoplaySpeed: 4000,
+          adaptiveHeight: true,
+        },
       },
       {
         breakpoint: 1024,
-        settings: { slidesToShow: Math.min(fundraisers.length, 2) },
+        settings: {
+          slidesToShow: 2,
+          autoplay: true,
+          autoplaySpeed: 4000,
+          adaptiveHeight: true,
+        },
       },
       {
         breakpoint: 640,
-        settings: { slidesToShow: 1, centerMode: false },
+        settings: {
+          slidesToShow: 1,
+          autoplay: true,
+          autoplaySpeed: 4000,
+          adaptiveHeight: true,
+        },
       },
     ],
   };
 
   return (
-    <div className="bg-gray-50 w-full min-h-screen pl-8 pr-0 py-20">
-      <div className="text-center w-full mx-auto mb-8">
-        <h2 className="text-2xl font-bold text-gray-800 text-center py-12 md:text-3xl lg:text-4xl xl:text-5xl">
+    <div className="bg-gradient-to-br from-gray-50 to-gray-100 w-full min-h-screen py-20">
+      <div className="text-center w-full mx-auto mb-12">
+        <h2 className="text-3xl font-bold text-gray-800 mb-4 md:text-4xl lg:text-5xl">
           FUND RAISING
         </h2>
-        <p className="text-gray-500 text-center text-sm md:text-base lg:text-lg xl:text-xl">
-          Your support can bring hope and change to those in need...
+        <p className="text-gray-600 text-base md:text-lg lg:text-xl max-w-2xl mx-auto leading-relaxed">
+          Your support can bring hope and change to those in need. Every
+          contribution makes a difference.
         </p>
       </div>
 
-      {/* SLIDER WITH LEFT PADDING, RIGHT FULL WIDTH */}
-      <div className="w-full">
-        <Slider {...settings}>
-          {fundraisers.map((fundraiser) => (
-            <div key={fundraiser.id} className="px-2">
-              <FundRaiserCard
-                id={fundraiser.id}
-                bgImage={fundraiser.image || "/raise.jpg"}
-                title={fundraiser.title}
-                description={fundraiser.description}
-                raisedAmount={fundraiser.raisedAmount || 0}
-                totalAmount={fundraiser.totalAmount || 1}
-                filledhr={Math.min(
-                  (Number(fundraiser.raisedAmount) /
-                    Number(fundraiser.totalAmount)) *
-                    100,
-                  100
-                )}
-                orphanageName={fundraiser.orphanageName}
-                user={user}
-              />
+      <div className="w-full px-8">
+        {fundraisers.length > 0 ? (
+          useCarousel ? (
+            // Use carousel when there are too many cards for the screen
+            <div
+              className="slider-container"
+              style={{
+                paddingBottom: "4rem",
+                height: "auto",
+                minHeight: "520px",
+              }}
+            >
+              <Slider {...sliderSettings}>
+                {fundraisers.map((fundraiser) => (
+                  <div
+                    key={fundraiser.id}
+                    className="px-3"
+                    style={{ height: "auto" }}
+                  >
+                    <FundRaiserCard
+                      id={fundraiser.id}
+                      bgImage={fundraiser.image || "/raise.jpg"}
+                      title={fundraiser.title}
+                      description={fundraiser.description}
+                      raisedAmount={fundraiser.raisedAmount || 0}
+                      totalAmount={fundraiser.totalAmount || 1}
+                      filledhr={Math.min(
+                        (Number(fundraiser.raisedAmount) /
+                          Number(fundraiser.totalAmount)) *
+                          100,
+                        100
+                      )}
+                      orphanageName={fundraiser.orphanageName}
+                      user={user}
+                    />
+                  </div>
+                ))}
+              </Slider>
             </div>
-          ))}
-        </Slider>
-
-        {/* Show message if no fundraisers */}
-        {fundraisers.length === 0 && !loading && (
-          <div className="text-center py-12">
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">
-              No fundraisers available
-            </h3>
-            <p className="text-gray-500">
-              Check back later for new fundraising campaigns.
-            </p>
+          ) : (
+            // Use normal grid when cards fit on screen
+            <div className="flex flex-wrap justify-start gap-8">
+              {fundraisers.map((fundraiser) => (
+                <div key={fundraiser.id} className="flex-shrink-0 mb-6">
+                  <FundRaiserCard
+                    id={fundraiser.id}
+                    bgImage={fundraiser.image || "/raise.jpg"}
+                    title={fundraiser.title}
+                    description={fundraiser.description}
+                    raisedAmount={fundraiser.raisedAmount || 0}
+                    totalAmount={fundraiser.totalAmount || 1}
+                    filledhr={Math.min(
+                      (Number(fundraiser.raisedAmount) /
+                        Number(fundraiser.totalAmount)) *
+                        100,
+                      100
+                    )}
+                    orphanageName={fundraiser.orphanageName}
+                    user={user}
+                  />
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <div className="text-center py-16">
+            <div className="max-w-md mx-auto">
+              <h3 className="text-2xl font-semibold text-gray-600 mb-4">
+                No fundraisers available
+              </h3>
+              <p className="text-gray-500 leading-relaxed">
+                Check back later for new fundraising campaigns. New requests
+                will appear here automatically.
+              </p>
+            </div>
           </div>
         )}
       </div>

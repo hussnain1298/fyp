@@ -4,23 +4,18 @@ import Image from "next/image";
 import { IoPlayCircleOutline } from "react-icons/io5";
 import LiveDonationFeed from "../LiveDonation/page";
 
-
 export default function HeroSection() {
   return (
     <div className=" relative">
       <div className="relative w-full h-screen" id="herosection">
-      <Image
-  src="/hero.jpg"
-  alt="Hero Background"
-  fill
-  style={{ objectFit: "cover" }}
-  className="z-[-1]"
-/>
-<div className="w-full lg:w-1/3">
-  <LiveDonationFeed />
-</div>
-
-
+        <Image
+          src="/hero.jpg"
+          alt="Hero Background"
+          fill
+          style={{ objectFit: "cover" }}
+          className="z-[-1]"
+        />
+        <div className="w-full lg:w-1/3">{/* <LiveDonationFeed /> */}</div>
 
         <div className="w-[90%] md:w-[80%] m-auto items-center flex flex-col gap-10 justify-center h-screen text-center z-10 relative">
           <h1 className="font-semibold text-4xl md:text-6xl lg:text-7xl">
@@ -37,7 +32,6 @@ export default function HeroSection() {
               <span className="text-lg lg:text-xl">Watch Video</span>
             </a>
           </div>
-          
         </div>
       </div>
     </div>
