@@ -15,24 +15,46 @@ import {
 } from "firebase/firestore"
 import { toast, ToastContainer } from "react-toastify"
 import { motion } from "framer-motion"
-import { FaPlus, FaEdit, FaTrash, FaFilter } from "react-icons/fa"
+import { FaPlus, FaEdit, FaTrash, FaFilter, FaMinus } from "react-icons/fa"
 import { FileText, DollarSign, Shirt, UtensilsCrossed, Package, Loader2 } from "lucide-react"
 import "react-toastify/dist/ReactToastify.css"
 
 const PAGE_SIZE = 9
 
 const REQUEST_TYPES = [
-  { value: "Money", label: "Money", icon: DollarSign },
-  { value: "Clothes", label: "Clothes", icon: Shirt },
-  { value: "Food", label: "Food", icon: UtensilsCrossed },
-  { value: "Other", label: "Other", icon: Package },
+  { value: "Money", label: "Money", icon: DollarSign, maxLimit: 50000 },
+  { value: "Clothes", label: "Clothes", icon: Shirt, maxLimit: 200 },
+  { value: "Food", label: "Food", icon: UtensilsCrossed, maxLimit: 100 },
+  { value: "Other", label: "Other", icon: Package, maxLimit: 500 },
+]
+
+const CLOTHES_SUBTYPES = [
+  { value: "Jeans", label: "Jeans", icon: "👖" },
+  { value: "Shirts", label: "Shirts", icon: "👔" },
+  { value: "Shalwar Kameez", label: "Shalwar Kameez", icon: "🥻" },
+  { value: "Trousers", label: "Trousers", icon: "👖" },
+  { value: "School Uniforms", label: "School Uniforms", icon: "👕" },
+  { value: "Winter Clothes", label: "Winter Clothes", icon: "🧥" },
+  { value: "Undergarments", label: "Undergarments", icon: "👙" },
+  { value: "Shoes", label: "Shoes", icon: "👟" },
+]
+
+const FOOD_SUBTYPES = [
+  { value: "Rice", label: "Rice", icon: "🍚" },
+  { value: "Wheat/Flour", label: "Wheat/Flour", icon: "🌾" },
+  { value: "Lentils", label: "Lentils", icon: "🫘" },
+  { value: "Vegetables", label: "Vegetables", icon: "🥬" },
+  { value: "Fruits", label: "Fruits", icon: "🍎" },
+  { value: "Meat/Chicken", label: "Meat/Chicken", icon: "🍗" },
+  { value: "Milk/Dairy", label: "Milk/Dairy", icon: "🥛" },
+  { value: "Cooking Oil", label: "Cooking Oil", icon: "🫒" },
+  { value: "Spices", label: "Spices", icon: "🌶️" },
+  { value: "Ready Meals", label: "Ready Meals", icon: "🍽️" },
 ]
 
 const STATUS_COLORS = {
   Pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
- 
   Fulfilled: "bg-green-50 text-green-700 border-green-200",
-
 }
 
 // Read More/Less Component
@@ -87,6 +109,7 @@ export default function RequestsDashboard() {
     title: "",
     description: "",
     requestType: "",
+    subtypes: [{ subtype: "", quantity: "" }], // Array for multiple subtypes
     quantity: "",
   })
   const [modalOpen, setModalOpen] = useState(false)
@@ -97,80 +120,120 @@ export default function RequestsDashboard() {
   const [filterType, setFilterType] = useState("All")
   const [filterStatus, setFilterStatus] = useState("All")
 
-const fetchRequests = useCallback(async () => {
-  const user = auth.currentUser
-  if (!user) {
-    toast.error("Please log in to view requests")
-    return
-  }
-  setLoading(true)
+  const fetchRequests = useCallback(async () => {
+    const user = auth.currentUser
+    if (!user) {
+      toast.error("Please log in to view requests")
+      return
+    }
+    setLoading(true)
 
-  try {
-    const q = query(collection(firestore, "requests"), where("orphanageId", "==", user.uid))
-    const snapshot = await getDocs(q)
-    const list = await Promise.all(
-      snapshot.docs.map(async (docSnap) => {
-        const request = { id: docSnap.id, ...docSnap.data() }
+    try {
+      const q = query(collection(firestore, "requests"), where("orphanageId", "==", user.uid))
+      const snapshot = await getDocs(q)
+      const list = await Promise.all(
+        snapshot.docs.map(async (docSnap) => {
+          const request = { id: docSnap.id, ...docSnap.data() }
 
-        // Fetch related donations
-        const donationQuery = query(
-          collection(firestore, "donations"),
-          where("requestId", "==", request.id),
-          where("confirmed", "==", true)
-        )
-        const donationSnap = await getDocs(donationQuery)
+          // Fetch related donations
+          const donationQuery = query(
+            collection(firestore, "donations"),
+            where("requestId", "==", request.id),
+            where("confirmed", "==", true),
+          )
+          const donationSnap = await getDocs(donationQuery)
 
-        let donated = 0
-        donationSnap.forEach((don) => {
-          const data = don.data()
-          if (request.requestType === "Money") donated += Number(data.amount || 0)
-          if (request.requestType === "Clothes") donated += Number(data.numClothes || 0)
-          if (request.requestType === "Food") donated += Number(data.numMeals || 0)
-        })
+          let donated = 0
+          donationSnap.forEach((don) => {
+            const data = don.data()
+            if (request.requestType === "Money") donated += Number(data.amount || 0)
+            if (request.requestType === "Clothes") donated += Number(data.numClothes || 0)
+            if (request.requestType === "Food") donated += Number(data.numMeals || 0)
+          })
 
-        return {
-          ...request,
-          donatedAmount: donated,
-          progress: request.quantity ? Math.min((donated / request.quantity) * 100, 100) : 0,
-        }
-      })
-    )
+          return {
+            ...request,
+            donatedAmount: donated,
+            progress: request.totalQuantity ? Math.min((donated / request.totalQuantity) * 100, 100) : 0,
+          }
+        }),
+      )
 
-    setRequests(list)
-  } catch (err) {
-    toast.error("Failed to load requests: " + err.message)
-  } finally {
-    setLoading(false)
-  }
-}, [])
+      setRequests(list)
+    } catch (err) {
+      toast.error("Failed to load requests: " + err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     fetchRequests()
   }, [fetchRequests])
 
- const validateForm = useCallback(() => {
-  const errors = []
+  const validateForm = useCallback(() => {
+    const errors = []
 
-  if (!form.title?.trim()) {
-    errors.push("Title is required")
-  }
+    if (!form.title?.trim()) {
+      errors.push("Title is required")
+    }
 
-  if (!form.description?.trim()) {
-    errors.push("Description is required")
-  }
+    if (!form.description?.trim()) {
+      errors.push("Description is required")
+    }
 
-  if (!form.requestType) {
-    errors.push("Request type is required")
-  }
+    if (!form.requestType) {
+      errors.push("Request type is required")
+    }
 
-  // ✅ Enforce quantity for all types
-  if (!form.quantity || isNaN(form.quantity) || Number(form.quantity) <= 0) {
-    errors.push("Quantity is required and must be a positive number")
-  }
+    // For Money and Other types, validate single quantity
+    if (form.requestType === "Money" || form.requestType === "Other") {
+      if (!form.quantity || isNaN(form.quantity) || Number(form.quantity) <= 0) {
+        errors.push("Quantity is required and must be a positive number")
+      } else {
+        const requestTypeConfig = REQUEST_TYPES.find((t) => t.value === form.requestType)
+        const maxLimit = requestTypeConfig?.maxLimit || 1000
+        if (Number(form.quantity) > maxLimit) {
+          errors.push(`Maximum ${form.requestType.toLowerCase()} quantity is ${maxLimit}`)
+        }
+      }
+    }
 
-  return errors
-}, [form])
+    // For Clothes and Food, validate subtypes
+    if (form.requestType === "Clothes" || form.requestType === "Food") {
+      if (!form.subtypes || form.subtypes.length === 0) {
+        errors.push(`${form.requestType} subtypes are required`)
+      } else {
+        let totalQuantity = 0
+        const subtypeNames = new Set()
 
+        for (const subtypeItem of form.subtypes) {
+          if (!subtypeItem.subtype) {
+            errors.push("All subtype selections are required")
+            break
+          }
+          if (!subtypeItem.quantity || isNaN(subtypeItem.quantity) || Number(subtypeItem.quantity) <= 0) {
+            errors.push("All subtype quantities must be positive numbers")
+            break
+          }
+          if (subtypeNames.has(subtypeItem.subtype)) {
+            errors.push("Duplicate subtypes are not allowed")
+            break
+          }
+          subtypeNames.add(subtypeItem.subtype)
+          totalQuantity += Number(subtypeItem.quantity)
+        }
+
+        const requestTypeConfig = REQUEST_TYPES.find((t) => t.value === form.requestType)
+        const maxLimit = requestTypeConfig?.maxLimit || 1000
+        if (totalQuantity > maxLimit) {
+          errors.push(`Total ${form.requestType.toLowerCase()} quantity cannot exceed ${maxLimit}`)
+        }
+      }
+    }
+
+    return errors
+  }, [form])
 
   const filteredRequests = useMemo(() => {
     return requests.filter((request) => {
@@ -200,11 +263,22 @@ const fetchRequests = useCallback(async () => {
     }
 
     const isEdit = !!form.id
+
+    // Calculate total quantity
+    let totalQuantity = 0
+    if (form.requestType === "Money" || form.requestType === "Other") {
+      totalQuantity = Number(form.quantity)
+    } else if (form.requestType === "Clothes" || form.requestType === "Food") {
+      totalQuantity = form.subtypes.reduce((sum, item) => sum + Number(item.quantity), 0)
+    }
+
     const payload = {
       title: form.title.trim(),
       description: form.description.trim(),
       requestType: form.requestType,
-      quantity: form.quantity ? Number(form.quantity) : null,
+      subtypes: form.requestType === "Clothes" || form.requestType === "Food" ? form.subtypes : null,
+      quantity: form.requestType === "Money" || form.requestType === "Other" ? Number(form.quantity) : null,
+      totalQuantity: totalQuantity,
       orphanageId: user.uid,
       orphanageEmail: user.email,
       status: form.status || "Pending",
@@ -224,7 +298,7 @@ const fetchRequests = useCallback(async () => {
         toast.success("Request posted successfully")
       }
       setModalOpen(false)
-      setForm({ title: "", description: "", requestType: "", quantity: "" })
+      setForm({ title: "", description: "", requestType: "", subtypes: [{ subtype: "", quantity: "" }], quantity: "" })
     } catch (err) {
       setFormError(err.message)
       toast.error("Error: " + err.message)
@@ -247,10 +321,13 @@ const fetchRequests = useCallback(async () => {
 
   const openModal = (request = null) => {
     if (request) {
-      setForm(request)
+      setForm({
+        ...request,
+        subtypes: request.subtypes || [{ subtype: "", quantity: "" }],
+      })
       setEditMode(true)
     } else {
-      setForm({ title: "", description: "", requestType: "", quantity: "" })
+      setForm({ title: "", description: "", requestType: "", subtypes: [{ subtype: "", quantity: "" }], quantity: "" })
       setEditMode(false)
     }
     setFormError("")
@@ -259,8 +336,44 @@ const fetchRequests = useCallback(async () => {
 
   const closeModal = () => {
     setModalOpen(false)
-    setForm({ title: "", description: "", requestType: "", quantity: "" })
+    setForm({ title: "", description: "", requestType: "", subtypes: [{ subtype: "", quantity: "" }], quantity: "" })
     setFormError("")
+  }
+
+  const getSubtypeOptions = () => {
+    if (form.requestType === "Clothes") return CLOTHES_SUBTYPES
+    if (form.requestType === "Food") return FOOD_SUBTYPES
+    return []
+  }
+
+  const getMaxLimit = () => {
+    const requestTypeConfig = REQUEST_TYPES.find((t) => t.value === form.requestType)
+    return requestTypeConfig?.maxLimit || 1000
+  }
+
+  const addSubtype = () => {
+    setForm({
+      ...form,
+      subtypes: [...form.subtypes, { subtype: "", quantity: "" }],
+    })
+  }
+
+  const removeSubtype = (index) => {
+    if (form.subtypes.length > 1) {
+      setForm({
+        ...form,
+        subtypes: form.subtypes.filter((_, i) => i !== index),
+      })
+    }
+  }
+
+  const updateSubtype = (index, field, value) => {
+    const newSubtypes = [...form.subtypes]
+    newSubtypes[index][field] = value
+    setForm({
+      ...form,
+      subtypes: newSubtypes,
+    })
   }
 
   if (loading && requests.length === 0) {
@@ -325,9 +438,7 @@ const fetchRequests = useCallback(async () => {
               >
                 <option value="All">All Status</option>
                 <option value="Pending">Pending</option>
-             
                 <option value="Fulfilled">Fulfilled</option>
-               
               </select>
             </div>
 
@@ -410,9 +521,11 @@ const fetchRequests = useCallback(async () => {
                       <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                         <IconComponent className="w-5 h-5 text-green-600" />
                       </div>
-                      <span className="bg-green-50 text-green-700 border border-green-200 px-3 py-1 rounded-full text-sm font-medium">
-                        {request.requestType}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="bg-green-50 text-green-700 border border-green-200 px-3 py-1 rounded-full text-sm font-medium">
+                          {request.requestType}
+                        </span>
+                      </div>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${STATUS_COLORS[status]}`}>
                       {status}
@@ -433,31 +546,45 @@ const fetchRequests = useCallback(async () => {
                       <span className="font-semibold text-green-600">{request.requestType}</span>
                     </div>
 
-                   {request.quantity && (
-  <div className="flex justify-between text-sm">
-    <span className="text-gray-500 font-medium">Donated:</span>
-    <span className="font-semibold text-green-600">
-      {request.donatedAmount || 0} / {request.quantity}
-    </span>
+                   {/* Display subtypes if available */}
+{request.subtypes && request.subtypes.length > 0 ? (
+  <div className="space-y-1">
+    <span className="text-gray-500 font-medium text-sm">Items:</span>
+    <div className="space-y-1">
+      {request.subtypes.map((item, idx) => (
+        <div key={idx} className="flex justify-between text-xs bg-blue-50 px-2 py-1 rounded">
+          <span className="text-blue-700">{item.subtype}</span>
+          <span className="font-semibold text-blue-800">
+            {item.donatedAmount || 0} / {item.quantity}
+          </span>
+        </div>
+      ))}
+    </div>
   </div>
-)}
-
-
-             <div className="h-2 w-full bg-gray-100 rounded-full mt-1">
-  <div
-    className="h-2 bg-gradient-to-r from-green-500 to-green-600 rounded-full"
-    style={{ width: `${request.progress}%` }}
-  ></div>
-</div>
-{typeof request.progress === "number" ? (
-  <p className="text-xs text-green-600 font-medium mt-1">
-    {request.progress.toFixed(1)}% completed
-  </p>
 ) : (
-  <p className="text-xs text-gray-400 font-medium mt-1">No data</p>
+  request.totalQuantity && (
+    <div className="flex justify-between text-sm">
+      <span className="text-gray-500 font-medium">Donated:</span>
+      <span className="font-semibold text-green-600">
+        {request.donatedAmount || 0} / {request.totalQuantity}
+      </span>
+    </div>
+  )
 )}
 
-
+                    <div className="h-2 w-full bg-gray-100 rounded-full mt-1">
+                      <div
+                        className="h-2 bg-gradient-to-r from-green-500 to-green-600 rounded-full"
+                        style={{ width: `${request.progress}%` }}
+                      ></div>
+                    </div>
+                    {typeof request.progress === "number" ? (
+                      <p className="text-xs text-green-600 font-medium mt-1">
+                        {request.progress.toFixed(1)}% completed
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-400 font-medium mt-1">No data</p>
+                    )}
                   </div>
 
                   <div className="flex space-x-2 mt-auto">
@@ -503,7 +630,7 @@ const fetchRequests = useCallback(async () => {
           </motion.div>
         )}
 
-        {/* Modal */}
+        {/* Enhanced Modal */}
         {modalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -513,7 +640,7 @@ const fetchRequests = useCallback(async () => {
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
             >
               <div className="p-8">
                 <h2 className="text-2xl font-bold text-gray-800 mb-6">
@@ -553,29 +680,109 @@ const fetchRequests = useCallback(async () => {
                     <label className="block text-sm font-bold text-gray-700 mb-3">Request Type *</label>
                     <select
                       value={form.requestType}
-                      onChange={(e) => setForm({ ...form, requestType: e.target.value })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          requestType: e.target.value,
+                          subtypes: [{ subtype: "", quantity: "" }],
+                          quantity: "",
+                        })
+                      }
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                     >
                       <option value="">Select type</option>
                       {REQUEST_TYPES.map((type) => (
                         <option key={type.value} value={type.value}>
-                          {type.label}
+                          {type.label} (Max: {type.maxLimit})
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-3">Quantity (Optional)</label>
-                    <input
-                      type="number"
-                      value={form.quantity}
-                      onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                      placeholder="Enter quantity if applicable"
-                      min="1"
-                    />
-                  </div>
+                  {/* Multiple Subtypes for Clothes and Food */}
+                  {(form.requestType === "Clothes" || form.requestType === "Food") && (
+                    <div>
+                      <div className="flex justify-between items-center mb-3">
+                        <label className="block text-sm font-bold text-gray-700">
+                          {form.requestType} Items * (Max Total: {getMaxLimit()})
+                        </label>
+                        <button
+                          type="button"
+                          onClick={addSubtype}
+                          className="bg-green-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-600 flex items-center space-x-1"
+                        >
+                          <FaPlus className="w-3 h-3" />
+                          <span>Add Item</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {form.subtypes.map((subtypeItem, index) => (
+                          <div key={index} className="flex gap-3 items-center p-3 bg-gray-50 rounded-lg">
+                            <div className="flex-1">
+                              <select
+                                value={subtypeItem.subtype}
+                                onChange={(e) => updateSubtype(index, "subtype", e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                              >
+                                <option value="">Select {form.requestType.toLowerCase()} type</option>
+                                {getSubtypeOptions().map((subtype) => (
+                                  <option key={subtype.value} value={subtype.value}>
+                                    {subtype.icon} {subtype.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="w-24">
+                              <input
+                                type="number"
+                                value={subtypeItem.quantity}
+                                onChange={(e) => updateSubtype(index, "quantity", e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                                placeholder="Qty"
+                                min="1"
+                              />
+                            </div>
+                            {form.subtypes.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeSubtype(index)}
+                                className="text-red-500 hover:text-red-700 p-1"
+                              >
+                                <FaMinus className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <p className="text-xs text-gray-500 mt-2">
+                        Total quantity: {form.subtypes.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)} /{" "}
+                        {getMaxLimit()}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Single Quantity for Money and Other */}
+                  {(form.requestType === "Money" || form.requestType === "Other") && (
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-3">
+                        Quantity * (Max: {getMaxLimit()})
+                      </label>
+                      <input
+                        type="number"
+                        value={form.quantity}
+                        onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                        placeholder="Enter quantity"
+                        min="1"
+                        max={getMaxLimit()}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Maximum allowed: {getMaxLimit()} {form.requestType === "Money" ? "Rs." : "items"}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex space-x-4 pt-6">
                     <button

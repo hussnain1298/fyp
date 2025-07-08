@@ -90,7 +90,7 @@ export default function Navbar() {
     { name: "Home", link: "/" },
     { name: "How It Works", link: "/howitworks" },
     { name: "Donate", link: getDonateLink() },
-    { name: "Gallery", link: "/gallery" },
+   
     { name: "Contact", link: "/contact" },
   ];
 

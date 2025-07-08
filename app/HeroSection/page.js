@@ -16,7 +16,7 @@ export default function HeroSection() {
   style={{ objectFit: "cover" }}
   className="z-[-1]"
 />
-<div className="w-full lg:w-1/3">
+<div >
   <LiveDonationFeed />
 </div>
 

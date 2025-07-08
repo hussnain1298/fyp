@@ -42,6 +42,7 @@ export default function RequestConfirmations({ activeStatus, matchesStatus }) {
       const enrichedDonations = reqDonations.map((d) => ({
         ...d,
         requestTitle: requestMap[d.requestId]?.title || requestMap[d.requestId]?.requestType || "N/A",
+        requestSubtypes: requestMap[d.requestId]?.subtypes || null,
       }))
       setRequestDonations(enrichedDonations)
 
@@ -52,7 +53,7 @@ export default function RequestConfirmations({ activeStatus, matchesStatus }) {
         uniqueDonorIds.map(async (donorId) => {
           try {
             const userDoc = await getDoc(doc(firestore, "users", donorId))
-            donorNameMap[donorId] = userDoc.exists() && userDoc.data().name ? userDoc.data().name : "Anonymous Donor"
+            donorNameMap[donorId] = userDoc.exists() && userDoc.data().fullName ? userDoc.data().fullName : "Anonymous Donor"
           } catch {
             donorNameMap[donorId] = "Anonymous Donor"
           }
@@ -124,7 +125,8 @@ export default function RequestConfirmations({ activeStatus, matchesStatus }) {
       const requestData = reqSnap.exists() ? reqSnap.data() : null
       if (!requestData) return
 
-      if (donation.donationType === "Food") {
+      // Handle multiple subtypes in a single donation
+      if (donation.subtypes && Array.isArray(donation.subtypes)) {
         const confirmedDonationsSnap = await getDocs(
           query(
             collection(firestore, "donations"),
@@ -132,32 +134,104 @@ export default function RequestConfirmations({ activeStatus, matchesStatus }) {
             where("confirmed", "==", true),
           ),
         )
-        let totalMeals = 0
+
+        const subtypeDonations = {}
         confirmedDonationsSnap.forEach((d) => {
-          totalMeals += Number(d.data().numMeals || 0)
+          const data = d.data()
+          if (data.subtypes && Array.isArray(data.subtypes)) {
+            data.subtypes.forEach((subtypeItem) => {
+              subtypeDonations[subtypeItem.subtype] =
+                (subtypeDonations[subtypeItem.subtype] || 0) + subtypeItem.quantity
+            })
+          } else if (data.subtype) {
+            subtypeDonations[data.subtype] = (subtypeDonations[data.subtype] || 0) + (data.donatedAmount || 0)
+          }
         })
-        if (requestData.quantity && totalMeals >= Number(requestData.quantity)) {
+
+        // Update the request with subtype donation tracking
+        await updateDoc(requestRef, {
+          subtypeDonations: subtypeDonations,
+        })
+
+        // Check if entire request is fulfilled
+        const allSubtypesFulfilled = requestData.subtypes.every((subtypeItem) => {
+          const donated = subtypeDonations[subtypeItem.subtype] || 0
+          return donated >= subtypeItem.quantity
+        })
+
+        if (allSubtypesFulfilled) {
+          await updateDoc(requestRef, { status: "Fulfilled" })
+        }
+      } else if (donation.subtype && requestData.subtypes) {
+        // Handle single subtype donation
+        const confirmedDonationsSnap = await getDocs(
+          query(
+            collection(firestore, "donations"),
+            where("requestId", "==", donation.requestId),
+            where("confirmed", "==", true),
+            where("subtype", "==", donation.subtype),
+          ),
+        )
+
+        let subtypeTotalDonated = 0
+        confirmedDonationsSnap.forEach((d) => {
+          subtypeTotalDonated += Number(d.data().donatedAmount || 0)
+        })
+
+        // Update the request with subtype donation tracking
+        const subtypeDonations = requestData.subtypeDonations || {}
+        subtypeDonations[donation.subtype] = subtypeTotalDonated
+
+        await updateDoc(requestRef, {
+          subtypeDonations: subtypeDonations,
+        })
+
+        // Check if entire request is fulfilled
+        const allSubtypesFulfilled = requestData.subtypes.every((subtypeItem) => {
+          const donated = subtypeDonations[subtypeItem.subtype] || 0
+          return donated >= subtypeItem.quantity
+        })
+
+        if (allSubtypesFulfilled) {
           await updateDoc(requestRef, { status: "Fulfilled" })
         }
       } else {
-        const confirmedDonationsSnap = await getDocs(
-          query(
-            collection(firestore, "donations"),
-            where("requestId", "==", donation.requestId),
-            where("confirmed", "==", true),
-          ),
-        )
-        let totalConfirmed = 0
-        confirmedDonationsSnap.forEach((d) => {
-          const data = d.data()
-          if (donation.donationType === "Money") {
-            totalConfirmed += Number(data.amount || 0)
-          } else if (donation.donationType === "Clothes") {
-            totalConfirmed += Number(data.numClothes || 0)
+        // Handle single-type requests (existing logic)
+        if (donation.donationType === "Food") {
+          const confirmedDonationsSnap = await getDocs(
+            query(
+              collection(firestore, "donations"),
+              where("requestId", "==", donation.requestId),
+              where("confirmed", "==", true),
+            ),
+          )
+          let totalMeals = 0
+          confirmedDonationsSnap.forEach((d) => {
+            totalMeals += Number(d.data().numMeals || 0)
+          })
+          if (requestData.quantity && totalMeals >= Number(requestData.quantity)) {
+            await updateDoc(requestRef, { status: "Fulfilled" })
           }
-        })
-        if (requestData.quantity && totalConfirmed >= Number(requestData.quantity)) {
-          await updateDoc(requestRef, { status: "Fulfilled" })
+        } else {
+          const confirmedDonationsSnap = await getDocs(
+            query(
+              collection(firestore, "donations"),
+              where("requestId", "==", donation.requestId),
+              where("confirmed", "==", true),
+            ),
+          )
+          let totalConfirmed = 0
+          confirmedDonationsSnap.forEach((d) => {
+            const data = d.data()
+            if (donation.donationType === "Money") {
+              totalConfirmed += Number(data.amount || 0)
+            } else if (donation.donationType === "Clothes") {
+              totalConfirmed += Number(data.numClothes || 0)
+            }
+          })
+          if (requestData.quantity && totalConfirmed >= Number(requestData.quantity)) {
+            await updateDoc(requestRef, { status: "Fulfilled" })
+          }
         }
       }
 
@@ -249,7 +323,7 @@ export default function RequestConfirmations({ activeStatus, matchesStatus }) {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-xl shadow-md border border-gray-200 p-4 sm:p-6 hover:shadow-lg transition-shadow"
+                className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   <div className="flex-1 space-y-3">
@@ -257,32 +331,88 @@ export default function RequestConfirmations({ activeStatus, matchesStatus }) {
                       <div className="text-2xl">{getDonationIcon(donation.donationType)}</div>
                       <div className="flex-1">
                         <h4 className="font-semibold text-gray-800 text-lg mb-1">{donation.requestTitle || "N/A"}</h4>
+
+                        {/* Show multiple subtypes if available */}
+                        {donation.subtypes && Array.isArray(donation.subtypes) && donation.subtypes.length > 0 && (
+                          <div className="mb-2">
+                            <div className="text-sm font-medium text-gray-700 mb-1">Multiple items donated:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {donation.subtypes.map((subtypeItem, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium"
+                                >
+                                  {subtypeItem.subtype}: {subtypeItem.quantity}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Show single subtype if available */}
+                        {donation.subtype && (!donation.subtypes || !Array.isArray(donation.subtypes)) && (
+                          <div className="mb-2">
+                            <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                              {donation.subtype}
+                            </span>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600">
                           <p className="flex items-center">
                             <FaUser className="mr-2 text-gray-400" />
                             <strong>Donor:</strong> {donorNames[donation.donorId] || donation.donorId}
                           </p>
-                          {donation.amount && (
+
+                          {/* Show donated amount with subtype context */}
+                          {donation.subtypes && Array.isArray(donation.subtypes) ? (
+                            <p className="flex items-center">
+                              {getDonationIcon(donation.donationType)}
+                              <strong className="ml-2">Total Items:</strong>
+                              {donation.subtypes.reduce((sum, item) => sum + Number(item.quantity), 0)}
+                            </p>
+                          ) : donation.donatedAmount ? (
+                            <p className="flex items-center">
+                              {getDonationIcon(donation.donationType)}
+                              <strong className="ml-2">
+                                {donation.donationType === "Money" ? "Amount:" : "Quantity:"}
+                              </strong>
+                              {donation.donationType === "Money"
+                                ? ` Rs. ${donation.donatedAmount.toLocaleString()}`
+                                : ` ${donation.donatedAmount}`}
+                              {donation.subtype && ` (${donation.subtype})`}
+                            </p>
+                          ) : null}
+
+                          {/* Legacy fields for backward compatibility */}
+                          {donation.amount && !donation.donatedAmount && (
                             <p className="flex items-center">
                               <FaMoneyBillWave className="mr-2 text-green-500" />
                               <strong>Amount:</strong> Rs. {donation.amount.toLocaleString()}
                             </p>
                           )}
-                          {donation.numClothes && (
+                          {donation.numClothes && !donation.donatedAmount && (
                             <p className="flex items-center">
                               <FaTshirt className="mr-2 text-blue-500" />
                               <strong>Clothes:</strong> {donation.numClothes} items
                             </p>
                           )}
-                          {donation.numMeals != null && (
+                          {donation.numMeals != null && !donation.donatedAmount && (
                             <p className="flex items-center">
                               <FaUtensils className="mr-2 text-orange-500" />
                               <strong>Meals:</strong> {donation.numMeals}
                             </p>
                           )}
+
                           {donation.foodDescription && (
                             <p className="sm:col-span-2">
                               <strong>Food Description:</strong> {donation.foodDescription}
+                            </p>
+                          )}
+
+                          {donation.description && (
+                            <p className="sm:col-span-2">
+                              <strong>Note:</strong> {donation.description}
                             </p>
                           )}
                         </div>

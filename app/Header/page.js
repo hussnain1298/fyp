@@ -6,9 +6,9 @@ const dropdownItems = [
 
  { name: "Our Donors", link: "/Donors" },
   { name: "Our Orphanages", link: "/Orphanages" },
-  
+   { name: "Gallery", link: "/gallery" },
    { name: "About Us", link: "/whoweare" },
-  { name: "Lookbook", link: "/lookbook" },
+ 
 ];
 
 export default function LowerHeader() {

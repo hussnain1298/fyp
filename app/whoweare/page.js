@@ -1,63 +1,168 @@
-"use client";
+"use client"
+import Image from "next/image"
+import { Poppins } from "next/font/google"
+import Navbar from "../Navbar/page"
+import Footer from "../footer/page"
 
-import React from "react";
-import Image from "next/image";
-import { Poppins } from "next/font/google";
-import Navbar from "../Navbar/page";
 const poppins = Poppins({
   subsets: ["latin"],
   weight: ["400", "600", "700"],
-});
+})
 
 export default function WhoWeAre() {
   return (
-    <section className={`${poppins.className} bg-gray-50 py-16`}>
+    <div className={`${poppins.className} min-h-screen bg-gradient-to-br from-gray-50 to-gray-100`}>
       <Navbar />
-      <div className="container mx-auto px-6 lg:flex lg:items-center lg:space-x-10 mt-20 ">
-        {/* Left Section - Text Content */}
-        <div className="flex-1 bg-white p-8 rounded-lg shadow-lg">
-          <h2 className="text-3xl font-bold text-gray-800 mb-4 border-b-4 border-red-500 inline-block">
-            Who We Are?
-          </h2>
-          <p className="text-gray-600 text-lg mb-6">
-            Blood Buddies is a public donation center with blood donation
-            members in the changing health care system.
+
+      {/* Hero Section */}
+      <div className="container mx-auto px-6 pt-24 pb-16">
+        <div className="text-center mb-16">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">Who We Are</h1>
+          <div className="w-24 h-1 bg-green-500 mx-auto mb-6"></div>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Connecting hearts, transforming lives through technology-driven charitable solutions
           </p>
-          <ul className="list-disc list-inside space-y-4 text-gray-600">
-            <li>
-              <span className="text-red-500"></span> Specialist blood donors and
-              clinical supervision.
-            </li>
-            <li>
-              <span className="text-red-500"></span> Increasing communication
-              with our members.
-            </li>
-            <li>
-              <span className="text-red-500"></span> High-quality assessment,
-              diagnosis, and treatment.
-            </li>
-            <li>
-              <span className="text-red-500"></span> Examine critically to
-              ensure alignment.
-            </li>
-            <li>
-              <span className="text-red-500"></span> The extra care of a
-              multi-disciplinary team.
-            </li>
-          </ul>
         </div>
 
-        {/* Right Section - Image */}
-        <div className="flex-1 mt-10 lg:mt-0">
-          <Image
-            src="/tech.png" // Replace with the correct image path
-            alt="Who We Are"
-            className="rounded-lg shadow-lg"
-            width={600}
-            height={400}
-          />
+        {/* Main Content */}
+        <div className="lg:flex lg:items-start lg:space-x-12 max-w-7xl mx-auto">
+          {/* Left Section - Content */}
+          <div className="flex-1 space-y-8">
+            {/* Who We Are Card */}
+            <div className="bg-white p-8 rounded-xl shadow-lg border-l-4 border-green-500">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                <span className="bg-red-100 p-2 rounded-lg mr-3">👥</span>
+                Who We Are
+              </h2>
+              <p className="text-gray-700 leading-relaxed">
+                We are a technology-driven platform that bridges the gap between generous donors and orphanages in need.
+                Our mission is to modernize charitable giving by creating a centralized, transparent, and efficient
+                system that connects local communities with orphanages.
+              </p>
+            </div>
+
+            {/* What We Do Card */}
+            <div className="bg-white p-8 rounded-xl shadow-lg border-l-4 border-blue-500">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                <span className="bg-blue-100 p-2 rounded-lg mr-3">🚀</span>
+                What We Do
+              </h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                We provide a centralized platform where orphanages can post their specific needs and donors can
+                contribute meaningfully through various forms of support.
+              </p>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="flex items-center space-x-3">
+                  <span className="text-green-500 text-xl">✓</span>
+                  <span className="text-gray-700">Connect donors with orphanages</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <span className="text-green-500 text-xl">✓</span>
+                  <span className="text-gray-700">Facilitate transparent donations</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <span className="text-green-500 text-xl">✓</span>
+                  <span className="text-gray-700">Enable skill-based volunteering</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <span className="text-green-500 text-xl">✓</span>
+                  <span className="text-gray-700">Support fundraising campaigns</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Purpose Card */}
+            <div className="bg-white p-8 rounded-xl shadow-lg border-l-4 border-green-500">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                <span className="bg-green-100 p-2 rounded-lg mr-3">🎯</span>
+                Our Purpose
+              </h2>
+              <p className="text-gray-700 leading-relaxed">
+                To solve the disconnect between willing donors and orphanages in need. Traditional donation systems are
+                fragmented and inefficient. We create a transparent, secure, and user-friendly ecosystem that builds
+                trust and enables meaningful contributions that directly impact children's lives.
+              </p>
+            </div>
+
+            {/* Objectives Card */}
+            <div className="bg-white p-8 rounded-xl shadow-lg border-l-4 border-purple-500">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                <span className="bg-purple-100 p-2 rounded-lg mr-3">📋</span>
+                Our Objectives
+              </h2>
+              <div className="space-y-3">
+                <div className="flex items-start space-x-3">
+                  <span className="bg-purple-100 text-purple-600 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-0.5">
+                    1
+                  </span>
+                  <p className="text-gray-700">
+                    Support orphanages with essential needs, medical supplies, and resources
+                  </p>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <span className="bg-purple-100 text-purple-600 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-0.5">
+                    2
+                  </span>
+                  <p className="text-gray-700">Enable education and mentorship programs for skill development</p>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <span className="bg-purple-100 text-purple-600 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-0.5">
+                    3
+                  </span>
+                  <p className="text-gray-700">Build a transparent and secure platform that fosters trust</p>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <span className="bg-purple-100 text-purple-600 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mt-0.5">
+                    4
+                  </span>
+                  <p className="text-gray-700">Create lasting donor-orphanage relationships through technology</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Section - Image & Stats */}
+          <div className="flex-1 mt-10 lg:mt-0 space-y-6">
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+              <Image src="/raise.jpg" alt="Technology for Good" className="rounded-lg w-full" width={600} height={400} />
+            </div>
+
+            {/* Impact Stats */}
+            <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
+              <h3 className="text-xl font-bold mb-4 text-center">Our Impact</h3>
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div>
+                  <div className="text-2xl font-bold">100+</div>
+                  <div className="text-sm opacity-90">Orphanages Connected</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">500+</div>
+                  <div className="text-sm opacity-90">Active Donors</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">1000+</div>
+                  <div className="text-sm opacity-90">Children Helped</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">50+</div>
+                  <div className="text-sm opacity-90">Cities Reached</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Call to Action */}
+            <div className="bg-white p-6 rounded-xl shadow-lg text-center">
+              <h3 className="text-xl font-bold text-gray-800 mb-3">Join Our Mission</h3>
+              <p className="text-gray-600 mb-4">Be part of the change. Every contribution makes a difference.</p>
+              <button className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
+                Start Donating Today
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </section>
-  );
+
+      <Footer />
+    </div>
+  )
 }

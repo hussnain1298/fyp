@@ -13,18 +13,18 @@ export default function Footer() {
 
   const footerLinks = {
     PRODUCT: [
-      { name: "Home", href: "/features" },
-      { name: "How It Works", href: "/integrations" },
-      { name: "Donate Now", href: "/pricing" },
+      { name: "Home", href: "/page.js" },
+      { name: "How It Works", href: "/howitworks" },
+      { name: "Donate Now", href: "/donation" },
     ],
     COMPANY: [
-      { name: "Gallery", href: "/privacy" },
-      { name: "About Us", href: "/guides" },
-      { name: "Contact", href: "/terms" },
+      { name: "Gallery", href: "/gallery" },
+      { name: "About Us", href: "/whoweare" },
+      { name: "Contact", href: "/contact" },
     ],
     DEVELOPERS: [
-      { name: "Our Donors", href: "/api" },
-      { name: "Our Orphanages", href: "/docs" },
+      { name: "Our Donors", href: "/Donors" },
+      { name: "Our Orphanages", href: "/Orphanages" },
     ],
   };
 
@@ -79,15 +79,13 @@ export default function Footer() {
   };
 
   return (
-    <footer className="bg-gray-100 pt-10 pb-2 px-4 sm:px-6 lg:px-12 mt-14 w-full">
+    <footer className="bg-gray-100 pt-20 pb-2 px-4 sm:px-6 lg:px-12 mt-10 w-full ">
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           {/* Footer Links */}
           {Object.entries(footerLinks).map(([category, links]) => (
             <div key={category}>
-              <h3 className="font-semibold text-sm text-gray-800 mb-4">
-                {category}
-              </h3>
+              {/* Heading Removed */}
               <ul className="space-y-2">
                 {links.map((link) => (
                   <li key={link.name}>
@@ -105,7 +103,7 @@ export default function Footer() {
 
           {/* Subscribe Form */}
           <div className="flex flex-col gap-4">
-            <h1 className="text-gray-800 font-semibold text-sm mt-9">
+            <h1 className="text-gray-800 font-semibold text-sm ">
               Want to get notified?
             </h1>
             <input
