@@ -1,31 +1,91 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react"
-import { firestore, auth } from "@/lib/firebase"
-import { collection, query, getDocs, deleteDoc, doc, updateDoc, where, addDoc, getDoc } from "firebase/firestore"
-import { toast, ToastContainer } from "react-toastify"
-import { motion } from "framer-motion"
-import { FaPlus, FaEdit, FaTrash, FaFilter } from "react-icons/fa"
-import { Target, TrendingUp, Loader2 } from "lucide-react"
-import "react-toastify/dist/ReactToastify.css"
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { firestore, auth } from "@/lib/firebase";
+import {
+  collection,
+  query,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc,
+  where,
+  addDoc,
+  getDoc,
+} from "firebase/firestore";
+import { toast, ToastContainer } from "react-toastify";
+import { motion } from "framer-motion";
+import { FaPlus, FaEdit, FaTrash, FaFilter } from "react-icons/fa";
+import { Target, TrendingUp, Loader2 } from "lucide-react";
+import "react-toastify/dist/ReactToastify.css";
 
-const MAX_DONATION_AMOUNT = 1000000
-const PAGE_SIZE = 9
+const MAX_DONATION_AMOUNT = 1000000;
+const PAGE_SIZE = 9;
+const MIN_DESCRIPTION_CHARS = 60;
+const MAX_DESCRIPTION_CHARS = 250;
+const MAX_CUSTOM_CATEGORY_CHARS = 30;
 
+// Updated realistic fundraising categories
 const titleOptions = [
-  { value: "Books", label: "Books", icon: "📚" },
-  { value: "School Uniforms", label: "School Uniforms", icon: "👕" },
-  { value: "Nutrition", label: "Nutrition", icon: "🍎" },
-  { value: "Medical Aid", label: "Medical Aid", icon: "🏥" },
-  { value: "Other", label: "Other", icon: "📦" },
-]
+  { value: "Medical Emergency", label: "Medical Emergency", icon: "🏥" },
+  { value: "Educational Expenses", label: "Educational Expenses", icon: "📚" },
+  { value: "Building Maintenance", label: "Building Maintenance", icon: "🏗️" },
+  { value: "Monthly Food Supply", label: "Monthly Food Supply", icon: "🍽️" },
+  {
+    value: "Clothing & Essentials",
+    label: "Clothing & Essentials",
+    icon: "👕",
+  },
+  { value: "Utility Bills", label: "Utility Bills", icon: "💡" },
+  { value: "Staff Salaries", label: "Staff Salaries", icon: "👥" },
+  { value: "Transportation", label: "Transportation", icon: "🚌" },
+  { value: "Legal Documentation", label: "Legal Documentation", icon: "📋" },
+  { value: "Emergency Relief", label: "Emergency Relief", icon: "🚨" },
+  { value: "Custom Category", label: "Custom Category", icon: "📝" },
+];
+
+// Utility functions for validation
+const countChars = (text) => {
+  return text ? text.length : 0; // This will include spaces and all characters
+};
+
+const validateCustomCategory = (category) => {
+  if (!category || !category.trim()) {
+    return "Custom category is required";
+  }
+
+  const charCount = countChars(category.trim());
+  if (charCount > MAX_CUSTOM_CATEGORY_CHARS) {
+    return `Custom category must be ${MAX_CUSTOM_CATEGORY_CHARS} characters or less`;
+  }
+
+  return null;
+};
+
+const validateDescription = (description) => {
+  if (!description || !description.trim()) {
+    return "Description is required";
+  }
+
+  const charCount = countChars(description.trim());
+
+  if (charCount < MIN_DESCRIPTION_CHARS) {
+    return `Description is too short. Please provide at least ${MIN_DESCRIPTION_CHARS} characters to properly describe your request.`;
+  }
+
+  if (charCount > MAX_DESCRIPTION_CHARS) {
+    return `Description is too long. Please keep it under ${MAX_DESCRIPTION_CHARS} characters.`;
+  }
+
+  return null;
+};
 
 // Read More/Less Component
 const ReadMoreText = ({ text, maxLength = 50 }) => {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (!text || text.length <= maxLength) {
-    return <span>{text}</span>
+    return <span>{text}</span>;
   }
 
   return (
@@ -38,8 +98,8 @@ const ReadMoreText = ({ text, maxLength = 50 }) => {
         {isExpanded ? "Read Less" : "Read More"}
       </button>
     </span>
-  )
-}
+  );
+};
 
 // Loading skeleton component
 const FundraiserSkeleton = () => (
@@ -65,159 +125,190 @@ const FundraiserSkeleton = () => (
       <div className="h-8 bg-red-100 rounded-lg flex-1"></div>
     </div>
   </div>
-)
+);
 
 export default function FundRaise() {
-  const [fundraisers, setFundraisers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [isEditing, setIsEditing] = useState(false)
-  const [editFundraiser, setEditFundraiser] = useState(null)
-  const [modalOpen, setModalOpen] = useState(false)
+  const [fundraisers, setFundraisers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFundraiser, setEditFundraiser] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({
     title: "",
     customTitle: "",
     description: "",
     totalAmount: "",
-  })
-  const [page, setPage] = useState(1)
-  const [filterTitle, setFilterTitle] = useState("All")
+  });
+  const [page, setPage] = useState(1);
+  const [filterTitle, setFilterTitle] = useState("All");
+  const [descriptionCharCount, setDescriptionCharCount] = useState(0);
+  const [customCategoryCharCount, setCustomCategoryCharCount] = useState(0);
 
   const fetchFundraisers = useCallback(async () => {
-    setLoading(true)
-    const user = auth.currentUser
+    setLoading(true);
+    const user = auth.currentUser;
     if (!user) {
-      toast.error("Please log in to view fundraisers")
-      return
+      toast.error("Please log in to view fundraisers");
+      return;
     }
 
     try {
-      const q = query(collection(firestore, "fundraisers"), where("orphanageId", "==", user.uid))
-      const snap = await getDocs(q)
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      setFundraisers(list)
-      setError("")
+      const q = query(
+        collection(firestore, "fundraisers"),
+        where("orphanageId", "==", user.uid)
+      );
+      const snap = await getDocs(q);
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setFundraisers(list);
+      setError("");
     } catch (err) {
-      setError(err.message)
-      toast.error("Failed to load fundraisers.")
+      setError(err.message);
+      toast.error("Failed to load fundraisers.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    fetchFundraisers()
-  }, [fetchFundraisers])
+    fetchFundraisers();
+  }, [fetchFundraisers]);
 
   const validateForm = useCallback((formData) => {
-    const errors = []
+    const errors = [];
 
-    const finalTitle = formData.title === "Other" ? formData.customTitle?.trim() : formData.title
-    const amt = Number(formData.totalAmount)
+    const finalTitle =
+      formData.title === "Custom Category"
+        ? formData.customTitle?.trim()
+        : formData.title;
+    const amt = Number(formData.totalAmount);
 
     if (!finalTitle) {
-      errors.push("Title is required")
+      errors.push("Title is required");
     }
 
-    if (!formData.description?.trim()) {
-      errors.push("Description is required")
+    // Validate custom category if selected
+    if (formData.title === "Custom Category") {
+      const customCategoryError = validateCustomCategory(formData.customTitle);
+      if (customCategoryError) {
+        errors.push(customCategoryError);
+      }
+    }
+
+    // Validate description
+    const descriptionError = validateDescription(formData.description);
+    if (descriptionError) {
+      errors.push(descriptionError);
     }
 
     if (isNaN(amt) || amt < 1) {
-      errors.push("Amount must be at least Rs. 1")
+      errors.push("Amount must be at least Rs. 1");
     }
 
     if (amt > MAX_DONATION_AMOUNT) {
-      errors.push(`Amount cannot exceed Rs. ${MAX_DONATION_AMOUNT.toLocaleString()}`)
+      errors.push(
+        `Amount cannot exceed Rs. ${MAX_DONATION_AMOUNT.toLocaleString()}`
+      );
     }
 
-    return errors
-  }, [])
+    return errors;
+  }, []);
 
   const filteredFundraisers = useMemo(() => {
     return fundraisers.filter((fundraiser) => {
-      return filterTitle === "All" || fundraiser.title === filterTitle
-    })
-  }, [fundraisers, filterTitle])
+      return filterTitle === "All" || fundraiser.title === filterTitle;
+    });
+  }, [fundraisers, filterTitle]);
 
-  const totalPages = Math.ceil(filteredFundraisers.length / PAGE_SIZE)
-  const paginatedFundraisers = filteredFundraisers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.ceil(filteredFundraisers.length / PAGE_SIZE);
+  const paginatedFundraisers = filteredFundraisers.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
 
   const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this fundraiser?")) return
+    if (!confirm("Are you sure you want to delete this fundraiser?")) return;
 
     try {
-      await deleteDoc(doc(firestore, "fundraisers", id))
-      setFundraisers((prev) => prev.filter((f) => f.id !== id))
-      toast.success("Fundraiser deleted successfully")
+      await deleteDoc(doc(firestore, "fundraisers", id));
+      setFundraisers((prev) => prev.filter((f) => f.id !== id));
+      toast.success("Fundraiser deleted successfully");
     } catch (err) {
-      toast.error("Failed to delete fundraiser")
+      toast.error("Failed to delete fundraiser");
     }
-  }
+  };
 
   const handleEdit = (f) => {
-    setEditFundraiser(f)
-    setIsEditing(true)
-    setModalOpen(true)
-    setError("")
-  }
+    setEditFundraiser(f);
+    setIsEditing(true);
+    setModalOpen(true);
+    setError("");
+    setDescriptionCharCount(countChars(f.description || ""));
+  };
 
   const handleSaveEdit = async (e) => {
-    e.preventDefault()
-    setError("")
+    e.preventDefault();
+    setError("");
 
-    const errors = validateForm(editFundraiser)
+    const errors = validateForm(editFundraiser);
     if (errors.length > 0) {
-      setError(errors.join(", "))
-      return
+      setError(errors.join(", "));
+      return;
     }
 
     try {
-      setLoading(true)
-      const { title, description, totalAmount } = editFundraiser
-      const amt = Number(totalAmount)
+      setLoading(true);
+      const { title, description, totalAmount } = editFundraiser;
+      const amt = Number(totalAmount);
 
-      const ref = doc(firestore, "fundraisers", editFundraiser.id)
-      await updateDoc(ref, { title, description, totalAmount: amt })
+      const ref = doc(firestore, "fundraisers", editFundraiser.id);
+      await updateDoc(ref, { title, description, totalAmount: amt });
 
       setFundraisers((prev) =>
-        prev.map((f) => (f.id === editFundraiser.id ? { ...f, title, description, totalAmount: amt } : f)),
-      )
+        prev.map((f) =>
+          f.id === editFundraiser.id
+            ? { ...f, title, description, totalAmount: amt }
+            : f
+        )
+      );
 
-      toast.success("Fundraiser updated successfully")
-      setIsEditing(false)
-      setModalOpen(false)
+      toast.success("Fundraiser updated successfully");
+      setIsEditing(false);
+      setModalOpen(false);
     } catch (err) {
-      setError("Failed to update fundraiser")
-      toast.error("Failed to update fundraiser")
+      setError("Failed to update fundraiser");
+      toast.error("Failed to update fundraiser");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSubmitNew = async (e) => {
-    e.preventDefault()
-    setError("")
+    e.preventDefault();
+    setError("");
 
-    const errors = validateForm(form)
+    const errors = validateForm(form);
     if (errors.length > 0) {
-      setError(errors.join(", "))
-      return
+      setError(errors.join(", "));
+      return;
     }
 
-    const user = auth.currentUser
+    const user = auth.currentUser;
     if (!user) {
-      toast.error("Please log in to create fundraisers")
-      return
+      toast.error("Please log in to create fundraisers");
+      return;
     }
 
     try {
-      setLoading(true)
-      const finalTitle = form.title === "Other" ? form.customTitle.trim() : form.title
-      const amt = Number(form.totalAmount)
+      setLoading(true);
+      const finalTitle =
+        form.title === "Custom Category" ? form.customTitle.trim() : form.title;
+      const amt = Number(form.totalAmount);
 
-      const snap = await getDoc(doc(firestore, "users", user.uid))
-      const name = snap.exists() ? snap.data().orgName || snap.data().name || "" : ""
+      const snap = await getDoc(doc(firestore, "users", user.uid));
+      const name = snap.exists()
+        ? snap.data().orgName || snap.data().name || ""
+        : "";
 
       const data = {
         title: finalTitle,
@@ -228,45 +319,104 @@ export default function FundRaise() {
         orphanageName: name,
         status: "Pending",
         createdAt: new Date(),
-      }
+      };
 
-      const ref = await addDoc(collection(firestore, "fundraisers"), data)
-      setFundraisers((prev) => [...prev, { id: ref.id, ...data }])
+      const ref = await addDoc(collection(firestore, "fundraisers"), data);
+      setFundraisers((prev) => [...prev, { id: ref.id, ...data }]);
 
-      toast.success("Fundraiser created successfully")
-      setForm({ title: "", customTitle: "", description: "", totalAmount: "" })
-      setModalOpen(false)
+      toast.success("Fundraiser created successfully");
+      setForm({ title: "", customTitle: "", description: "", totalAmount: "" });
+      setDescriptionCharCount(0);
+      setCustomCategoryCharCount(0);
+      setModalOpen(false);
     } catch (err) {
-      setError("Failed to create fundraiser")
-      toast.error("Failed to create fundraiser")
+      setError("Failed to create fundraiser");
+      toast.error("Failed to create fundraiser");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const openModal = (fundraiser = null) => {
     if (fundraiser) {
-      setEditFundraiser(fundraiser)
-      setIsEditing(true)
+      setEditFundraiser(fundraiser);
+      setIsEditing(true);
+      setDescriptionCharCount(countChars(fundraiser.description || ""));
     } else {
-      setForm({ title: "", customTitle: "", description: "", totalAmount: "" })
-      setIsEditing(false)
+      setForm({ title: "", customTitle: "", description: "", totalAmount: "" });
+      setIsEditing(false);
+      setDescriptionCharCount(0);
+      setCustomCategoryCharCount(0);
     }
-    setError("")
-    setModalOpen(true)
-  }
+    setError("");
+    setModalOpen(true);
+  };
 
   const closeModal = () => {
-    setModalOpen(false)
-    setIsEditing(false)
-    setEditFundraiser(null)
-    setForm({ title: "", customTitle: "", description: "", totalAmount: "" })
-    setError("")
-  }
+    setModalOpen(false);
+    setIsEditing(false);
+    setEditFundraiser(null);
+    setForm({ title: "", customTitle: "", description: "", totalAmount: "" });
+    setError("");
+    setDescriptionCharCount(0);
+    setCustomCategoryCharCount(0);
+  };
+
+  const handleDescriptionChange = (e, isEdit = false) => {
+    const value = e.target.value;
+    const charCount = countChars(value);
+    setDescriptionCharCount(charCount);
+
+    if (isEdit) {
+      setEditFundraiser({ ...editFundraiser, description: value });
+    } else {
+      setForm({ ...form, description: value });
+    }
+  };
+
+  const handleCustomCategoryChange = (e) => {
+    const value = e.target.value;
+    const charCount = countChars(value);
+    setCustomCategoryCharCount(charCount);
+    setForm({ ...form, customTitle: value });
+  };
 
   const getProgressPercentage = (raised, total) => {
-    return total > 0 ? Math.min((raised / total) * 100, 100) : 0
-  }
+    return total > 0 ? Math.min((raised / total) * 100, 100) : 0;
+  };
+
+  const getDescriptionStatus = () => {
+    if (descriptionCharCount < MIN_DESCRIPTION_CHARS) {
+      return {
+        color: "text-red-500",
+        message: `${
+          MIN_DESCRIPTION_CHARS - descriptionCharCount
+        } more characters needed`,
+      };
+    } else if (descriptionCharCount > MAX_DESCRIPTION_CHARS) {
+      return {
+        color: "text-red-500",
+        message: `${
+          descriptionCharCount - MAX_DESCRIPTION_CHARS
+        } characters over limit`,
+      };
+    } else {
+      return { color: "text-green-500", message: "Good length" };
+    }
+  };
+
+  const getCustomCategoryStatus = () => {
+    if (customCategoryCharCount > MAX_CUSTOM_CATEGORY_CHARS) {
+      return {
+        color: "text-red-500",
+        message: `${
+          customCategoryCharCount - MAX_CUSTOM_CATEGORY_CHARS
+        } characters over limit`,
+      };
+    } else {
+      return { color: "text-green-500", message: "Good length" };
+    }
+  };
 
   if (loading && fundraisers.length === 0) {
     return (
@@ -276,7 +426,9 @@ export default function FundRaise() {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
               <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800">Loading Fundraisers...</h2>
+            <h2 className="text-2xl font-bold text-gray-800">
+              Loading Fundraisers...
+            </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
@@ -285,7 +437,7 @@ export default function FundRaise() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -298,9 +450,12 @@ export default function FundRaise() {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
             <Target className="w-10 h-10 text-green-600" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">Fundraising Campaigns</h1>
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">
+            Fundraising Campaigns
+          </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Create and manage your fundraising campaigns to reach your financial goals
+            Create and manage your fundraising campaigns to reach your financial
+            goals
           </p>
         </div>
 
@@ -316,7 +471,7 @@ export default function FundRaise() {
               >
                 <option value="All">All Categories</option>
                 {titleOptions
-                  .filter((t) => t.value !== "Other")
+                  .filter((t) => t.value !== "Custom Category")
                   .map((title) => (
                     <option key={title.value} value={title.value}>
                       {title.label}
@@ -339,23 +494,33 @@ export default function FundRaise() {
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
             <div className="bg-green-50 p-4 rounded-xl border border-green-100">
-              <div className="text-2xl font-bold text-green-600">{fundraisers.length}</div>
+              <div className="text-2xl font-bold text-green-600">
+                {fundraisers.length}
+              </div>
               <div className="text-sm text-green-600">Total Fundraisers</div>
             </div>
             <div className="bg-green-50 p-4 rounded-xl border border-green-100">
               <div className="text-2xl font-bold text-green-600">
-                Rs. {fundraisers.reduce((sum, f) => sum + (f.raisedAmount || 0), 0).toLocaleString()}
+                Rs.{" "}
+                {fundraisers
+                  .reduce((sum, f) => sum + (f.raisedAmount || 0), 0)
+                  .toLocaleString()}
               </div>
               <div className="text-sm text-green-600">Total Raised</div>
             </div>
             <div className="bg-green-50 p-4 rounded-xl border border-green-100">
               <div className="text-2xl font-bold text-green-600">
-                Rs. {fundraisers.reduce((sum, f) => sum + (f.totalAmount || 0), 0).toLocaleString()}
+                Rs.{" "}
+                {fundraisers
+                  .reduce((sum, f) => sum + (f.totalAmount || 0), 0)
+                  .toLocaleString()}
               </div>
               <div className="text-sm text-green-600">Total Goal</div>
             </div>
             <div className="bg-green-50 p-4 rounded-xl border border-green-100">
-              <div className="text-2xl font-bold text-green-600">{filteredFundraisers.length}</div>
+              <div className="text-2xl font-bold text-green-600">
+                {filteredFundraisers.length}
+              </div>
               <div className="text-sm text-green-600">Filtered</div>
             </div>
           </div>
@@ -363,11 +528,17 @@ export default function FundRaise() {
 
         {/* Fundraisers Grid */}
         {paginatedFundraisers.length === 0 ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-20"
+          >
             <div className="inline-flex items-center justify-center w-24 h-24 bg-green-100 rounded-full mb-6">
               <Target className="w-12 h-12 text-green-600" />
             </div>
-            <h3 className="text-2xl font-bold text-gray-600 mb-4">No fundraisers found</h3>
+            <h3 className="text-2xl font-bold text-gray-600 mb-4">
+              No fundraisers found
+            </h3>
             <p className="text-gray-500 text-lg mb-6">
               {filterTitle !== "All"
                 ? "Try adjusting your filters"
@@ -384,11 +555,16 @@ export default function FundRaise() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12"
           >
             {paginatedFundraisers.map((fundraiser, index) => {
-              const titleOption = titleOptions.find((t) => t.value === fundraiser.title)
-              const progress = getProgressPercentage(fundraiser.raisedAmount || 0, fundraiser.totalAmount || 0)
+              const titleOption = titleOptions.find(
+                (t) => t.value === fundraiser.title
+              );
+              const progress = getProgressPercentage(
+                fundraiser.raisedAmount || 0,
+                fundraiser.totalAmount || 0
+              );
 
               return (
                 <motion.div
@@ -401,7 +577,9 @@ export default function FundRaise() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <span className="text-lg">{titleOption?.icon || "💰"}</span>
+                        <span className="text-lg">
+                          {titleOption?.icon || "💰"}
+                        </span>
                       </div>
                       <h3 className="font-bold text-lg text-gray-800 group-hover:text-green-700 transition-colors">
                         {fundraiser.title}
@@ -411,14 +589,21 @@ export default function FundRaise() {
                   </div>
 
                   <div className="text-gray-600 mb-4 leading-relaxed flex-1">
-                    <ReadMoreText text={fundraiser.description} maxLength={50} />
+                    <ReadMoreText
+                      text={fundraiser.description}
+                      maxLength={50}
+                    />
                   </div>
 
                   {/* Progress Bar */}
                   <div className="mb-4">
                     <div className="flex justify-between text-sm mb-2">
-                      <span className="text-gray-600 font-medium">Progress</span>
-                      <span className="font-bold text-green-600">{progress.toFixed(1)}%</span>
+                      <span className="text-gray-600 font-medium">
+                        Progress
+                      </span>
+                      <span className="font-bold text-green-600">
+                        {progress.toFixed(1)}%
+                      </span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-3">
                       <div
@@ -443,10 +628,16 @@ export default function FundRaise() {
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 font-medium">Remaining:</span>
+                      <span className="text-gray-600 font-medium">
+                        Remaining:
+                      </span>
                       <span className="font-bold text-orange-600">
                         Rs.{" "}
-                        {Math.max(0, (fundraiser.totalAmount || 0) - (fundraiser.raisedAmount || 0)).toLocaleString()}
+                        {Math.max(
+                          0,
+                          (fundraiser.totalAmount || 0) -
+                            (fundraiser.raisedAmount || 0)
+                        ).toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -468,14 +659,18 @@ export default function FundRaise() {
                     </button>
                   </div>
                 </motion.div>
-              )
+              );
             })}
           </motion.div>
         )}
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-center">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex justify-center"
+          >
             <div className="flex space-x-2">
               {Array.from({ length: totalPages }, (_, i) => (
                 <button
@@ -504,25 +699,71 @@ export default function FundRaise() {
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg"
+              style={{
+                maxHeight: "85vh",
+                height: "auto",
+                overflow: "hidden",
+              }}
             >
-              <div className="p-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">
+              {/* Fixed Header */}
+              <div className="p-6 pb-4 border-b border-gray-100">
+                <h2 className="text-2xl font-bold text-gray-800">
                   {isEditing ? "Edit Fundraiser" : "Create New Fundraiser"}
                 </h2>
+              </div>
 
-                <form onSubmit={isEditing ? handleSaveEdit : handleSubmitNew} className="space-y-6">
+              {/* Scrollable Content */}
+              <div
+                className="px-6 py-4 overflow-y-auto"
+                style={{
+                  maxHeight: "calc(80vh - 140px)",
+                  scrollbarWidth: "thin",
+                  scrollbarColor: "#cbd5e0 transparent",
+                }}
+              >
+                <style jsx>{`
+                  div::-webkit-scrollbar {
+                    width: 6px;
+                  }
+                  div::-webkit-scrollbar-track {
+                    background: transparent;
+                    border-radius: 10px;
+                  }
+                  div::-webkit-scrollbar-thumb {
+                    background: #cbd5e0;
+                    border-radius: 10px;
+                  }
+                  div::-webkit-scrollbar-thumb:hover {
+                    background: #a0aec0;
+                  }
+                `}</style>
+
+                <form
+                  onSubmit={isEditing ? handleSaveEdit : handleSubmitNew}
+                  className="space-y-5"
+                >
                   {error && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                      {error}
+                    </div>
                   )}
 
                   {!isEditing && (
                     <>
                       <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-3">Category *</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">
+                          Category *
+                        </label>
                         <select
                           value={form.title}
-                          onChange={(e) => setForm({ ...form, title: e.target.value })}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              title: e.target.value,
+                              customTitle: "",
+                            })
+                          }
                           className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                           required
                         >
@@ -535,80 +776,128 @@ export default function FundRaise() {
                         </select>
                       </div>
 
-                      {form.title === "Other" && (
+                      {form.title === "Custom Category" && (
                         <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-3">Custom Title *</label>
+                          <label className="block text-sm font-bold text-gray-700 mb-2">
+                            Custom Category * (Max {MAX_CUSTOM_CATEGORY_CHARS}{" "}
+                            characters)
+                          </label>
                           <input
                             type="text"
-                            placeholder="Enter custom title"
+                            placeholder="Enter custom category (e.g., Winter Blankets)"
                             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                             value={form.customTitle}
-                            onChange={(e) => setForm({ ...form, customTitle: e.target.value })}
+                            onChange={handleCustomCategoryChange}
+                            maxLength={MAX_CUSTOM_CATEGORY_CHARS + 10}
                           />
+                          <div className="flex justify-between items-center mt-1">
+                            <span className="text-xs text-gray-500">
+                              {customCategoryCharCount}/
+                              {MAX_CUSTOM_CATEGORY_CHARS} characters
+                            </span>
+                            <span
+                              className={`text-xs ${
+                                getCustomCategoryStatus().color
+                              }`}
+                            >
+                              {getCustomCategoryStatus().message}
+                            </span>
+                          </div>
                         </div>
                       )}
                     </>
                   )}
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-3">Description *</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Description * ({MIN_DESCRIPTION_CHARS}-
+                      {MAX_DESCRIPTION_CHARS} characters)
+                    </label>
                     <textarea
                       rows="4"
-                      placeholder="Describe your fundraising goal and how the funds will be used"
+                      placeholder={`Describe your fundraising goal and how the funds will be used. Please provide at least ${MIN_DESCRIPTION_CHARS} characters to properly explain your request.`}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all resize-none"
-                      value={isEditing ? editFundraiser?.description || "" : form.description}
-                      onChange={(e) =>
+                      value={
                         isEditing
-                          ? setEditFundraiser({ ...editFundraiser, description: e.target.value })
-                          : setForm({ ...form, description: e.target.value })
+                          ? editFundraiser?.description || ""
+                          : form.description
                       }
+                      onChange={(e) => handleDescriptionChange(e, isEditing)}
+                      maxLength={MAX_DESCRIPTION_CHARS + 50}
                       required
                     />
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-xs text-gray-500">
+                        {descriptionCharCount} characters
+                      </span>
+                      <span
+                        className={`text-xs ${getDescriptionStatus().color}`}
+                      >
+                        {getDescriptionStatus().message}
+                      </span>
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-3">Target Amount (Rs.) *</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Target Amount (Rs.) *
+                    </label>
                     <input
                       type="number"
                       placeholder="Enter target amount"
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                      value={isEditing ? editFundraiser?.totalAmount || "" : form.totalAmount}
+                      value={
+                        isEditing
+                          ? editFundraiser?.totalAmount || ""
+                          : form.totalAmount
+                      }
                       onChange={(e) =>
                         isEditing
-                          ? setEditFundraiser({ ...editFundraiser, totalAmount: e.target.value })
+                          ? setEditFundraiser({
+                              ...editFundraiser,
+                              totalAmount: e.target.value,
+                            })
                           : setForm({ ...form, totalAmount: e.target.value })
                       }
                       min="1"
                       max={MAX_DONATION_AMOUNT}
                       required
                     />
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-gray-500 mt-1">
                       Maximum amount: Rs. {MAX_DONATION_AMOUNT.toLocaleString()}
                     </p>
                   </div>
-
-                  <div className="flex space-x-4 pt-6">
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-green-400 disabled:to-green-500 text-white py-3 px-6 rounded-xl font-semibold transition-all duration-300"
-                    >
-                      {loading ? "Saving..." : isEditing ? "Update Fundraiser" : "Create Fundraiser"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 px-6 rounded-xl font-semibold transition-all duration-300"
-                    >
-                      Cancel
-                    </button>
-                  </div>
                 </form>
+              </div>
+
+              {/* Fixed Footer */}
+              <div className="p-6 pt-4 pb-4 border-t border-gray-100">
+                <div className="flex space-x-4">
+                  <button
+                    type="submit"
+                    onClick={isEditing ? handleSaveEdit : handleSubmitNew}
+                    disabled={loading}
+                    className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-green-400 disabled:to-green-500 text-white py-3 px-6 rounded-xl font-semibold transition-all duration-300"
+                  >
+                    {loading
+                      ? "Saving..."
+                      : isEditing
+                      ? "Update Fundraiser"
+                      : "Create Fundraiser"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 px-6 rounded-xl font-semibold transition-all duration-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
         )}
       </div>
     </div>
-  )
+  );
 }
