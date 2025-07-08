@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { firestore } from "@/lib/firebase"
-import { collection, getDocs, deleteDoc, doc, addDoc, getDoc, serverTimestamp } from "firebase/firestore"
+import { collection, getDocs, doc, addDoc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Search,
@@ -17,7 +17,41 @@ import {
   Building,
   Calendar,
   X,
+  ChevronDown,
+  ChevronUp,
+  Package,
 } from "lucide-react"
+
+// Read More/Less Component
+const ReadMoreText = ({ text, maxLength = 150 }) => {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  if (!text || text.length <= maxLength) {
+    return <p className="text-gray-900 whitespace-pre-wrap">{text}</p>
+  }
+
+  return (
+    <div>
+      <p className="text-gray-900 whitespace-pre-wrap">{isExpanded ? text : `${text.substring(0, maxLength)}...`}</p>
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+      >
+        {isExpanded ? (
+          <>
+            <ChevronUp className="w-4 h-4" />
+            Read Less
+          </>
+        ) : (
+          <>
+            <ChevronDown className="w-4 h-4" />
+            Read More
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
 
 export default function ManageContent() {
   const [content, setContent] = useState([])
@@ -52,14 +86,21 @@ export default function ManageContent() {
       const allContent = []
 
       for (const col of collections) {
-        const snapshot = await getDocs(collection(firestore, col.name))
-        const items = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          type: col.type,
-          collection: col.name,
-          ...doc.data(),
-        }))
-        allContent.push(...items)
+        try {
+          const snapshot = await getDocs(collection(firestore, col.name))
+          const items = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            type: col.type,
+            collection: col.name,
+            ...doc.data(),
+          }))
+
+          // Client-side filtering for soft deleted items
+          const activeItems = items.filter((item) => item.isDeleted !== true)
+          allContent.push(...activeItems)
+        } catch (error) {
+          console.error(`Error fetching ${col.name}:`, error)
+        }
       }
 
       // Fetch orphanage names for all items
@@ -96,6 +137,7 @@ export default function ManageContent() {
       setContent(enrichedContent)
     } catch (error) {
       console.error("Error fetching content:", error)
+      alert("Failed to fetch content. Please check your connection and try again.")
     } finally {
       setLoading(false)
     }
@@ -138,11 +180,18 @@ export default function ManageContent() {
 
     setDeleting(true)
     try {
-      // Delete the item
-      await deleteDoc(doc(firestore, itemToDelete.collection, itemToDelete.id))
+      // Soft delete: Mark as deleted instead of actually deleting
+      const updateData = {
+        isDeleted: true,
+        deletedAt: serverTimestamp(),
+        deletedBy: "admin",
+        deleteReason: deleteReason.trim(),
+      }
+
+      await updateDoc(doc(firestore, itemToDelete.collection, itemToDelete.id), updateData)
 
       // Create admin notification
-      await addDoc(collection(firestore, "adminNotifications"), {
+      const notificationData = {
         orphanageId: itemToDelete.orphanageId,
         orphanageName: itemToDelete.orphanageName,
         targetOrganization: itemToDelete.orphanageName,
@@ -153,8 +202,10 @@ export default function ManageContent() {
         notificationType: "content_deletion",
         read: false,
         createdAt: serverTimestamp(),
-        adminId: "admin", // You might want to get actual admin ID
-      })
+        adminId: "admin",
+      }
+
+      await addDoc(collection(firestore, "adminNotifications"), notificationData)
 
       // Update local state
       setContent((prev) => prev.filter((item) => item.id !== itemToDelete.id))
@@ -163,10 +214,15 @@ export default function ManageContent() {
       setItemToDelete(null)
       setDeleteReason("")
 
-      alert(`${itemToDelete.type} deleted successfully and notification sent to orphanage.`)
+      alert(`${itemToDelete.type} marked as deleted successfully and notification sent to orphanage.`)
     } catch (error) {
-      console.error("Error deleting content:", error)
-      alert("Failed to delete content. Please try again.")
+      console.error("Error during soft delete:", error)
+
+      if (error.code === "permission-denied") {
+        alert("Permission denied. Please check if you're logged in as an admin and Firebase rules are updated.")
+      } else {
+        alert(`Failed to delete content: ${error.message}. Please try again.`)
+      }
     } finally {
       setDeleting(false)
     }
@@ -360,28 +416,65 @@ export default function ManageContent() {
                       transition={{ delay: index * 0.05 }}
                       className="hover:bg-gray-50 transition-colors"
                     >
-                   <td className="px-6 py-4">
-  <div className="flex items-start gap-3">
-    {getTypeIcon(item.type)}
-    <div className="min-w-0 flex-1">
-      <h3 className="text-sm font-semibold text-gray-900 truncate">{item.title}</h3>
-      <p className="text-sm text-gray-500 line-clamp-2 mt-1">{item.description}</p>
+                      <td className="px-6 py-4">
+                        <div className="flex items-start gap-3">
+                          {getTypeIcon(item.type)}
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-semibold text-gray-900 truncate">{item.title}</h3>
+                            <div className="mt-1">
+                              <ReadMoreText text={item.description} maxLength={50} />
+                            </div>
 
-      {/* ✅ Add requestType and quantity if present */}
-      {item.requestType && (
-        <div className="text-xs text-gray-600 mt-1">
-          <span className="font-semibold">Type:</span> {item.requestType}
-          {item.quantity !== undefined && (
-            <>
-              {" | "}
-              <span className=" font-semibold ">Quantity:</span> {item.quantity}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  </div>
-</td>
+                            {/* Enhanced quantity display for requests */}
+                            {item.type === "Request" && (
+                              <div className="text-xs text-gray-600 mt-2 space-y-1">
+                                {item.requestType && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-semibold">Type:</span>
+                                    <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs">
+                                      {item.requestType}
+                                    </span>
+                                  </div>
+                                )}
+                                {item.quantity !== undefined && item.quantity !== null && item.quantity !== "" && (
+                                  <div className="flex items-center gap-1">
+                                    <Package className="w-3 h-3" />
+                                    <span className="font-semibold">Quantity:</span>
+                                    <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                                      {item.quantity}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Service details */}
+                            {item.type === "Service" && item.serviceType && (
+                              <div className="text-xs text-gray-600 mt-2">
+                                <span className="font-semibold">Service Type:</span>
+                                <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs ml-1">
+                                  {item.serviceType}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Fundraiser amount */}
+                            {item.type === "Fundraiser" && (
+                              <div className="text-xs text-gray-600 mt-2">
+                                <span className="font-semibold">Target:</span> Rs.{" "}
+                                {item.totalAmount?.toLocaleString() || 0}
+                                {item.raisedAmount !== undefined && (
+                                  <>
+                                    {" | "}
+                                    <span className="font-semibold">Raised:</span> Rs.{" "}
+                                    {item.raisedAmount?.toLocaleString() || 0}
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
 
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
@@ -389,7 +482,7 @@ export default function ManageContent() {
                           <span className="text-sm text-gray-900">{item.orphanageName}</span>
                         </div>
                       </td>
-                      
+
                       <td className="px-6 py-4">
                         <span
                           className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getTypeColor(item.type)}`}
@@ -423,7 +516,7 @@ export default function ManageContent() {
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleDeleteClick(item)}
                             className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                            title="Delete Content"
+                            title="Soft Delete Content"
                           >
                             <Trash2 className="w-4 h-4" />
                           </motion.button>
@@ -477,7 +570,7 @@ export default function ManageContent() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                       <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-gray-900 whitespace-pre-wrap">{selectedItem.description}</p>
+                        <ReadMoreText text={selectedItem.description} maxLength={300} />
                       </div>
                     </div>
 
@@ -495,6 +588,36 @@ export default function ManageContent() {
                         <p className="text-gray-900">{selectedItem.orphanageName}</p>
                       </div>
                     </div>
+
+                    {/* Enhanced details based on type */}
+                    {selectedItem.type === "Request" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {selectedItem.requestType && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Request Type</label>
+                            <p className="text-gray-900">{selectedItem.requestType}</p>
+                          </div>
+                        )}
+                        {selectedItem.quantity !== undefined &&
+                          selectedItem.quantity !== null &&
+                          selectedItem.quantity !== "" && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                              <div className="flex items-center gap-2">
+                                <Package className="w-4 h-4 text-gray-500" />
+                                <p className="text-gray-900 font-medium">{selectedItem.quantity}</p>
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    )}
+
+                    {selectedItem.type === "Service" && selectedItem.serviceType && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
+                        <p className="text-gray-900">{selectedItem.serviceType}</p>
+                      </div>
+                    )}
 
                     {selectedItem.type === "Fundraiser" && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -536,7 +659,7 @@ export default function ManageContent() {
                       className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
-                      Delete Content
+                      Soft Delete Content
                     </button>
                   </div>
                 </div>
@@ -567,12 +690,13 @@ export default function ManageContent() {
                     <div className="p-3 bg-red-100 rounded-full">
                       <AlertTriangle className="w-6 h-6 text-red-600" />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900">Delete Content</h3>
+                    <h3 className="text-xl font-bold text-gray-900">Soft Delete Content</h3>
                   </div>
 
                   <div className="mb-6">
                     <p className="text-gray-600 mb-4">
-                      Are you sure you want to delete "{itemToDelete.title}"? This action cannot be undone.
+                      Are you sure you want to soft delete "{itemToDelete.title}"? This will hide it from users but keep
+                      it in the database.
                     </p>
 
                     <div>
@@ -606,12 +730,12 @@ export default function ManageContent() {
                       {deleting ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                          Deleting...
+                          Soft Deleting...
                         </>
                       ) : (
                         <>
                           <Trash2 className="w-4 h-4" />
-                          Delete Content
+                          Soft Delete Content
                         </>
                       )}
                     </button>

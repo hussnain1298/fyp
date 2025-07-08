@@ -1,27 +1,49 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
-import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore"
+import { useState, useEffect } from "react"
+import { motion } from "framer-motion"
+import {
+  Mail,
+  Search,
+  Calendar,
+  Download,
+  Trash2,
+  Send,
+  Users,
+  TrendingUp,
+  AlertCircle,
+  CheckCircle,
+} from "lucide-react"
 import { firestore } from "@/lib/firebase"
-import { Search, Mail, Calendar, Trash2, Download } from "lucide-react"
-import dayjs from "dayjs"
+import { collection, onSnapshot, doc, updateDoc, query, where, orderBy } from "firebase/firestore"
 
-export default function Subscriptions() {
+export default function SubscriptionManagement() {
   const [subscriptions, setSubscriptions] = useState([])
+  const [filteredSubscriptions, setFilteredSubscriptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortBy, setSortBy] = useState("newest")
-  const [dateFilter, setDateFilter] = useState("all")
+  const [filterStatus, setFilterStatus] = useState("all")
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [subscriptionToDelete, setSubscriptionToDelete] = useState(null)
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    unsubscribed: 0,
+    thisMonth: 0,
+    thisWeek: 0,
+  })
 
   useEffect(() => {
-    const unsub = onSnapshot(
-      collection(firestore, "subscriptions"),
+    const unsubscribe = onSnapshot(
+      query(collection(firestore, "subscriptions"), where("isDeleted", "!=", true), orderBy("createdAt", "desc")),
       (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
+        const subscriptionsData = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }))
-        setSubscriptions(data)
+
+        setSubscriptions(subscriptionsData)
+        calculateStats(subscriptionsData)
         setLoading(false)
       },
       (error) => {
@@ -29,27 +51,95 @@ export default function Subscriptions() {
         setLoading(false)
       },
     )
-    return () => unsub()
+
+    return () => unsubscribe()
   }, [])
 
-  const deleteSubscription = async (subscriptionId) => {
-    if (window.confirm("Are you sure you want to remove this subscription?")) {
-      try {
-        await deleteDoc(doc(firestore, "subscriptions", subscriptionId))
-      } catch (error) {
-        console.error("Error deleting subscription:", error)
-        alert("Error removing subscription. Please try again.")
+  useEffect(() => {
+    filterSubscriptions()
+  }, [subscriptions, searchTerm, filterStatus])
+
+  const calculateStats = (subscriptionsData) => {
+    const total = subscriptionsData.length
+    const active = subscriptionsData.filter((sub) => sub.isActive !== false).length
+    const unsubscribed = subscriptionsData.filter((sub) => sub.isActive === false).length
+
+    // Calculate this month and this week subscriptions
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()))
+
+    const thisMonth = subscriptionsData.filter((sub) => {
+      const createdAt = sub.createdAt?.toDate?.()
+      return createdAt && createdAt >= startOfMonth
+    }).length
+
+    const thisWeek = subscriptionsData.filter((sub) => {
+      const createdAt = sub.createdAt?.toDate?.()
+      return createdAt && createdAt >= startOfWeek
+    }).length
+
+    setStats({ total, active, unsubscribed, thisMonth, thisWeek })
+  }
+
+  const filterSubscriptions = () => {
+    let filtered = subscriptions
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter((sub) => sub.email?.toLowerCase().includes(searchTerm.toLowerCase()))
+    }
+
+    // Status filter
+    if (filterStatus !== "all") {
+      if (filterStatus === "active") {
+        filtered = filtered.filter((sub) => sub.isActive !== false)
+      } else if (filterStatus === "unsubscribed") {
+        filtered = filtered.filter((sub) => sub.isActive === false)
       }
+    }
+
+    setFilteredSubscriptions(filtered)
+  }
+
+  const toggleSubscriptionStatus = async (subscriptionId, currentStatus) => {
+    try {
+      const newStatus = currentStatus === false ? true : false
+      await updateDoc(doc(firestore, "subscriptions", subscriptionId), {
+        isActive: newStatus,
+        updatedAt: new Date(),
+        ...(newStatus === false && { unsubscribedAt: new Date() }),
+        ...(newStatus === true && { resubscribedAt: new Date() }),
+      })
+      console.log(`Subscription ${subscriptionId} status updated to: ${newStatus ? "active" : "unsubscribed"}`)
+    } catch (error) {
+      console.error("Error updating subscription status:", error)
     }
   }
 
-  const exportToCSV = () => {
+  const softDeleteSubscription = async (subscriptionId) => {
+    try {
+      await updateDoc(doc(firestore, "subscriptions", subscriptionId), {
+        isDeleted: true,
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      setShowDeleteModal(false)
+      setSubscriptionToDelete(null)
+      console.log(`Subscription ${subscriptionId} soft deleted`)
+    } catch (error) {
+      console.error("Error soft deleting subscription:", error)
+    }
+  }
+
+  const exportSubscriptions = () => {
     const csvContent = [
-      ["Email", "Date", "Time"],
+      ["Email", "Status", "Subscribed Date", "Last Updated"],
       ...filteredSubscriptions.map((sub) => [
         sub.email,
-        sub.timestamp ? dayjs(sub.timestamp.toDate()).format("M/D/YYYY") : "N/A",
-        sub.timestamp ? dayjs(sub.timestamp.toDate()).format("h:mm A") : "N/A",
+        sub.isActive === false ? "Unsubscribed" : "Active",
+        sub.createdAt?.toDate?.()?.toLocaleDateString() || "Unknown",
+        sub.updatedAt?.toDate?.()?.toLocaleDateString() || "Unknown",
       ]),
     ]
       .map((row) => row.join(","))
@@ -59,290 +149,338 @@ export default function Subscriptions() {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `subscriptions-${dayjs().format("YYYY-MM-DD")}.csv`
+    a.download = `newsletter-subscriptions-${new Date().toISOString().split("T")[0]}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
   }
 
-  const getDateFilteredSubscriptions = (subs) => {
-    if (dateFilter === "all") return subs
-
-    const now = new Date()
-    const filterDate = new Date()
-
-    switch (dateFilter) {
-      case "today":
-        filterDate.setHours(0, 0, 0, 0)
-        return subs.filter((sub) => sub.timestamp?.toDate() >= filterDate)
-      case "week":
-        filterDate.setDate(now.getDate() - 7)
-        return subs.filter((sub) => sub.timestamp?.toDate() >= filterDate)
-      case "month":
-        filterDate.setMonth(now.getMonth() - 1)
-        return subs.filter((sub) => sub.timestamp?.toDate() >= filterDate)
-      default:
-        return subs
+  const getStatusIcon = (isActive) => {
+    if (isActive === false) {
+      return <AlertCircle className="w-4 h-4 text-red-600" />
     }
+    return <CheckCircle className="w-4 h-4 text-green-600" />
   }
 
-  const filteredSubscriptions = useMemo(() => {
-    return getDateFilteredSubscriptions(subscriptions)
-      .filter((sub) => sub.email?.toLowerCase().includes(searchTerm.toLowerCase()))
-      .sort((a, b) => {
-        if (sortBy === "newest") {
-          return (b.timestamp?.toDate() || new Date()) - (a.timestamp?.toDate() || new Date())
-        } else if (sortBy === "oldest") {
-          return (a.timestamp?.toDate() || new Date()) - (b.timestamp?.toDate() || new Date())
-        } else if (sortBy === "email") {
-          return (a.email || "").localeCompare(b.email || "")
-        }
-        return 0
-      })
-  }, [subscriptions, searchTerm, sortBy, dateFilter])
+  const getStatusColor = (isActive) => {
+    if (isActive === false) {
+      return "bg-red-100 text-red-800"
+    }
+    return "bg-green-100 text-green-800"
+  }
 
-  const stats = useMemo(
-    () => ({
-      total: subscriptions.length,
-      today: subscriptions.filter((sub) => {
-        if (!sub.timestamp) return false
-        const today = new Date()
-        const subDate = sub.timestamp.toDate()
-        return subDate.toDateString() === today.toDateString()
-      }).length,
-      thisWeek: subscriptions.filter((sub) => {
-        if (!sub.timestamp) return false
-        const weekAgo = new Date()
-        weekAgo.setDate(weekAgo.getDate() - 7)
-        return sub.timestamp.toDate() > weekAgo
-      }).length,
-      thisMonth: subscriptions.filter((sub) => {
-        if (!sub.timestamp) return false
-        const monthAgo = new Date()
-        monthAgo.setMonth(monthAgo.getMonth() - 1)
-        return sub.timestamp.toDate() > monthAgo
-      }).length,
-    }),
-    [subscriptions],
-  )
+  const getStatusText = (isActive) => {
+    if (isActive === false) {
+      return "Unsubscribed"
+    }
+    return "Active"
+  }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-500 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading subscriptions...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Email Subscriptions</h1>
-            <p className="text-gray-600">Manage newsletter subscribers and email list</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-green-100 rounded-xl">
+                <Mail className="w-8 h-8 text-green-600" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Newsletter Subscriptions</h1>
+                <p className="text-gray-600">Manage newsletter subscribers and send campaigns</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={exportSubscriptions}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Export CSV
+              </button>
+              <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                <Send className="w-4 h-4" />
+                Send Campaign
+              </button>
+            </div>
           </div>
-          <button
-            onClick={exportToCSV}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+        </motion.div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </button>
-        </div>
-      </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Subscribers</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              </div>
+              <Users className="w-8 h-8 text-gray-600" />
+            </div>
+          </motion.div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Active</p>
+                <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+              </div>
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Unsubscribed</p>
+                <p className="text-2xl font-bold text-red-600">{stats.unsubscribed}</p>
+              </div>
+              <AlertCircle className="w-8 h-8 text-red-600" />
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">This Month</p>
+                <p className="text-2xl font-bold text-blue-600">{stats.thisMonth}</p>
+              </div>
+              <TrendingUp className="w-8 h-8 text-blue-600" />
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">This Week</p>
+                <p className="text-2xl font-bold text-purple-600">{stats.thisWeek}</p>
+              </div>
+              <Calendar className="w-8 h-8 text-purple-600" />
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Filters and Search */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6"
+        >
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Search subscribers by email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+            </div>
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Subscribers</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <Mail className="h-6 w-6 text-blue-600" />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              >
+                <option value="all">All Subscribers</option>
+                <option value="active">Active</option>
+                <option value="unsubscribed">Unsubscribed</option>
+              </select>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Today</p>
-              <p className="text-2xl font-bold text-green-600">{stats.today}</p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">This Week</p>
-              <p className="text-2xl font-bold text-purple-600">{stats.thisWeek}</p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-purple-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">This Month</p>
-              <p className="text-2xl font-bold text-orange-600">{stats.thisMonth}</p>
-            </div>
-            <div className="p-3 bg-orange-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-orange-600" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters and Search */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Search by email address..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          <div className="flex gap-4">
-            <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Time</option>
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-            </select>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="email">Email A-Z</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Subscriptions Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {filteredSubscriptions.length === 0 ? (
-          <div className="p-12 text-center">
-            <Mail className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No subscriptions found</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {searchTerm || dateFilter !== "all"
-                ? "Try adjusting your search or filter criteria."
-                : "No email subscriptions have been received yet."}
-            </p>
-          </div>
-        ) : (
+        {/* Subscriptions Table */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+        >
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email Address
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Subscription Date
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Time
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Subscribed Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Last Updated
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredSubscriptions.map((sub) => (
-                  <tr key={sub.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-8 w-8">
-                          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                            <Mail className="h-4 w-4 text-blue-600" />
-                          </div>
+              <tbody className="divide-y divide-gray-200">
+                {filteredSubscriptions.map((subscription, index) => (
+                  <motion.tr
+                    key={subscription.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                          {subscription.email?.charAt(0)?.toUpperCase() || "U"}
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{sub.email}</div>
+                        <div>
+                          <p className="font-medium text-gray-900">{subscription.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-gray-900">
-                        <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                        {sub.timestamp ? dayjs(sub.timestamp.toDate()).format("MMM D, YYYY") : "N/A"}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(subscription.isActive)}
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(subscription.isActive)}`}
+                        >
+                          {getStatusText(subscription.isActive)}
+                        </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {sub.timestamp ? dayjs(sub.timestamp.toDate()).format("h:mm A") : "N/A"}
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {subscription.createdAt?.toDate?.()?.toLocaleDateString() || "Unknown"}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <a
-                          href={`mailto:${sub.email}`}
-                          className="text-blue-600 hover:text-blue-900 p-1 rounded transition-colors"
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {subscription.updatedAt?.toDate?.()?.toLocaleDateString() || "Never"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleSubscriptionStatus(subscription.id, subscription.isActive)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            subscription.isActive === false
+                              ? "bg-green-100 text-green-600 hover:bg-green-200"
+                              : "bg-red-100 text-red-600 hover:bg-red-200"
+                          }`}
+                          title={subscription.isActive === false ? "Resubscribe" : "Unsubscribe"}
+                        >
+                          {subscription.isActive === false ? (
+                            <CheckCircle className="w-4 h-4" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => window.open(`mailto:${subscription.email}`)}
+                          className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
                           title="Send Email"
                         >
-                          <Mail className="h-4 w-4" />
-                        </a>
+                          <Send className="w-4 h-4" />
+                        </button>
                         <button
-                          onClick={() => deleteSubscription(sub.id)}
-                          className="text-red-600 hover:text-red-900 p-1 rounded transition-colors"
-                          title="Remove Subscription"
+                          onClick={() => {
+                            setSubscriptionToDelete(subscription)
+                            setShowDeleteModal(true)
+                          }}
+                          className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                          title="Delete Subscription"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {filteredSubscriptions.length === 0 && (
+            <div className="text-center py-12">
+              <Mail className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 text-lg">No subscriptions found</p>
+              <p className="text-gray-400 text-sm">Try adjusting your search or filter criteria</p>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-xl p-6 max-w-md w-full mx-4"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <AlertCircle className="w-6 h-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Confirm Deletion</h3>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete the subscription for <strong>{subscriptionToDelete?.email}</strong>?
+                This action cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false)
+                    setSubscriptionToDelete(null)
+                  }}
+                  className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => softDeleteSubscription(subscriptionToDelete.id)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Delete Subscription
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </div>
-
-      {/* Summary Footer */}
-      {filteredSubscriptions.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex justify-between items-center text-sm text-gray-600">
-            <span>
-              Showing {filteredSubscriptions.length} of {subscriptions.length} subscriptions
-            </span>
-            <span>
-              Latest:{" "}
-              {subscriptions.length > 0 && subscriptions[0]?.timestamp
-                ? dayjs(
-                    subscriptions
-                      .sort((a, b) => (b.timestamp?.toDate() || new Date()) - (a.timestamp?.toDate() || new Date()))[0]
-                      .timestamp.toDate(),
-                  ).format("MMM D, YYYY")
-                : "N/A"}
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

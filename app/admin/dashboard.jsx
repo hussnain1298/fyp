@@ -470,11 +470,7 @@ export default function AdminHome({ user }) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50 flex items-center justify-center">
         <div className="text-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-            className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"
-          />
+       
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-gray-600 text-lg font-medium">
             Loading admin dashboard...
           </motion.p>
@@ -655,55 +651,7 @@ export default function AdminHome({ user }) {
           </div>
         </div>
 
-        {/* System Status */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Globe className="w-6 h-6 text-purple-600" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900">System Status</h3>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center p-4 bg-green-50 rounded-xl">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Database className="w-6 h-6 text-green-600" />
-              </div>
-              <h4 className="font-semibold text-gray-900">Database</h4>
-              <p className="text-sm text-green-600 mt-1">Operational</p>
-              <div className="mt-2 bg-green-200 rounded-full h-2">
-                <div className="bg-green-500 h-2 rounded-full" style={{ width: "98%" }}></div>
-              </div>
-            </div>
-
-            <div className="text-center p-4 bg-blue-50 rounded-xl">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Globe className="w-6 h-6 text-blue-600" />
-              </div>
-              <h4 className="font-semibold text-gray-900">API Services</h4>
-              <p className="text-sm text-blue-600 mt-1">Running</p>
-              <div className="mt-2 bg-blue-200 rounded-full h-2">
-                <div className="bg-blue-500 h-2 rounded-full" style={{ width: "95%" }}></div>
-              </div>
-            </div>
-
-            <div className="text-center p-4 bg-purple-50 rounded-xl">
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Shield className="w-6 h-6 text-purple-600" />
-              </div>
-              <h4 className="font-semibold text-gray-900">Security</h4>
-              <p className="text-sm text-purple-600 mt-1">Protected</p>
-              <div className="mt-2 bg-purple-200 rounded-full h-2">
-                <div className="bg-purple-500 h-2 rounded-full" style={{ width: "100%" }}></div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
+        
       </div>
     </div>
   )
