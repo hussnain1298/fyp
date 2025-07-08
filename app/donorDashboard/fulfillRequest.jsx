@@ -181,75 +181,77 @@ export default function FulfillRequests() {
     setPage(1)
   }
 
-  const validateDonation = (request) => {
-    const errors = {}
+ const validateDonation = (request, note, amount) => {
+  const errors = {}
 
-    if (!donationNote.trim()) {
-      errors.note = "Please add a note about your donation"
-    } else if (donationNote.trim().length < 10) {
-      errors.note = "Note must be at least 10 characters long"
-    }
-
-    if (["Money", "Clothes", "Food"].includes(request.requestType)) {
-      if (!donationAmount || isNaN(donationAmount) || Number(donationAmount) <= 0) {
-        const typeText = request.requestType === "Food" ? "number of meals" : "donation amount"
-        errors.amount = `Please enter a valid ${typeText}`
-      } else if (Number(donationAmount) > 1000000) {
-        errors.amount = "Amount cannot exceed 1,000,000"
-      } else if (request.requestType === "Money" && Number(donationAmount) < 1) {
-        errors.amount = "Minimum donation amount is Rs. 1"
-      } else if (["Clothes", "Food"].includes(request.requestType) && Number(donationAmount) < 1) {
-        errors.amount = "Minimum quantity is 1"
-      }
-    }
-
-    setValidationErrors(errors)
-    return Object.keys(errors).length === 0
+  if (!note.trim()) {
+    errors.note = "Please add a note about your donation"
+  } else if (note.trim().length < 10) {
+    errors.note = "Note must be at least 10 characters long"
   }
 
-  const handleFulfill = async (request) => {
-    const user = auth.currentUser
-    if (!user) {
-      toast.error("Please log in to make a donation")
-      return
-    }
-
-    if (!validateDonation(request)) {
-      toast.error("Please fix the validation errors")
-      return
-    }
-
-    setSubmitting(true)
-    try {
-      const donationData = {
-        donorId: user.uid,
-        donorEmail: user.email,
-        orphanageId: request.orphanageId,
-        requestId: request.id,
-        donationType: request.requestType,
-        amount: request.requestType === "Money" ? Number(donationAmount) : null,
-        numClothes: request.requestType === "Clothes" ? Number(donationAmount) : null,
-        numMeals: request.requestType === "Food" ? Number(donationAmount) : null,
-        foodDescription: request.requestType === "Food" ? request.description : null,
-        description: donationNote.trim(),
-        confirmed: false,
-        timestamp: serverTimestamp(),
-      }
-
-      const donationRef = await addDoc(collection(firestore, "donations"), donationData)
-      await updateDoc(doc(firestore, "requests", request.id), {
-        donations: arrayUnion(donationRef.id),
-      })
-
-      toast.success("Donation submitted successfully! Awaiting orphanage confirmation.")
-      closeModal()
-      fetchRequests()
-    } catch (err) {
-      toast.error("Error submitting donation: " + err.message)
-    } finally {
-      setSubmitting(false)
+  if (["Money", "Clothes", "Food"].includes(request.requestType)) {
+    if (!amount || isNaN(amount) || Number(amount) <= 0) {
+      const typeText = request.requestType === "Food" ? "number of meals" : "donation amount"
+      errors.amount = `Please enter a valid ${typeText}`
+    } else if (Number(amount) > 1000000) {
+      errors.amount = "Amount cannot exceed 1,000,000"
+    } else if (request.requestType === "Money" && Number(amount) < 1) {
+      errors.amount = "Minimum donation amount is Rs. 1"
+    } else if (["Clothes", "Food"].includes(request.requestType) && Number(amount) < 1) {
+      errors.amount = "Minimum quantity is 1"
     }
   }
+
+  setValidationErrors(errors)
+  return Object.keys(errors).length === 0
+}
+
+ const handleFulfill = async (request) => {
+  const user = auth.currentUser
+  if (!user) {
+    toast.error("Please log in to make a donation")
+    return
+  }
+
+  const isValid = validateDonation(request, donationNote, donationAmount)
+  if (!isValid) {
+    toast.error("Please fix the validation errors")
+    return
+  }
+
+  setSubmitting(true)
+  try {
+    const donationData = {
+      donorId: user.uid,
+      donorEmail: user.email,
+      orphanageId: request.orphanageId,
+      requestId: request.id,
+      donationType: request.requestType,
+      amount: request.requestType === "Money" ? Number(donationAmount) : null,
+      numClothes: request.requestType === "Clothes" ? Number(donationAmount) : null,
+      numMeals: request.requestType === "Food" ? Number(donationAmount) : null,
+      foodDescription: request.requestType === "Food" ? request.description : null,
+      description: donationNote.trim(),
+      confirmed: false,
+      timestamp: serverTimestamp(),
+    }
+
+    const donationRef = await addDoc(collection(firestore, "donations"), donationData)
+
+    await updateDoc(doc(firestore, "requests", request.id), {
+      donations: arrayUnion(donationRef.id),
+    })
+
+    toast.success("Donation submitted successfully! Awaiting orphanage confirmation.")
+    closeModal()
+    fetchRequests()
+  } catch (err) {
+    toast.error("Error submitting donation: " + err.message)
+  } finally {
+    setSubmitting(false)
+  }
+}
 
   const closeModal = () => {
     setActiveModalId(null)
