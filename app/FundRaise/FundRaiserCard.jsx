@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import React from "react";
-
 import PaymentModule from "../payment/paymentModule";
 import { firestore } from "@/lib/firebase";
 import {
@@ -23,6 +22,7 @@ const AmountInputModal = ({
   orphanageName,
   totalAmount,
   raisedAmount,
+  amountModalAnimation,
 }) => {
   const [amount, setAmount] = useState("");
   const [customAmount, setCustomAmount] = useState("");
@@ -35,7 +35,6 @@ const AmountInputModal = ({
   // Update calculatePredefinedAmounts function:
   const calculatePredefinedAmounts = () => {
     if (isCompleted) return []; // No amounts if completed
-
     const percentages = [2.5, 5, 10, 20, 30, 40];
     const amounts = percentages
       .map((percentage) => {
@@ -64,7 +63,6 @@ const AmountInputModal = ({
   const predefinedAmounts = calculatePredefinedAmounts();
 
   const handleClose = () => {
-    // Reset states when closing
     setAmount("");
     setCustomAmount("");
     setSelectedAmount(null);
@@ -111,12 +109,12 @@ const AmountInputModal = ({
 
     if (isOpen) {
       document.addEventListener("keydown", handleEscape);
-      document.body.style.overflow = "hidden";
+      // Remove the body overflow changes to prevent blinking
     }
 
     return () => {
       document.removeEventListener("keydown", handleEscape);
-      document.body.style.overflow = "unset";
+      // Remove the body overflow reset
     };
   }, [isOpen]);
 
@@ -124,7 +122,9 @@ const AmountInputModal = ({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[99998] bg-black bg-opacity-50 flex items-center justify-center p-4"
+      className={`fixed inset-0 z-[99998] bg-black transition-all duration-300 ease-out flex items-center justify-center p-4 ${
+        amountModalAnimation ? "bg-opacity-50" : "bg-opacity-0"
+      }`}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           handleClose();
@@ -147,7 +147,11 @@ const AmountInputModal = ({
       }}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-md"
+        className={`bg-white rounded-lg shadow-xl w-full max-w-md transition-all duration-300 ease-out transform ${
+          amountModalAnimation
+            ? "scale-100 opacity-100 translate-y-0"
+            : "scale-95 opacity-0 translate-y-4"
+        }`}
         onClick={(e) => e.stopPropagation()}
         style={{
           position: "relative",
@@ -210,7 +214,6 @@ const AmountInputModal = ({
             >
               Custom Amount
             </button>
-
             {selectedAmount === "custom" && (
               <input
                 type="number"
@@ -266,11 +269,13 @@ const FundRaiserCard = ({
 }) => {
   const [showAmountModal, setShowAmountModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showCardModal, setShowCardModal] = useState(false);
   const [donationAmount, setDonationAmount] = useState(0);
   const [donating, setDonating] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [raisedAmount, setRaisedAmount] = useState(initialRaised);
-  const [showFullDesc, setShowFullDesc] = useState(false);
+  const [modalAnimation, setModalAnimation] = useState(false);
+  const [amountModalAnimation, setAmountModalAnimation] = useState(false);
 
   useEffect(() => {
     if (user?.uid) {
@@ -289,6 +294,7 @@ const FundRaiserCard = ({
         setRaisedAmount(data.raisedAmount || 0);
       }
     });
+
     return () => unsub();
   }, [id]);
 
@@ -296,11 +302,13 @@ const FundRaiserCard = ({
   const resetAllStates = () => {
     setShowAmountModal(false);
     setShowPaymentModal(false);
+    setShowCardModal(false);
     setDonationAmount(0);
   };
 
   const closeAmountModal = () => {
-    setShowAmountModal(false);
+    setAmountModalAnimation(false);
+    setTimeout(() => setShowAmountModal(false), 300);
   };
 
   const closePaymentModal = () => {
@@ -311,6 +319,7 @@ const FundRaiserCard = ({
   // Step 1: Show amount input modal
   const handleDonate = () => {
     setShowAmountModal(true);
+    setTimeout(() => setAmountModalAnimation(true), 10);
   };
 
   // Step 2: Amount confirmed, show payment modal
@@ -349,7 +358,7 @@ const FundRaiserCard = ({
       }
 
       alert(
-        `✅ Thank you for your donation of Rs. ${Number(
+        `Thank you for your donation of Rs. ${Number(
           paymentData.amount
         ).toLocaleString()}!`
       );
@@ -371,89 +380,113 @@ const FundRaiserCard = ({
   const isCompleted = remainingAmount <= 0;
   const progressPercentage = Math.min((raisedAmount / totalAmount) * 100, 100);
 
+  const closeCardModal = () => {
+    setShowCardModal(false);
+    setTimeout(() => setShowCardModal(false), 300); // Wait for animation to complete
+  };
+
   return (
     <>
-      <div className="w-full sm:w-[340px] min-h-[480px] bg-white rounded-sm shadow-xl overflow-hidden hover:shadow-2xl transition-shadow duration-300 ease-in-out flex flex-col justify-between mb-10">
-        <div>
-          <div className="relative h-56 overflow-hidden rounded-t-sm shadow-inner">
-            <img
-              src={bgImage || "/placeholder.svg"}
-              alt={title}
-              className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-300 ease-in-out"
-              loading="lazy"
-            />
-          </div>
-          <div className="p-6 flex flex-col gap-3 flex-grow">
-            <h2 className="text-2xl font-extrabold text-gray-900 line-clamp-2">
-              {title}
-            </h2>
-            <p className="text-sm text-gray-600">
-              {showFullDesc || description.length <= 40
+      <div className="w-[360px] bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 ease-in-out border border-gray-100 mb-4">
+        {/* Card structure with fixed heights for consistent layout */}
+        <div className="relative h-60 overflow-hidden">
+          <img
+            src={bgImage || "/placeholder.svg"}
+            alt={title}
+            className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-300 ease-in-out"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent"></div>
+        </div>
+
+        <div className="p-4">
+          <h2 className="text-xl font-bold text-gray-900 line-clamp-2 leading-tight mb-2">
+            {title}
+          </h2>
+
+          {/* Fixed height description area */}
+          <div className="h-[50px] mb-14">
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {description.length <= 120
                 ? description
-                : `${description.slice(0, 40)}...`}
+                : `${description.slice(0, 120)}...`}
             </p>
-            {description.length > 40 && (
+            {description.length > 120 && (
               <span
-                className="text-green-600 text-sm cursor-pointer hover:underline"
-                onClick={() => setShowFullDesc(!showFullDesc)}
+                className="text-green-600 text-sm cursor-pointer hover:text-green-700 hover:underline transition-colors block mt-1"
+                onClick={() => {
+                  setShowCardModal(true);
+                  setTimeout(() => setModalAnimation(true), 10);
+                }}
               >
-                {showFullDesc ? "Show less" : "Read more"}
+                Read more
               </span>
             )}
           </div>
-        </div>
-        <div className="p-6 pt-0">
-          {orphanageName && (
-            <p className="text-sm font-semibold text-gray-500 mb-2">
-              ORPHANAGE: <span className="font-thin">{orphanageName}</span>
-            </p>
-          )}
-          {/* Update progress bar: */}
-          <div className="w-full h-2 bg-gray-300 rounded-md overflow-hidden shadow-inner mb-4">
+
+          {/* Orphanage info with fixed height */}
+          <div className="h-[40px] mb-0 ">
+            {orphanageName && (
+              <div className="p-2 pl-0 rounded-md">
+                <p className="text-xs font-medium text-gray-600 ">
+                  Orphanage:{" "}
+                  <span className="font-normal">{orphanageName}</span>
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Progress section */}
+          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden shadow-inner mb-3">
             <div
               className={`h-full transition-all duration-500 ease-in-out ${
                 isCompleted
-                  ? "bg-gradient-to-r from-green-500 to-green-700"
-                  : "bg-gradient-to-r from-green-400 to-green-600"
+                  ? "bg-gradient-to-r from-green-500 to-green-600"
+                  : "bg-gradient-to-r from-green-400 to-green-500"
               }`}
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
-          {/* Update progress display: */}
-          <div className="text-sm text-gray-700 font-semibold mb-6">
-            Raised{" "}
-            <span className="text-green-700">
-              Rs. {raisedAmount.toLocaleString()}
-            </span>{" "}
-            of Rs. {totalAmount.toLocaleString()}
+
+          <div className="text-sm text-gray-700 font-medium mb-4">
+            <div className="flex justify-between items-center">
+              <span>
+                <span className="text-green-600 font-semibold">
+                  Rs. {raisedAmount.toLocaleString()}
+                </span>
+              </span>
+              <span className="text-gray-500 text-xs">
+                of Rs. {totalAmount.toLocaleString()}
+              </span>
+            </div>
             {!isCompleted && (
               <div className="text-xs text-gray-500 mt-1">
-                Remaining: Rs. {remainingAmount.toLocaleString()}
+                Rs. {remainingAmount.toLocaleString()} remaining
               </div>
             )}
             {isCompleted && (
               <div className="text-xs text-green-600 mt-1 font-semibold">
-                🎉 Target Achieved!
+                Target Achieved!
               </div>
             )}
           </div>
-          {/* Update donate button: */}
+
+          {/* Donate button */}
           <button
             onClick={handleDonate}
             disabled={isCompleted}
-            className={`w-full py-3 rounded-md font-semibold transition ${
+            className={`w-full py-3 rounded-lg font-semibold transition-all duration-200 ${
               isCompleted
-                ? "bg-gray-400 text-white cursor-not-allowed"
-                : "bg-green-600 hover:bg-green-700 text-white focus:outline-none focus:ring-2 focus:ring-green-400"
+                ? "bg-green-600 text-white cursor-not-allowed"
+                : "bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
             }`}
           >
-            {isCompleted ? "✅ Completed" : "Donate"}
+            {isCompleted ? "Completed" : "Donate"}
           </button>
         </div>
       </div>
 
       {/* Amount Input Modal */}
-      {/* Pass remaining amount to AmountInputModal: */}
       <AmountInputModal
         isOpen={showAmountModal}
         onClose={closeAmountModal}
@@ -461,6 +494,7 @@ const FundRaiserCard = ({
         orphanageName={orphanageName}
         totalAmount={totalAmount}
         raisedAmount={raisedAmount}
+        amountModalAnimation={amountModalAnimation}
       />
 
       {/* Payment Modal */}
@@ -472,6 +506,139 @@ const FundRaiserCard = ({
           onPaymentSuccess={handlePaymentSuccess}
         />
       )}
+
+      {/* Card Details Modal - With Smooth Animation */}
+      {showCardModal &&
+        typeof window !== "undefined" &&
+        document.body &&
+        createPortal(
+          <div
+            className={`fixed inset-0 z-[99996] bg-black transition-all duration-300 ease-out flex items-center justify-center p-4 ${
+              modalAnimation ? "bg-opacity-50" : "bg-opacity-0"
+            }`}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                closeCardModal();
+              }
+            }}
+          >
+            <div
+              className={`bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col transition-all duration-300 ease-out transform ${
+                modalAnimation
+                  ? "scale-100 opacity-100 translate-y-0"
+                  : "scale-95 opacity-0 translate-y-4"
+              }`}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxHeight: "85vh",
+                maxWidth: "450px",
+                width: "90%",
+                height: "auto",
+                minHeight: "400px",
+              }}
+            >
+              {/* Fixed Header */}
+              <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
+                <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+                <button
+                  onClick={closeCardModal}
+                  className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Scrollable Content */}
+              <div
+                className="flex-1 overflow-y-auto p-4"
+                style={{ maxHeight: "calc(85vh - 140px)" }}
+              >
+                {/* Image */}
+                <div className="relative h-40 overflow-hidden rounded-lg mb-4">
+                  <img
+                    src={bgImage || "/placeholder.svg"}
+                    alt={title}
+                    className="w-full h-full object-cover object-center"
+                    loading="lazy"
+                  />
+                </div>
+
+                {/* Full Description */}
+                <div className="mb-4">
+                  <p className="text-gray-700 text-sm leading-relaxed">
+                    {description}
+                  </p>
+                </div>
+
+                {/* Orphanage Info */}
+                {orphanageName && (
+                  <div className="mb-4 p-3 pl-0 rounded-lg">
+                    <p className="text-sm font-medium text-gray-600">
+                      Orphanage:{" "}
+                      <span className="font-normal">{orphanageName}</span>
+                    </p>
+                  </div>
+                )}
+
+                {/* Progress Section */}
+                <div className="mb-4">
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
+                    <div
+                      className={`h-full transition-all duration-500 ease-in-out ${
+                        isCompleted
+                          ? "bg-gradient-to-r from-green-500 to-green-600"
+                          : "bg-gradient-to-r from-green-400 to-green-500"
+                      }`}
+                      style={{ width: `${progressPercentage}%` }}
+                    />
+                  </div>
+
+                  <div className="flex justify-between items-center text-sm mb-2">
+                    <span className="text-gray-600">
+                      <span className="font-semibold text-green-600">
+                        Rs. {raisedAmount.toLocaleString()}
+                      </span>{" "}
+                      raised
+                    </span>
+                    <span className="text-gray-500">
+                      of Rs. {totalAmount.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {!isCompleted && (
+                    <div className="text-xs text-gray-500 text-center">
+                      Rs. {remainingAmount.toLocaleString()} remaining
+                    </div>
+                  )}
+                  {isCompleted && (
+                    <div className="text-xs text-green-600 font-semibold text-center">
+                      Target Achieved!
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Fixed Footer with Donate Button */}
+              <div className="border-t p-4 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    closeCardModal();
+                    setTimeout(() => handleDonate(), 300); // Wait for modal to close
+                  }}
+                  disabled={isCompleted}
+                  className={`w-full py-3 rounded-lg font-semibold transition-all duration-200 ${
+                    isCompleted
+                      ? "bg-green-600 text-white cursor-not-allowed"
+                      : "bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                  }`}
+                >
+                  {isCompleted ? "Completed" : "Donate Now"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 };
