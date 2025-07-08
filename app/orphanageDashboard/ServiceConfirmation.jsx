@@ -2,13 +2,28 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { auth, firestore } from "@/lib/firebase"
-import { collection, query, getDocs, where, updateDoc, doc } from "firebase/firestore"
+import {
+  collection,
+  query,
+  getDocs,
+  where,
+  updateDoc,
+  doc,
+} from "firebase/firestore"
 import { motion } from "framer-motion"
-import { FaCog, FaCheck, FaTimes, FaSpinner, FaClipboardList, FaStickyNote, FaCalendarAlt } from "react-icons/fa"
+import {
+  FaCog,
+  FaCheck,
+  FaTimes,
+  FaSpinner,
+  FaClipboardList,
+  FaStickyNote,
+  FaCalendarAlt,
+} from "react-icons/fa"
 
 const PAGE_SIZE = 5
 
-export default function ServiceConfirmations({ activeStatus, matchesStatus }) {
+export default function ServiceConfirmations() {
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -23,29 +38,30 @@ export default function ServiceConfirmations({ activeStatus, matchesStatus }) {
     }
 
     try {
-      // Fetch all services for orphanage
-      const serviceQuery = query(collection(firestore, "services"), where("orphanageId", "==", user.uid))
+      const serviceQuery = query(
+        collection(firestore, "services"),
+        where("orphanageId", "==", user.uid),
+        where("status", "==", "In Progress")
+      )
+
       const serviceSnap = await getDocs(serviceQuery)
       const serviceList = serviceSnap.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }))
 
-      // Filter by status
-      const filteredServices = serviceList.filter((service) => matchesStatus(service.status))
-      setServices(filteredServices)
+      setServices(serviceList)
     } catch (error) {
       console.error("Error fetching services:", error)
     } finally {
       setLoading(false)
     }
-  }, [matchesStatus])
+  }, [])
 
   useEffect(() => {
     fetchServices()
   }, [fetchServices])
 
-  // Status badge helper
   const renderStatusBadge = (status) => {
     const lower = (status || "").toLowerCase()
     let bgClass = "bg-gray-400 text-white"
@@ -77,10 +93,8 @@ export default function ServiceConfirmations({ activeStatus, matchesStatus }) {
 
   const totalPages = Math.ceil(services.length / PAGE_SIZE)
 
-  // Orphanage approves → mark as "Fulfilled"
   const handleApproveService = async (serviceId) => {
     if (processingIds.has(serviceId)) return
-
     setProcessingIds((prev) => new Set(prev).add(serviceId))
 
     try {
@@ -91,8 +105,8 @@ export default function ServiceConfirmations({ activeStatus, matchesStatus }) {
 
       setServices((prev) =>
         prev.map((svc) =>
-          svc.id === serviceId ? { ...svc, status: "Fulfilled", completedAt: new Date().toISOString() } : svc,
-        ),
+          svc.id === serviceId ? { ...svc, status: "Fulfilled", completedAt: new Date().toISOString() } : svc
+        )
       )
     } catch (err) {
       console.error("Failed to approve service", err)
@@ -105,10 +119,8 @@ export default function ServiceConfirmations({ activeStatus, matchesStatus }) {
     }
   }
 
-  // Orphanage rejects → reset to "Pending"
   const handleRejectService = async (serviceId) => {
     if (processingIds.has(serviceId)) return
-
     setProcessingIds((prev) => new Set(prev).add(serviceId))
 
     try {
@@ -119,8 +131,8 @@ export default function ServiceConfirmations({ activeStatus, matchesStatus }) {
 
       setServices((prev) =>
         prev.map((svc) =>
-          svc.id === serviceId ? { ...svc, status: "Pending", rejectedAt: new Date().toISOString() } : svc,
-        ),
+          svc.id === serviceId ? { ...svc, status: "Pending", rejectedAt: new Date().toISOString() } : svc
+        )
       )
     } catch (err) {
       console.error("Failed to reject service", err)
@@ -170,7 +182,7 @@ export default function ServiceConfirmations({ activeStatus, matchesStatus }) {
       {paginatedServices.length === 0 ? (
         <div className="text-center py-12">
           <FaCog className="text-4xl text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg">No services found for the selected status.</p>
+          <p className="text-gray-500 text-lg">No in-progress services found.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -248,27 +260,24 @@ export default function ServiceConfirmations({ activeStatus, matchesStatus }) {
                     </div>
                   </div>
 
-                  {/* Action buttons */}
-                  {service.status?.toLowerCase() === "in progress" && (
-                    <div className="flex gap-3 lg:flex-col xl:flex-row lg:items-end">
-                      <button
-                        onClick={() => handleApproveService(service.id)}
-                        disabled={isProcessing}
-                        className="flex-1 lg:flex-none px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                      >
-                        {isProcessing ? <FaSpinner className="animate-spin mr-2" /> : <FaCheck className="mr-2" />}
-                        Mark Complete
-                      </button>
-                      <button
-                        onClick={() => handleRejectService(service.id)}
-                        disabled={isProcessing}
-                        className="flex-1 lg:flex-none px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                      >
-                        {isProcessing ? <FaSpinner className="animate-spin mr-2" /> : <FaTimes className="mr-2" />}
-                        Reset to Pending
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex gap-3 lg:flex-col xl:flex-row lg:items-end">
+                    <button
+                      onClick={() => handleApproveService(service.id)}
+                      disabled={isProcessing}
+                      className="flex-1 lg:flex-none px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      {isProcessing ? <FaSpinner className="animate-spin mr-2" /> : <FaCheck className="mr-2" />}
+                      Mark Complete
+                    </button>
+                    <button
+                      onClick={() => handleRejectService(service.id)}
+                      disabled={isProcessing}
+                      className="flex-1 lg:flex-none px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      {isProcessing ? <FaSpinner className="animate-spin mr-2" /> : <FaTimes className="mr-2" />}
+                      Reset to Pending
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )
@@ -281,7 +290,6 @@ export default function ServiceConfirmations({ activeStatus, matchesStatus }) {
   )
 }
 
-// Enhanced Pagination component
 function Pagination({ page, totalPages, onPageChange }) {
   if (totalPages <= 1) return null
 

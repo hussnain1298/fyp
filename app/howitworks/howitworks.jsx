@@ -23,10 +23,10 @@ export default function HowItWorks() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight text-black">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight text-gray-800">
           How It Works
         </h2>
-        <p className="mt-4 text-md sm:text-thick md:text-lg max-w-2xl mx-auto text-black">
+        <p className="mt-4 text-md sm:text-thick md:text-lg max-w-2xl mx-auto text-gray-800">
           Learn how your donations directly impact lives through our secure and transparent system.
         </p>
       </motion.div>

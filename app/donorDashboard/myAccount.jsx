@@ -62,7 +62,7 @@ export default function MyAccount() {
       { id: "Messages", label: "Messages", icon: "💬", badge: unreadCount },
       { id: "Fulfill Requests", label: "Fulfill Requests", icon: "❤️" },
       { id: "Fulfill Services", label: "Fulfill Services", icon: "🎓" },
-      { id: "Fulfill FundRaise", label: "Fulfill Fundraise", icon: "💰" },
+   
       { id: "Donations", label: "Donation History", icon: "📊" },
       // 🔥 NEW TAB
       { id: "My Goal", label: "My Goal", icon: "🎯" },
@@ -83,8 +83,7 @@ export default function MyAccount() {
         return <FulfillRequests />;
       case "Fulfill Services":
         return <FulfillServices />;
-      case "Fulfill FundRaise":
-        return <FulfillFundraise />;
+    
       case "Donations":
         return <DonationsHistory />;
       // 🔥 NEW CASE
