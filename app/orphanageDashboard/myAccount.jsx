@@ -1,56 +1,71 @@
-"use client"
-import { useState, useEffect, useMemo } from "react"
-import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
-import { auth, firestore } from "@/lib/firebase"
-import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore"
-import { signOut } from "firebase/auth"
+"use client";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { auth, firestore } from "@/lib/firebase";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  orderBy,
+} from "firebase/firestore";
+import { signOut } from "firebase/auth";
 
 // Tabs Components
-import OrphanageDashboard from "./dashboard"
-import AccountDetails from "./accountDetails"
-import Request from "./requests"
-import Services from "./service"
-import FundRaise from "./fundraise"
-import Messages from "./messages"
-import Navbar from "../Navbar/navbar"
-import Footer from "../footer/page"
-import ConfirmFund from "./confirmation"
+import OrphanageDashboard from "./dashboard";
+import AccountDetails from "./accountDetails";
+import Request from "./requests";
+import Services from "./service";
+import FundRaise from "./fundraise";
+import Messages from "./messages";
+import Navbar from "../Navbar/navbar";
+import Footer from "../footer/page";
+import ConfirmFund from "./confirmation";
 
 export default function MyAccount() {
-  const [activeTab, setActiveTab] = useState("Dashboard")
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
+  const [activeTab, setActiveTab] = useState("Dashboard");
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
-      setUser(currentUser)
-      setLoading(false)
-    })
-    return unsubscribe
-  }, [])
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
-    if (!user) return
-    const notificationsRef = collection(firestore, "notifications", user.uid, "userNotifications")
-    const q = query(notificationsRef, where("read", "==", false), orderBy("timestamp", "desc"))
+    if (!user) return;
+    const notificationsRef = collection(
+      firestore,
+      "notifications",
+      user.uid,
+      "userNotifications"
+    );
+    const q = query(
+      notificationsRef,
+      where("read", "==", false),
+      orderBy("timestamp", "desc")
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setUnreadCount(snapshot.size)
-    })
-    return () => unsubscribe()
-  }, [user])
+      setUnreadCount(snapshot.size);
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   const handleLogout = async () => {
     try {
-      await signOut(auth)
-      localStorage.removeItem("userSession")
-      router.push("/login")
+      await signOut(auth);
+      localStorage.removeItem("userSession");
+      router.push("/login");
     } catch (error) {
-      console.error("Error Logging Out:", error.message)
+      console.error("Error Logging Out:", error.message);
     }
-  }
+  };
 
   const tabs = useMemo(
     () => [
@@ -63,29 +78,29 @@ export default function MyAccount() {
       { id: "Confirm Donations", label: "Confirm Donations", icon: "✅" },
       { id: "Logout", label: "Logout", icon: "🚪", isAction: true },
     ],
-    [unreadCount],
-  )
+    [unreadCount]
+  );
 
   const renderTabContent = () => {
     switch (activeTab) {
       case "Dashboard":
-        return <OrphanageDashboard />
+        return <OrphanageDashboard />;
       case "Account details":
-        return <AccountDetails />
+        return <AccountDetails />;
       case "Messages":
-        return <Messages />
+        return <Messages />;
       case "Requests":
-        return <Request />
+        return <Request />;
       case "Services":
-        return <Services />
+        return <Services />;
       case "Fund Raise":
-        return <FundRaise />
+        return <FundRaise />;
       case "Confirm Donations":
-        return <ConfirmFund />
+        return <ConfirmFund />;
       default:
-        return <OrphanageDashboard />
+        return <OrphanageDashboard />;
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -95,13 +110,13 @@ export default function MyAccount() {
           <p className="text-gray-600">Loading dashboard...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
-     <Navbar/>
+      <Navbar />
       {/* Main Content */}
       <div className="flex-1 container mx-auto px-4 py-6 mt-20">
         <div className="flex flex-col lg:flex-row gap-6">
@@ -109,7 +124,9 @@ export default function MyAccount() {
           <aside className="w-full lg:w-80">
             <div className="bg-white shadow-sm border border-gray-200 rounded-xl p-6 sticky top-24">
               <div className="mb-6">
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">Orphanage Profile</h2>
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">
+                  Orphanage Profile
+                </h2>
                 <div className="h-1 w-12 bg-gray-600 rounded"></div>
               </div>
 
@@ -117,13 +134,15 @@ export default function MyAccount() {
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => (tab.isAction ? handleLogout() : setActiveTab(tab.id))}
+                    onClick={() =>
+                      tab.isAction ? handleLogout() : setActiveTab(tab.id)
+                    }
                     className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-all duration-200 ${
                       activeTab === tab.id && !tab.isAction
                         ? "bg-gray-100 text-gray-800 border-l-4 border-gray-600 font-medium"
                         : tab.isAction
-                          ? "hover:bg-red-50 text-red-600 hover:text-red-700"
-                          : "hover:bg-gray-50 text-gray-700 hover:text-gray-900"
+                        ? "hover:bg-red-50 text-red-600 hover:text-red-700"
+                        : "hover:bg-gray-50 text-gray-700 hover:text-gray-900"
                     }`}
                   >
                     <div className="flex items-center space-x-3">
@@ -155,7 +174,7 @@ export default function MyAccount() {
           </main>
         </div>
       </div>
-      <Footer/>
+      <Footer />
     </div>
-  )
+  );
 }

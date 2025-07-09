@@ -1,84 +1,98 @@
-"use client"
+"use client";
 
-import { useState, useEffect, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { auth, firestore } from "@/lib/firebase"
-import { signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from "firebase/auth"
-import { getDoc, setDoc, doc } from "firebase/firestore"
-import Loading from "./loading"
-import { motion, AnimatePresence } from "framer-motion"
-import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai"
-import { toast, ToastContainer } from "react-toastify"
-import "react-toastify/dist/ReactToastify.css"
-import { Mail, Lock, Shield } from "lucide-react"
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { auth, firestore } from "@/lib/firebase";
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+} from "firebase/auth";
+import { getDoc, setDoc, doc } from "firebase/firestore";
+import Loading from "./loading";
+import { motion, AnimatePresence } from "framer-motion";
+import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { Mail, Lock, Shield } from "lucide-react";
 
 const LoginPage = () => {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [donorCheck, setDonorCheck] = useState(false)
-  const [showResetModal, setShowResetModal] = useState(false)
-  const [resetEmail, setResetEmail] = useState("")
-  const [resetMessage, setResetMessage] = useState("")
-  const [showVerifyModal, setShowVerifyModal] = useState(false)
-  const [verifyMessage, setVerifyMessage] = useState("")
-  const [pendingUser, setPendingUser] = useState(null)
-  const [rememberMe, setRememberMe] = useState(false)
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
+  const [donorCheck, setDonorCheck] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyMessage, setVerifyMessage] = useState("");
+  const [pendingUser, setPendingUser] = useState(null);
+  const [rememberMe, setRememberMe] = useState(false);
 
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (searchParams.get("redirect") === "donate") {
-      setDonorCheck(true)
+      setDonorCheck(true);
     }
 
     // Check for saved credentials
-    const savedEmail = localStorage.getItem("rememberedEmail")
+    const savedEmail = localStorage.getItem("rememberedEmail");
     if (savedEmail) {
-      setEmail(savedEmail)
-      setRememberMe(true)
+      setEmail(savedEmail);
+      setRememberMe(true);
     }
-  }, [searchParams])
+  }, [searchParams]);
 
   const handleLogin = async (e) => {
-    e.preventDefault()
-    setError("")
-    setResetMessage("")
-    setVerifyMessage("")
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setResetMessage("");
+    setVerifyMessage("");
+    setLoading(true);
+    setLoginSuccess(false);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      const user = userCredential.user
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
 
       if (!user.emailVerified) {
-        setPendingUser(user)
-        setShowVerifyModal(true)
-        setLoading(false)
-        return
+        setPendingUser(user);
+        setShowVerifyModal(true);
+        setLoading(false);
+        return;
       }
+
+      // Set login success to prevent form from showing again
+      setLoginSuccess(true);
 
       // Remember email if checkbox is checked
       if (rememberMe) {
-        localStorage.setItem("rememberedEmail", email)
+        localStorage.setItem("rememberedEmail", email);
       } else {
-        localStorage.removeItem("rememberedEmail")
+        localStorage.removeItem("rememberedEmail");
       }
 
-      const userDocRef = doc(firestore, "users", user.uid)
-      const userDoc = await getDoc(userDocRef)
+      const userDocRef = doc(firestore, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        const userData = userDoc.data()
-        const role = userData.userType || null
+        const userData = userDoc.data();
+        const role = userData.userType || null;
 
         if (donorCheck && role !== "Donor") {
-          setError("Only donors can proceed with donations.")
-          setLoading(false)
-          return
+          setError("Only donors can proceed with donations.");
+          setLoading(false);
+          setLoginSuccess(false);
+          return;
         }
 
         // Store user session with enhanced data
@@ -89,10 +103,12 @@ const LoginPage = () => {
           fullName: userData.fullName || userData.orgName || "",
           timestamp: Date.now(),
           lastLogin: new Date().toISOString(),
-        }
-        localStorage.setItem("userSession", JSON.stringify(sessionData))
+        };
+        localStorage.setItem("userSession", JSON.stringify(sessionData));
 
-        toast.success(`Welcome back! Redirecting to your ${role.toLowerCase()} dashboard...`)
+        toast.success(
+          `Welcome back! Redirecting to your ${role.toLowerCase()} dashboard...`
+        );
 
         // Add login activity to user document
         await setDoc(
@@ -102,20 +118,22 @@ const LoginPage = () => {
             lastLogin: new Date(),
             loginCount: (userData.loginCount || 0) + 1,
           },
-          { merge: true },
-        )
+          { merge: true }
+        );
 
         setTimeout(() => {
           if (role === "Donor") {
-            router.push("/donorDashboard")
+            router.push("/donorDashboard");
           } else if (role === "Orphanage") {
-            router.push("/orphanageDashboard")
+            router.push("/orphanageDashboard");
           } else if (role === "admin") {
-            router.push("/admin")
+            router.push("/admin");
           } else {
-            setError("User role is missing. Please contact support.")
+            setError("User role is missing. Please contact support.");
+            setLoading(false);
+            setLoginSuccess(false);
           }
-        }, 1500)
+        }, 1500);
       } else {
         const newUser = {
           uid: user.uid,
@@ -127,8 +145,8 @@ const LoginPage = () => {
           emailVerified: true,
           lastLogin: new Date(),
           loginCount: 1,
-        }
-        await setDoc(userDocRef, newUser)
+        };
+        await setDoc(userDocRef, newUser);
 
         localStorage.setItem(
           "userSession",
@@ -138,75 +156,79 @@ const LoginPage = () => {
             userType: "Donor",
             fullName: user.displayName || "",
             timestamp: Date.now(),
-          }),
-        )
+          })
+        );
 
-        toast.success("Welcome to CareConnect!")
-        setTimeout(() => router.push("/donorDashboard"), 1500)
+        toast.success("Welcome to CareConnect!");
+        setTimeout(() => router.push("/donorDashboard"), 1500);
       }
     } catch (err) {
-      console.error("Login error:", err)
-      let errorMessage = "Invalid email or password. Please try again."
+      console.error("Login error:", err);
+      setLoginSuccess(false);
 
+      // Always show "Invalid email or password" for authentication errors
+      let errorMessage = "Invalid email or password";
+
+      // Only show specific messages for non-authentication errors
       switch (err.code) {
-        case "auth/user-not-found":
-          errorMessage = "No account found with this email address."
-          break
-        case "auth/wrong-password":
-          errorMessage = "Incorrect password. Please try again."
-          break
         case "auth/invalid-email":
-          errorMessage = "Please enter a valid email address."
-          break
+          errorMessage = "Please enter a valid email address";
+          break;
         case "auth/user-disabled":
-          errorMessage = "This account has been disabled. Please contact support."
-          break
+          errorMessage =
+            "This account has been disabled. Please contact support";
+          break;
         case "auth/too-many-requests":
-          errorMessage = "Too many failed attempts. Please try again later."
-          break
+          errorMessage = "Too many failed attempts. Please try again later";
+          break;
+        case "auth/network-request-failed":
+          errorMessage = "Network error. Please check your connection";
+          break;
         default:
-          errorMessage = err.message || errorMessage
+          errorMessage = "Invalid email or password";
       }
 
-      setError(errorMessage)
-      toast.error(errorMessage)
-    } finally {
-      setLoading(false)
+      setError(errorMessage);
+      toast.error(errorMessage);
+      setLoading(false);
     }
-  }
+  };
 
   const handleResetPassword = async () => {
-    setResetMessage("")
+    setResetMessage("");
     if (!resetEmail) {
-      setResetMessage("Please enter an email.")
-      return
+      setResetMessage("Please enter an email.");
+      return;
     }
     try {
-      await sendPasswordResetEmail(auth, resetEmail)
-      setResetMessage("✅ Reset email sent. Check your inbox.")
-      toast.success("Password reset email sent!")
+      await sendPasswordResetEmail(auth, resetEmail);
+      setResetMessage("✅ Reset email sent. Check your inbox.");
+      toast.success("Password reset email sent!");
     } catch (err) {
-      const errorMessage = "❌ " + (err.message || "Failed to send reset email")
-      setResetMessage(errorMessage)
-      toast.error("Failed to send reset email")
+      const errorMessage =
+        "❌ " + (err.message || "Failed to send reset email");
+      setResetMessage(errorMessage);
+      toast.error("Failed to send reset email");
     }
-  }
+  };
 
   const handleResendVerification = async () => {
-    if (!pendingUser) return
+    if (!pendingUser) return;
 
     try {
-      await sendEmailVerification(pendingUser)
-      setVerifyMessage("✅ Verification email sent.")
-      toast.success("Verification email sent!")
+      await sendEmailVerification(pendingUser);
+      setVerifyMessage("✅ Verification email sent.");
+      toast.success("Verification email sent!");
     } catch (err) {
-      const errorMessage = "❌ " + (err.message || "Failed to send verification email")
-      setVerifyMessage(errorMessage)
-      toast.error("Failed to send verification email")
+      const errorMessage =
+        "❌ " + (err.message || "Failed to send verification email");
+      setVerifyMessage(errorMessage);
+      toast.error("Failed to send verification email");
     }
-  }
+  };
 
-  if (loading) return <Loading />
+  // Show loading component when loading or login is successful
+  if (loading || loginSuccess) return <Loading />;
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 px-4 sm:px-6 lg:px-8">
@@ -228,7 +250,9 @@ const LoginPage = () => {
           >
             <span className="text-white text-2xl font-bold">CC</span>
           </motion.div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Welcome Back
+          </h1>
           <p className="text-gray-600">Sign in to your CareConnect account</p>
         </div>
 
@@ -263,7 +287,9 @@ const LoginPage = () => {
 
           {/* Email Input */}
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">Email Address</label>
+            <label className="block text-sm font-semibold text-gray-700">
+              Email Address
+            </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Mail className="h-5 w-5 text-gray-400" />
@@ -282,7 +308,9 @@ const LoginPage = () => {
 
           {/* Password Input */}
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">Password</label>
+            <label className="block text-sm font-semibold text-gray-700">
+              Password
+            </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Lock className="h-5 w-5 text-gray-400" />
@@ -302,7 +330,11 @@ const LoginPage = () => {
                 className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 transition-colors"
                 aria-label="Toggle password visibility"
               >
-                {showPassword ? <AiFillEyeInvisible size={20} /> : <AiFillEye size={20} />}
+                {showPassword ? (
+                  <AiFillEyeInvisible size={20} />
+                ) : (
+                  <AiFillEye size={20} />
+                )}
               </button>
             </div>
           </div>
@@ -330,16 +362,16 @@ const LoginPage = () => {
           {/* Submit Button */}
           <motion.button
             type="submit"
-            disabled={loading}
-            whileHover={{ scale: loading ? 1 : 1.02 }}
-            whileTap={{ scale: loading ? 1 : 0.98 }}
+            disabled={loading || loginSuccess}
+            whileHover={{ scale: loading || loginSuccess ? 1 : 1.02 }}
+            whileTap={{ scale: loading || loginSuccess ? 1 : 0.98 }}
             className={`w-full py-3 px-4 rounded-xl font-semibold text-white transition-all duration-200 ${
-              loading
+              loading || loginSuccess
                 ? "bg-gray-400 cursor-not-allowed"
-                : "bg-green-600  shadow-lg hover:shadow-xl"
+                : "bg-green-600 shadow-lg hover:shadow-xl"
             }`}
           >
-            {loading ? (
+            {loading || loginSuccess ? (
               <div className="flex items-center justify-center">
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                 Signing In...
@@ -357,7 +389,7 @@ const LoginPage = () => {
             <button
               onClick={() => router.push("/signup")}
               className="text-green-600 hover:text-green-700 font-semibold transition-colors"
-              disabled={loading}
+              disabled={loading || loginSuccess}
             >
               Sign up here
             </button>
@@ -378,7 +410,9 @@ const LoginPage = () => {
         {showResetModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
             <div className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl">
-              <h2 className="text-xl font-bold mb-4 text-gray-800 text-center">Reset Password</h2>
+              <h2 className="text-xl font-bold mb-4 text-gray-800 text-center">
+                Reset Password
+              </h2>
               <input
                 type="email"
                 placeholder="Enter your email address"
@@ -400,9 +434,9 @@ const LoginPage = () => {
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => {
-                    setShowResetModal(false)
-                    setResetMessage("")
-                    setResetEmail("")
+                    setShowResetModal(false);
+                    setResetMessage("");
+                    setResetEmail("");
                   }}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors"
                 >
@@ -425,7 +459,9 @@ const LoginPage = () => {
         {showVerifyModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
             <div className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl">
-              <h2 className="text-xl font-bold mb-4 text-gray-800 text-center">Email Verification Required</h2>
+              <h2 className="text-xl font-bold mb-4 text-gray-800 text-center">
+                Email Verification Required
+              </h2>
               <p className="text-sm mb-4 p-3 rounded-xl bg-blue-50 text-blue-700 border border-blue-200">
                 {verifyMessage ||
                   "Please verify your email before logging in. Check your inbox for the verification link."}
@@ -433,9 +469,9 @@ const LoginPage = () => {
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => {
-                    setShowVerifyModal(false)
-                    setPendingUser(null)
-                    setVerifyMessage("")
+                    setShowVerifyModal(false);
+                    setPendingUser(null);
+                    setVerifyMessage("");
                   }}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors"
                 >
@@ -453,13 +489,13 @@ const LoginPage = () => {
         )}
       </AnimatePresence>
     </div>
-  )
-}
+  );
+};
 
 const LoginPageWithSuspense = () => (
   <Suspense fallback={<Loading />}>
     <LoginPage />
   </Suspense>
-)
+);
 
-export default LoginPageWithSuspense
+export default LoginPageWithSuspense;
