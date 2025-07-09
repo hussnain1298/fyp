@@ -1,9 +1,22 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { firestore, auth } from "@/lib/firebase"
-import { collection, query, where, getDocs, addDoc, limit, orderBy as orderByFB } from "firebase/firestore"
+import {
+  collection,
+  query,
+  getDocs,
+  doc,
+  getDoc,
+  addDoc,
+  orderBy,
+  limit,
+  serverTimestamp,
+  setDoc,
+  onSnapshot,
+} from "firebase/firestore"
 import { useRouter } from "next/navigation"
+import { MessageSquare, Search, User, Plus, Shield } from "lucide-react"
 
 const formatRelativeTime = (date) => {
   if (!date) return "Unknown"
@@ -16,7 +29,7 @@ const formatRelativeTime = (date) => {
 }
 
 const getInitials = (name) => {
-  if (!name) return "U"
+  if (!name) return "D"
   return name
     .split(" ")
     .map((n) => n[0])
@@ -31,365 +44,746 @@ const generateColor = (name) => {
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash)
   }
-  const colors = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4"]
+  const colors = ["#3B82F6", "#1D4ED8", "#2563EB", "#1E40AF", "#60A5FA", "#93C5FD"]
   return colors[Math.abs(hash) % colors.length]
 }
 
+// Skeleton component for loading states
+const UserSkeleton = () => (
+  <div className="p-3 rounded-lg animate-pulse">
+    <div className="flex items-center space-x-3">
+      <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+      <div className="flex-1 min-w-0">
+        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+      </div>
+    </div>
+  </div>
+)
+
 export default function OrphanageMessages() {
   const [user, setUser] = useState(null)
+  const [userProfile, setUserProfile] = useState(null)
   const [chats, setChats] = useState([])
+  const [adminChats, setAdminChats] = useState([])
   const [donorProfiles, setDonorProfiles] = useState({})
+  const [allDonors, setAllDonors] = useState([])
   const [search, setSearch] = useState("")
-  const [donorSearchResult, setDonorSearchResult] = useState(null)
-  const [loadingChats, setLoadingChats] = useState(true)
-  const [loadingSearch, setLoadingSearch] = useState(false)
+  const [donorSearch, setDonorSearch] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [showNewChatModal, setShowNewChatModal] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
 
+  // Cache for profiles
+  const profileCache = useMemo(() => new Map(), [])
+
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
       setUser(currentUser)
+      if (currentUser) {
+        try {
+          const userDoc = await getDoc(doc(firestore, "users", currentUser.uid))
+          if (userDoc.exists()) {
+            const userData = userDoc.data()
+            setUserProfile(userData)
+
+            if (userData.userType !== "Orphanage") {
+              setError("Access denied. Orphanage account required.")
+              setLoading(false)
+              return
+            }
+          } else {
+            setError("User profile not found.")
+            setLoading(false)
+            return
+          }
+        } catch (error) {
+          console.error("Error fetching user profile:", error)
+          setError("Failed to load user profile.")
+          setLoading(false)
+          return
+        }
+      } else {
+        setLoading(false)
+      }
     })
     return () => unsubscribe()
   }, [])
 
-  const fetchChats = useCallback(async () => {
-    if (!user) return
-
-    setLoadingChats(true)
-    setError("")
-
-    try {
-      const chatsRef = collection(firestore, "chats")
-      const chatsQuery = query(chatsRef, where("participants", "array-contains", user.uid))
-      const snapshot = await getDocs(chatsQuery)
-
-      const enrichedChats = await Promise.all(
-        snapshot.docs.map(async (docSnap) => {
-          const chatData = docSnap.data()
-          const chatId = docSnap.id
-          const donorId = chatData.donorId || chatData.participants.find((p) => p !== user.uid)
-
-          let lastMessage = null
-          let lastTimestamp = null
-
-          try {
-            const messagesQuery = query(
-              collection(firestore, "chats", chatId, "messages"),
-              orderByFB("timestamp", "desc"),
-              limit(1),
-            )
-            const messagesSnap = await getDocs(messagesQuery)
-            if (!messagesSnap.empty) {
-              const msg = messagesSnap.docs[0].data()
-              lastMessage = msg.text || ""
-              lastTimestamp = msg.timestamp?.toDate() || null
-            }
-          } catch (e) {
-            console.error("Error fetching last message", e)
-          }
-
-          return {
-            id: chatId,
-            ...chatData,
-            donorId,
-            lastMessage,
-            lastTimestamp,
-          }
-        }),
-      )
-
-      setChats(enrichedChats)
-    } catch (error) {
-      console.error("Error fetching chats:", error)
-      setError("Failed to load conversations. Please try again.")
-    } finally {
-      setLoadingChats(false)
-    }
-  }, [user])
-
+  // Fetch all donors
   useEffect(() => {
-    fetchChats()
-  }, [fetchChats])
+    if (!user || !userProfile || userProfile.userType !== "Orphanage") return
 
-  const fetchDonorProfiles = useCallback(async (donorIds) => {
-    const updates = {}
-    for (const id of donorIds) {
+    const fetchDonors = async () => {
       try {
-        const docSnap = await getDocs(query(collection(firestore, "users"), where("uid", "==", id)))
-        if (!docSnap.empty) {
-          const data = docSnap.docs[0].data()
-          updates[id] = {
-            name: data.fullName || data.orgName || "Unknown Donor",
-            profilePhoto: data.profilePhoto || null,
-          }
-        }
-      } catch {
-        updates[id] = { name: "Unknown Donor", profilePhoto: null }
+        const usersSnapshot = await getDocs(collection(firestore, "users"))
+        const donors = usersSnapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            uid: doc.id,
+            ...doc.data(),
+          }))
+          .filter((user) => user.userType === "Donor")
+
+        setAllDonors(donors)
+      } catch (error) {
+        console.error("Error fetching donors:", error)
       }
     }
-    setDonorProfiles((prev) => ({ ...prev, ...updates }))
-  }, [])
+
+    fetchDonors()
+  }, [user, userProfile])
+
+  // Fetch regular chats with real-time updates
+  useEffect(() => {
+    if (!user || !userProfile || userProfile.userType !== "Orphanage") return
+
+    const fetchChats = () => {
+      try {
+        const chatsRef = collection(firestore, "chats")
+
+        const unsubscribe = onSnapshot(
+          chatsRef,
+          async (snapshot) => {
+            const userChats = snapshot.docs.filter((doc) => {
+              const data = doc.data()
+              return data.participants?.includes(user.uid)
+            })
+
+            const chatPromises = userChats.map(async (docSnap) => {
+              const chatData = docSnap.data()
+              const chatId = docSnap.id
+              const donorId = chatData.donorId
+
+              let lastMessage = null
+              let lastTimestamp = null
+              let unreadCount = 0
+
+              try {
+                const messagesQuery = query(
+                  collection(firestore, "chats", chatId, "messages"),
+                  orderBy("timestamp", "desc"),
+                  limit(1),
+                )
+                const messagesSnap = await getDocs(messagesQuery)
+                if (!messagesSnap.empty) {
+                  const msg = messagesSnap.docs[0].data()
+                  lastMessage = msg.text || ""
+                  lastTimestamp = msg.timestamp?.toDate() || null
+                }
+
+                const allMessagesSnap = await getDocs(collection(firestore, "chats", chatId, "messages"))
+                unreadCount = allMessagesSnap.docs.filter((doc) => {
+                  const data = doc.data()
+                  return data.senderId !== user.uid && !data.read
+                }).length
+              } catch (e) {
+                console.error("Error fetching messages:", e)
+              }
+
+              return {
+                id: chatId,
+                ...chatData,
+                donorId,
+                lastMessage,
+                lastTimestamp,
+                unreadCount,
+                type: "donor",
+              }
+            })
+
+            const enrichedChats = await Promise.all(chatPromises)
+            setChats(enrichedChats)
+          },
+          (error) => {
+            console.error("Error in chats listener:", error)
+            setError("Failed to load conversations. Please refresh the page.")
+          },
+        )
+
+        return () => unsubscribe()
+      } catch (error) {
+        console.error("Error setting up chats listener:", error)
+        setError("Failed to load conversations.")
+      }
+    }
+
+    const unsubscribe = fetchChats()
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe()
+      }
+    }
+  }, [user, userProfile])
+
+  // Fetch admin chats with real-time updates
+  useEffect(() => {
+    if (!user || !userProfile || userProfile.userType !== "Orphanage") return
+
+    const fetchAdminChats = () => {
+      try {
+        const adminChatsRef = collection(firestore, "adminChats")
+
+        const unsubscribe = onSnapshot(
+          adminChatsRef,
+          async (snapshot) => {
+            const userAdminChats = snapshot.docs.filter((doc) => {
+              const data = doc.data()
+              return data.userId === user.uid
+            })
+
+            const chatPromises = userAdminChats.map(async (docSnap) => {
+              const chatData = docSnap.data()
+              const chatId = docSnap.id
+
+              let lastMessage = null
+              let lastTimestamp = null
+              let unreadCount = 0
+
+              try {
+                const messagesQuery = query(
+                  collection(firestore, "adminChats", chatId, "messages"),
+                  orderBy("timestamp", "desc"),
+                  limit(1),
+                )
+                const messagesSnap = await getDocs(messagesQuery)
+                if (!messagesSnap.empty) {
+                  const msg = messagesSnap.docs[0].data()
+                  lastMessage = msg.text || ""
+                  lastTimestamp = msg.timestamp?.toDate() || null
+                }
+
+                const allMessagesSnap = await getDocs(collection(firestore, "adminChats", chatId, "messages"))
+                unreadCount = allMessagesSnap.docs.filter((doc) => {
+                  const data = doc.data()
+                  return data.senderId !== user.uid && !data.read
+                }).length
+              } catch (e) {
+                console.error("Error fetching admin messages:", e)
+              }
+
+              return {
+                id: chatId,
+                ...chatData,
+                lastMessage,
+                lastTimestamp,
+                unreadCount,
+                type: "admin",
+              }
+            })
+
+            const enrichedAdminChats = await Promise.all(chatPromises)
+            setAdminChats(enrichedAdminChats)
+          },
+          (error) => {
+            console.error("Error in admin chats listener:", error)
+          },
+        )
+
+        return () => unsubscribe()
+      } catch (error) {
+        console.error("Error setting up admin chats listener:", error)
+      }
+    }
+
+    const unsubscribe = fetchAdminChats()
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe()
+      }
+    }
+  }, [user, userProfile])
+
+  // Fetch donor profiles with caching
+  useEffect(() => {
+    const donorIds = chats.map((chat) => chat.donorId).filter((id) => id && !donorProfiles[id] && !profileCache.has(id))
+
+    if (donorIds.length === 0) return
+
+    const fetchProfiles = async () => {
+      const updates = {}
+      for (const id of donorIds) {
+        if (profileCache.has(id)) {
+          updates[id] = profileCache.get(id)
+          continue
+        }
+
+        try {
+          const docSnap = await getDoc(doc(firestore, "users", id))
+          if (docSnap.exists()) {
+            const data = docSnap.data()
+            const profile = {
+              name: data.fullName || "Unknown Donor",
+              email: data.email || "",
+              city: data.city || "",
+              contactNumber: data.contactNumber || "",
+              profilePicture: data.profilePicture || null,
+            }
+            updates[id] = profile
+            profileCache.set(id, profile)
+          }
+        } catch (error) {
+          console.error("Error fetching profile:", error)
+          const errorProfile = { name: "Unknown Donor", email: "", city: "", contactNumber: "", profilePicture: null }
+          updates[id] = errorProfile
+          profileCache.set(id, errorProfile)
+        }
+      }
+      setDonorProfiles((prev) => ({ ...prev, ...updates }))
+    }
+
+    fetchProfiles()
+  }, [chats, donorProfiles, profileCache])
 
   useEffect(() => {
-    const donorIds = chats.map((chat) => chat.donorId).filter((id) => id && !donorProfiles[id])
+    setLoading(false)
+  }, [chats, adminChats])
 
-    if (donorIds.length > 0) {
-      fetchDonorProfiles(donorIds)
-    }
-  }, [chats, donorProfiles, fetchDonorProfiles])
-
-  const searchDonors = useCallback(async (searchTerm) => {
-    if (!searchTerm.trim()) {
-      setDonorSearchResult(null)
-      return
-    }
-
-    setLoadingSearch(true)
-    try {
-      const donorsQuery = query(collection(firestore, "users"), where("userType", "==", "Donor"))
-      const snap = await getDocs(donorsQuery)
-      const match = snap.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .find((user) => (user.fullName || "").toLowerCase().includes(searchTerm.toLowerCase()))
-      setDonorSearchResult(match || null)
-    } catch (error) {
-      console.error("Error searching donors:", error)
-      setError("Failed to search donors. Please try again.")
-    } finally {
-      setLoadingSearch(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      searchDonors(search)
-    }, 300)
-
-    return () => clearTimeout(timeoutId)
-  }, [search, searchDonors])
-
-  const startChat = async () => {
-    if (!user || !donorSearchResult) return
-
-    const existingChat = chats.find((chat) => chat.donorId === donorSearchResult.uid)
-    if (existingChat) {
-      return router.push(`/chat?chatId=${existingChat.id}`)
-    }
+  // Start new chat with donor
+  const startChat = async (donor) => {
+    if (!user || !donor) return
 
     try {
-      const chatRef = await addDoc(collection(firestore, "chats"), {
+      // Create a consistent chat ID
+      const chatId = `${donor.uid}_${user.uid}`
+
+      // Check if chat already exists
+      const existingChat = await getDoc(doc(firestore, "chats", chatId))
+
+      if (existingChat.exists()) {
+        setShowNewChatModal(false)
+        setDonorSearch("")
+        return router.push(`/chat?chatId=${chatId}`)
+      }
+
+      // Create new chat with consistent ID
+      await setDoc(doc(firestore, "chats", chatId), {
+        donorId: donor.uid,
         orphanageId: user.uid,
-        donorId: donorSearchResult.uid,
-        participants: [user.uid, donorSearchResult.uid],
-        createdAt: new Date(),
+        participants: [donor.uid, user.uid],
+        createdAt: serverTimestamp(),
+        lastMessage: "",
+        lastMessageTime: serverTimestamp(),
       })
-      router.push(`/chat?chatId=${chatRef.id}`)
-    } catch (e) {
-      console.error("Failed to start chat:", e)
+
+      setShowNewChatModal(false)
+      setDonorSearch("")
+      router.push(`/chat?chatId=${chatId}`)
+    } catch (error) {
+      console.error("Failed to start chat:", error)
       setError("Failed to start conversation. Please try again.")
     }
   }
 
-  const openChat = useCallback(
-    (chatId) => {
-      if (!chatId) return
-      router.push(`/chat?chatId=${chatId}`)
-    },
-    [router],
-  )
+  // Start admin chat
+  const startAdminChat = async () => {
+    if (!user) return
 
-  const filteredChats = useMemo(() => {
-    return chats
-      .filter((chat) => {
-        const profile = donorProfiles[chat.donorId]
-        const name = profile?.name?.toLowerCase() || ""
-        const matchesSearch = name.includes(search.toLowerCase())
-        const hasMessage = !!chat.lastMessage || !!chat.lastTimestamp
-        return search ? matchesSearch : hasMessage
+    try {
+      // Check if admin chat already exists
+      const adminChatsSnapshot = await getDocs(collection(firestore, "adminChats"))
+      const existingChat = adminChatsSnapshot.docs.find((doc) => {
+        const data = doc.data()
+        return data.userId === user.uid
       })
-      .sort((a, b) => (b.lastTimestamp || 0) - (a.lastTimestamp || 0))
-  }, [chats, donorProfiles, search])
+
+      if (existingChat) {
+        return router.push(`/chat?chatId=${existingChat.id}&isAdmin=true`)
+      }
+
+      // Find an admin user
+      const usersSnapshot = await getDocs(collection(firestore, "users"))
+      const adminUser = usersSnapshot.docs.find((doc) => {
+        const data = doc.data()
+        return data.userType === "admin"
+      })
+
+      if (!adminUser) {
+        setError("No admin available at the moment. Please try again later.")
+        return
+      }
+
+      const adminId = adminUser.id
+
+      // Create new admin chat
+      const chatRef = await addDoc(collection(firestore, "adminChats"), {
+        adminId: adminId,
+        userId: user.uid,
+        userType: userProfile.userType,
+        participants: [adminId, user.uid],
+        createdAt: serverTimestamp(),
+        lastMessage: "",
+        lastMessageTime: serverTimestamp(),
+      })
+
+      router.push(`/chat?chatId=${chatRef.id}&isAdmin=true`)
+    } catch (error) {
+      console.error("Failed to start admin chat:", error)
+      setError("Failed to contact admin. Please try again.")
+    }
+  }
+
+  // Open existing chat
+  const openChat = (chatId, isAdminChat = false) => {
+    if (!chatId) return
+    const url = isAdminChat ? `/chat?chatId=${chatId}&isAdmin=true` : `/chat?chatId=${chatId}`
+    router.push(url)
+  }
+
+  // Filter chats based on search
+  const filteredChats = chats.filter((chat) => {
+    const profile = donorProfiles[chat.donorId]
+    if (!profile) return false
+
+    if (search) {
+      const searchTarget = (profile.name || "").toLowerCase()
+      const emailTarget = (profile.email || "").toLowerCase()
+      if (!searchTarget.includes(search.toLowerCase()) && !emailTarget.includes(search.toLowerCase())) return false
+    }
+
+    return true
+  })
+
+  // Filter donors for new chat modal with animations
+  const filteredDonors = useMemo(() => {
+    if (!donorSearch.trim()) return []
+
+    setLoadingUsers(true)
+    setTimeout(() => setLoadingUsers(false), 300)
+
+    return allDonors
+      .filter((donor) => {
+        const name = (donor.fullName || "").toLowerCase()
+        const email = (donor.email || "").toLowerCase()
+        return name.includes(donorSearch.toLowerCase()) || email.includes(donorSearch.toLowerCase())
+      })
+      .slice(0, 10)
+  }, [allDonors, donorSearch])
+
+  // Combine and sort all chats
+  const allChats = [...filteredChats, ...adminChats].sort((a, b) => {
+    // Sort by unread first, then by last message time
+    if (a.unreadCount > 0 && b.unreadCount === 0) return -1
+    if (a.unreadCount === 0 && b.unreadCount > 0) return 1
+    return (b.lastTimestamp?.getTime() || 0) - (a.lastTimestamp?.getTime() || 0)
+  })
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-500 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading messages...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Authentication Required</h2>
+          <p className="text-gray-600 mb-4">Please log in to access messages</p>
+          <button
+            onClick={() => router.push("/login")}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (userProfile && userProfile.userType !== "Orphanage") {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <MessageSquare className="w-16 h-16 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-4">Orphanage account required to access this page</p>
+          <button
+            onClick={() => router.back()}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center mb-4">
-          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3">
-            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-              />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
-            <p className="text-gray-600">Connect and communicate with your donors</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Search */}
-      <div className="mb-8">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
-          <input
-            type="text"
-            placeholder="Search donors by name to start a conversation..."
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {loadingSearch && (
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-            </div>
-          )}
-        </div>
-
-        {/* Search Result */}
-        {search && donorSearchResult && filteredChats.length === 0 && (
-          <div
-            className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl cursor-pointer hover:bg-green-100 transition-colors"
-            onClick={startChat}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
-                  style={{ backgroundColor: generateColor(donorSearchResult.fullName) }}
-                >
-                  {getInitials(donorSearchResult.fullName)}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{donorSearchResult.fullName}</h3>
-                  <p className="text-sm text-gray-600">Click to start conversation</p>
-                </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-green-100 rounded-xl">
+                <MessageSquare className="w-8 h-8 text-green-600" />
               </div>
-              <div className="flex items-center text-green-600">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
+                <p className="text-gray-600">Connect with donors and get support</p>
               </div>
             </div>
-          </div>
-        )}
-
-        {search && !donorSearchResult && !loadingSearch && (
-          <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl text-center">
-            <p className="text-gray-600">No donors found with that name</p>
-          </div>
-        )}
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
-          <div className="flex items-center">
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            {error}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={startAdminChat}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <Shield className="w-4 h-4" />
+                Contact Admin
+              </button>
+              <button
+                onClick={() => setShowNewChatModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                New Chat
+              </button>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Conversations */}
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">Your Conversations</h2>
-          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            {filteredChats.length} conversations
-          </span>
+        {/* Search */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search conversations..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            />
+          </div>
         </div>
 
-        {loadingChats ? (
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="animate-pulse bg-white border border-gray-200 rounded-xl p-4">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 rounded-full bg-gray-300" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-gray-300 rounded w-1/3" />
-                    <div className="h-3 bg-gray-200 rounded w-2/3" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : filteredChats.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
+              {error}
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No conversations yet</h3>
-            <p className="text-gray-500">
-              {search ? "No conversations match your search" : "Start by searching for donors above"}
-            </p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredChats.map((chat) => {
-              const profile = donorProfiles[chat.donorId] || {
-                name: "Loading...",
-                profilePhoto: null,
-              }
+        )}
 
-              return (
-                <div
-                  key={chat.id}
-                  className="bg-white border border-gray-200 rounded-xl p-4 cursor-pointer hover:shadow-md hover:border-green-300 transition-all duration-200"
-                  onClick={() => openChat(chat.id)}
+        {/* Conversations List */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          {allChats.length === 0 ? (
+            <div className="text-center py-16">
+              <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No conversations yet</h3>
+              <p className="text-gray-500 mb-4">Start a conversation with a donor or contact admin for support</p>
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={() => setShowNewChatModal(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                 >
-                  <div className="flex items-center space-x-4">
-                    <div className="relative">
-                      <div
-                        className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
-                        style={{ backgroundColor: generateColor(profile.name) }}
-                      >
-                        {getInitials(profile.name)}
+                  Start New Chat
+                </button>
+                <button
+                  onClick={startAdminChat}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Contact Admin
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {allChats.map((chat, index) => {
+                const isAdminChat = chat.type === "admin"
+                const profile = isAdminChat
+                  ? { name: "Admin Support", email: "admin@careconnect.com", city: "Support" }
+                  : donorProfiles[chat.donorId] || { name: "Loading...", email: "", city: "" }
+
+                return (
+                  <div
+                    key={chat.id}
+                    className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => openChat(chat.id, isAdminChat)}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="relative">
+                        <div
+                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold shadow-sm"
+                          style={{
+                            backgroundColor: isAdminChat ? "#8B5CF6" : generateColor(profile.name),
+                          }}
+                        >
+                          {isAdminChat ? <Shield className="w-6 h-6" /> : getInitials(profile.name)}
+                        </div>
+                        {chat.unreadCount > 0 && (
+                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-pulse">
+                            {chat.unreadCount > 9 ? "9+" : chat.unreadCount}
+                          </div>
+                        )}
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
                       </div>
-                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-semibold text-gray-900 truncate">{profile.name}</h3>
-                        <span className="text-xs text-gray-500">{formatRelativeTime(chat.lastTimestamp)}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-gray-900 truncate">{profile.name}</h3>
+                            {isAdminChat && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
+                                <Shield className="w-3 h-3" />
+                                Admin
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-500">{formatRelativeTime(chat.lastTimestamp)}</span>
+                        </div>
+                        <p className="text-gray-600 text-sm truncate">{chat.lastMessage || "No messages yet"}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {profile.email && <span className="text-xs text-gray-500">{profile.email}</span>}
+                          {profile.city && <span className="text-xs text-gray-500">• {profile.city}</span>}
+                        </div>
                       </div>
-                      <p className="text-gray-600 text-sm truncate">{chat.lastMessage || "No messages yet"}</p>
                     </div>
                   </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* New Chat Modal */}
+        {showNewChatModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
+            <div className="bg-white rounded-xl max-w-md w-full mx-4 max-h-[80vh] overflow-hidden animate-slideUp">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900">Start New Conversation</h3>
+                  <button
+                    onClick={() => {
+                      setShowNewChatModal(false)
+                      setDonorSearch("")
+                      setLoadingUsers(false)
+                    }}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-              )
-            })}
+              </div>
+
+              <div className="p-6">
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search donors..."
+                    value={donorSearch}
+                    onChange={(e) => setDonorSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="max-h-60 overflow-y-auto">
+                  {loadingUsers ? (
+                    <div className="space-y-2">
+                      {[...Array(3)].map((_, i) => (
+                        <UserSkeleton key={i} />
+                      ))}
+                    </div>
+                  ) : filteredDonors.length === 0 ? (
+                    <div className="text-center py-8">
+                      <User className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                      <p className="text-gray-500">
+                        {donorSearch ? "No donors found" : "Start typing to search donors"}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredDonors.map((donor, index) => (
+                        <div
+                          key={donor.uid}
+                          className="p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-all duration-200 transform hover:scale-[1.02] animate-fadeInUp"
+                          style={{ animationDelay: `${index * 50}ms` }}
+                          onClick={() => startChat(donor)}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div
+                              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm"
+                              style={{ backgroundColor: generateColor(donor.fullName) }}
+                            >
+                              {getInitials(donor.fullName)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-gray-900 truncate">{donor.fullName}</h4>
+                              <p className="text-sm text-gray-500 truncate">{donor.email}</p>
+                              {donor.city && <p className="text-xs text-gray-400">{donor.city}</p>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+          from { 
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to { 
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out;
+        }
+        
+        .animate-slideUp {
+          animation: slideUp 0.3s ease-out;
+        }
+        
+        .animate-fadeInUp {
+          animation: fadeInUp 0.3s ease-out forwards;
+          opacity: 0;
+        }
+      `}</style>
     </div>
   )
 }
