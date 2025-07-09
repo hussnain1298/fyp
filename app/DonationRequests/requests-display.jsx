@@ -97,7 +97,7 @@ const RequestDetailsPopup = ({ isOpen, onClose, request, onDonate }) => {
 
           {/* Description */}
           <div className="mb-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">
+            <h4 className="text-sm font-semibold text-gray-700 ">
               Description:
             </h4>
             <p className="text-gray-600 leading-relaxed text-sm whitespace-pre-wrap">
@@ -113,7 +113,7 @@ const RequestDetailsPopup = ({ isOpen, onClose, request, onDonate }) => {
             <div className="text-sm text-gray-600 space-y-1">
               <p>Name: {request.orphanInfo?.orgName || "N/A"}</p>
               <p>Location: {request.orphanInfo?.city || "N/A"}</p>
-              <p>
+                 <p>
                 Donated: {request.totalDonated || 0}{" "}
                 {request.quantity ? `of ${request.quantity} ` : ""}
                 {request.requestType === "Food"
@@ -121,7 +121,7 @@ const RequestDetailsPopup = ({ isOpen, onClose, request, onDonate }) => {
                   : request.requestType === "Clothes"
                   ? "items"
                   : "amount"}
-              </p>
+              </p> 
             </div>
           </div>
         </div>
@@ -727,7 +727,7 @@ export default function RequestsDisplay({
                   )}
 
                   {/* Description Section - Flexible with reduced spacing */}
-                  <div className="text-gray-600 mb-2 text-sm leading-relaxed">
+                  <div className="text-gray-600  text-sm leading-relaxed">
                     {req.description && req.description.length > 100 ? (
                       <>
                         <span>{req.description.substring(0, 100)}...</span>
@@ -747,7 +747,8 @@ export default function RequestsDisplay({
 
                 {/* Footer Section - Fixed */}
                 <div className="p-4 border-t border-gray-100 mt-auto flex-shrink-0">
-                  {req.totalDonated != null && (
+                 
+                  {/* {req.totalDonated != null && (
                     <p className="text-sm text-gray-600 mb-2">
                       Donated: {req.totalDonated || 0}{" "}
                       {req.quantity ? `of ${req.quantity} ` : ""}
@@ -757,7 +758,7 @@ export default function RequestsDisplay({
                         ? "items"
                         : "amount"}
                     </p>
-                  )}
+                  )} */}
 
                   <div className="mb-3 text-sm text-gray-500 space-y-1">
                     <p className="truncate">
