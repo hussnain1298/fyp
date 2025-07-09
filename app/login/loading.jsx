@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { motion } from "framer-motion"
+import { motion } from "framer-motion";
 
 export default function Loading() {
   return (
@@ -8,7 +8,11 @@ export default function Loading() {
       <div className="text-center">
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+          transition={{
+            duration: 1,
+            repeat: Number.POSITIVE_INFINITY,
+            ease: "linear",
+          }}
           className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"
         />
         <motion.h2
@@ -29,5 +33,5 @@ export default function Loading() {
         </motion.p>
       </div>
     </div>
-  )
+  );
 }

@@ -1,98 +1,98 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { auth, firestore } from "@/lib/firebase"
-import { getDoc, doc } from "firebase/firestore"
-import { motion } from "framer-motion"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { auth, firestore } from "@/lib/firebase";
+import { getDoc, doc } from "firebase/firestore";
+import { motion } from "framer-motion";
 
 export function withAuth(Component, allowedRoles = []) {
   function AuthenticatedComponent(props) {
-    const [user, setUser] = useState(null)
-    const [loading, setLoading] = useState(true)
-    const [authChecked, setAuthChecked] = useState(false)
-    const router = useRouter()
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [authChecked, setAuthChecked] = useState(false);
+    const router = useRouter();
 
     useEffect(() => {
       const checkAuth = async () => {
         try {
           // Check session in localStorage first
-          const storedUser = localStorage.getItem("userSession")
+          const storedUser = localStorage.getItem("userSession");
           if (storedUser) {
-            const parsedUser = JSON.parse(storedUser)
-            if (parsedUser?.uid && allowedRoles.includes(parsedUser.role)) {
-              setUser(parsedUser)
-              setLoading(false)
-              setAuthChecked(true)
-              return
+            const parsedUser = JSON.parse(storedUser);
+            if (parsedUser?.uid && allowedRoles.includes(parsedUser.userType)) {
+              setUser(parsedUser);
+              setLoading(false);
+              setAuthChecked(true);
+              return;
             } else {
-              localStorage.removeItem("userSession")
+              localStorage.removeItem("userSession");
             }
           }
 
           // Wait for Firebase auth state to be determined
           const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
             if (!currentUser) {
-              setLoading(false)
-              setAuthChecked(true)
+              setLoading(false);
+              setAuthChecked(true);
               if (authChecked) {
-                router.push("/login")
+                router.push("/login");
               }
-              return
+              return;
             }
 
             try {
-              const userRef = doc(firestore, "users", currentUser.uid)
-              const userDoc = await getDoc(userRef)
+              const userRef = doc(firestore, "users", currentUser.uid);
+              const userDoc = await getDoc(userRef);
 
               if (!userDoc.exists()) {
-                setLoading(false)
-                setAuthChecked(true)
-                router.push("/login")
-                return
+                setLoading(false);
+                setAuthChecked(true);
+                router.push("/login");
+                return;
               }
 
-              const userData = userDoc.data()
+              const userData = userDoc.data();
 
               // Check if user has the required role
               if (!allowedRoles.includes(userData.userType)) {
-                setLoading(false)
-                setAuthChecked(true)
-                router.push("/unauthorized")
-                return
+                setLoading(false);
+                setAuthChecked(true);
+                router.push("/unauthorized");
+                return;
               }
 
               // All good — set session
               const sessionData = {
                 uid: currentUser.uid,
                 email: currentUser.email,
-                role: userData.userType,
+                userType: userData.userType,
                 ...userData,
-              }
+              };
 
-              setUser(sessionData)
-              localStorage.setItem("userSession", JSON.stringify(sessionData))
-              setLoading(false)
-              setAuthChecked(true)
+              setUser(sessionData);
+              localStorage.setItem("userSession", JSON.stringify(sessionData));
+              setLoading(false);
+              setAuthChecked(true);
             } catch (error) {
-              console.error("Error fetching user:", error)
-              setLoading(false)
-              setAuthChecked(true)
-              router.push("/login")
+              console.error("Error fetching user:", error);
+              setLoading(false);
+              setAuthChecked(true);
+              router.push("/login");
             }
-          })
+          });
 
-          return () => unsubscribe()
+          return () => unsubscribe();
         } catch (error) {
-          console.error("Error in auth check:", error)
-          setLoading(false)
-          setAuthChecked(true)
-          router.push("/login")
+          console.error("Error in auth check:", error);
+          setLoading(false);
+          setAuthChecked(true);
+          router.push("/login");
         }
-      }
+      };
 
-      checkAuth()
-    }, [router])
+      checkAuth();
+    }, [router]);
 
     // Show loading while checking authentication
     if (loading || !authChecked) {
@@ -105,7 +105,7 @@ export function withAuth(Component, allowedRoles = []) {
           />
           <p className="text-gray-600 mt-4">Checking authentication...</p>
         </div>
-      )
+      );
     }
 
     // Don't render component if user is not authenticated
@@ -114,7 +114,7 @@ export function withAuth(Component, allowedRoles = []) {
         <div className="flex flex-col justify-center items-center h-screen bg-gray-50">
           <p className="text-gray-600">Redirecting to login...</p>
         </div>
-      )
+      );
     }
 
     return (
@@ -125,9 +125,11 @@ export function withAuth(Component, allowedRoles = []) {
       >
         <Component {...props} user={user} />
       </motion.div>
-    )
+    );
   }
 
-  AuthenticatedComponent.displayName = `withAuth(${Component.displayName || Component.name || "Component"})`
-  return AuthenticatedComponent
+  AuthenticatedComponent.displayName = `withAuth(${
+    Component.displayName || Component.name || "Component"
+  })`;
+  return AuthenticatedComponent;
 }
