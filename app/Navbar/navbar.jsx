@@ -5,7 +5,6 @@ import { firestore, auth } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useRouter, usePathname } from "next/navigation";
-import Image from "next/image";
 import { FaChevronDown } from "react-icons/fa";
 
 export default function Navbar() {
@@ -15,6 +14,7 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [loadingRoute, setLoadingRoute] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -69,20 +69,27 @@ export default function Navbar() {
   const getDashboardLink = () => {
     if (userRole === "Donor") return "/donorDashboard";
     if (userRole === "Orphanage") return "/orphanageDashboard";
-     if (userRole === "admin") return "/admin";
+    if (userRole === "admin") return "/admin";
 
     return null;
   };
 
   const handleLogout = async () => {
     try {
+      setLogoutLoading(true);
       await signOut(auth);
-      setUserRole(null);
-      setUserName(null);
-      setIsDropdownOpen(false);
-      router.push("/");
+
+      // Wait for 1 second for smooth animation
+      setTimeout(() => {
+        setUserRole(null);
+        setUserName(null);
+        setIsDropdownOpen(false);
+        setLogoutLoading(false);
+        router.push("/");
+      }, 1000);
     } catch (err) {
       console.error("Logout error:", err);
+      setLogoutLoading(false);
     }
   };
 
@@ -90,7 +97,7 @@ export default function Navbar() {
     { name: "Home", link: "/" },
     { name: "How It Works", link: "/howitworks" },
     { name: "Donate", link: getDonateLink() },
-   
+
     { name: "Contact", link: "/contact" },
   ];
 
@@ -98,6 +105,19 @@ export default function Navbar() {
   if (dashboardLink) {
     navItems.splice(3, 0, { name: "Dashboard", link: dashboardLink });
   }
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   return (
     <nav
@@ -124,25 +144,37 @@ export default function Navbar() {
             </li>
           ))}
           <li>
-            {userName ? (
+            {userRole ? (
               <div className="relative">
                 <button
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="flex items-center gap-1 text-black hover:text-yellow-500 focus:outline-none"
+                  className="flex items-center gap-1 text-black hover:text-yellow-500 focus:outline-none transition-colors duration-200"
                 >
-                  Hello, {userName.split(" ")[0]}{" "}
-                  <FaChevronDown className="text-sm" />
+                  Hello, {userRole.toLowerCase()}{" "}
+                  <FaChevronDown
+                    className={`text-sm transition-transform duration-200 ${
+                      isDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  />
                 </button>
                 {isDropdownOpen && (
                   <div
                     ref={dropdownRef}
-                    className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-50"
+                    className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-50 transform transition-all duration-200 ease-in-out opacity-100 scale-100"
                   >
                     <button
                       onClick={handleLogout}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      disabled={logoutLoading}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150 disabled:opacity-50"
                     >
-                      Logout
+                      {logoutLoading ? (
+                        <div className="flex items-center">
+                          <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin mr-2"></div>
+                          Logging out...
+                        </div>
+                      ) : (
+                        "Logout"
+                      )}
                     </button>
                   </div>
                 )}
@@ -173,8 +205,8 @@ export default function Navbar() {
         <div className="md:hidden bg-[rgb(239,239,239)] px-4 pb-4 space-y-2">
           {[
             ...navItems,
-            userName
-              ? { name: `Hello, ${userName.split(" ")[0]}`, link: "#" }
+            userRole
+              ? { name: `Hello, ${userRole.toLowerCase()}`, link: "#" }
               : { name: "Login", link: "/login" },
           ].map((item) => (
             <a
@@ -186,12 +218,20 @@ export default function Navbar() {
               {item.name}
             </a>
           ))}
-          {userName && (
+          {userRole && (
             <button
               onClick={handleLogout}
-              className="w-full text-left text-sm text-red-600 hover:text-red-800"
+              disabled={logoutLoading}
+              className="w-full text-left text-sm text-red-600 hover:text-red-800 disabled:opacity-50"
             >
-              Logout
+              {logoutLoading ? (
+                <div className="flex items-center">
+                  <div className="w-3 h-3 border border-red-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Logging out...
+                </div>
+              ) : (
+                "Logout"
+              )}
             </button>
           )}
         </div>

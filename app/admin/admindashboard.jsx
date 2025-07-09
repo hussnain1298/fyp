@@ -4,20 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { auth, firestore } from "@/lib/firebase"
 import { doc, getDoc } from "firebase/firestore"
-import {
-  BarChart3,
-  Users,
-  MessageSquare,
-  Mail,
-  Home,
-  LogOut,
-  Menu,
-  X,
-  Settings,
-  Bell,
-  Search,
-  Shield,
-} from "lucide-react"
+import { BarChart3, Users, MessageSquare, Mail, Home, LogOut, Shield } from "lucide-react"
 
 import AdminHome from "./dashboard"
 import Statistics from "./statistics"
@@ -27,12 +14,14 @@ import UserManagement from "./users"
 import Navbar from "../Navbar/navbar"
 import Footer from "../footer/page"
 import ManageContent from "./manage-content"
+import Messages from "./messages"
 
 const navigationItems = [
   { id: "dashboard", label: "Dashboard", icon: Home, component: AdminHome },
   { id: "statistics", label: "Statistics", icon: BarChart3, component: Statistics },
   { id: "users", label: "Users", icon: Users, component: UserManagement },
   { id: "content", label: "Content Management", icon: Shield, component: ManageContent },
+  { id: "messages", label: "Messages", icon: MessageSquare, component: Messages },
   { id: "contact", label: "Contact", icon: MessageSquare, component: Contact },
   { id: "subscriptions", label: "Subscriptions", icon: Mail, component: Subscriptions },
 ]

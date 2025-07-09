@@ -412,11 +412,7 @@ const OrphanageDashboard = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50 flex items-center justify-center">
         <div className="text-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-            className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"
-          />
+         
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-gray-600 text-lg font-medium">
             Loading your dashboard...
           </motion.p>
@@ -991,46 +987,9 @@ const OrphanageDashboard = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.7 }}
-          className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-8 text-white relative overflow-hidden"
+          className="bg-gradient-to-r from-green-500 to-emerald-500  text-white relative overflow-hidden"
         >
-          <div className="absolute top-0 right-0 w-40 h-40 bg-white bg-opacity-10 rounded-full -translate-y-20 translate-x-20"></div>
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-white bg-opacity-10 rounded-full translate-y-16 -translate-x-16"></div>
-
-          <div className="relative z-10 flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 bg-white bg-opacity-20 rounded-full">
-                  <Award className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold mb-2">Making a Difference Together</h3>
-                  <p className="text-green-100 text-lg">
-                    Your organization is helping create positive change in the community.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-6 text-green-100 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></div>
-                  <span>Active Organization</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  <span>Community Partner</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Gift className="w-4 h-4" />
-                  <span>{priorityMatchCount} Priority Matches</span>
-                </div>
-              </div>
-            </div>
-            <div className="hidden md:block">
-              <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                <Building className="w-10 h-10 text-white" />
-              </div>
-            </div>
-          </div>
+          
         </motion.div>
       </div>
     </div>
