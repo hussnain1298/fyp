@@ -1,46 +1,22 @@
-"use client";
+"use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { firestore, auth } from "@/lib/firebase";
-import {
-  collection,
-  query,
-  getDocs,
-  deleteDoc,
-  doc,
-  updateDoc,
-  where,
-  addDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { toast, ToastContainer } from "react-toastify";
-import { motion } from "framer-motion";
-import {
-  FaPlus,
-  FaEdit,
-  FaTrash,
-  FaFilter,
-  FaMinus,
-  FaTimes,
-} from "react-icons/fa";
-import {
-  FileText,
-  DollarSign,
-  Shirt,
-  UtensilsCrossed,
-  Package,
-  Loader2,
-} from "lucide-react";
-import "react-toastify/dist/ReactToastify.css";
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { firestore, auth } from "@/lib/firebase"
+import { collection, query, getDocs, doc, updateDoc, where, addDoc, serverTimestamp } from "firebase/firestore"
+import { toast, ToastContainer } from "react-toastify"
+import { motion } from "framer-motion"
+import { FaPlus, FaEdit, FaTrash, FaFilter, FaMinus, FaTimes } from "react-icons/fa"
+import { FileText, DollarSign, Shirt, UtensilsCrossed, Package, Loader2 } from "lucide-react"
+import "react-toastify/dist/ReactToastify.css"
 
-const PAGE_SIZE = 9;
+const PAGE_SIZE = 9
 
 const REQUEST_TYPES = [
   { value: "Money", label: "Money", icon: DollarSign, maxLimit: 50000 },
-  { value: "Clothes", label: "Clothes", icon: Shirt, maxLimit: 200 },
-  { value: "Food", label: "Food", icon: UtensilsCrossed, maxLimit: 100 },
+  { value: "Clothes", label: "Clothes", icon: Shirt, maxLimit: 200, unit: "piece" },
+  { value: "Food", label: "Food", icon: UtensilsCrossed, maxLimit: 100, unit: "KG" },
   { value: "Other", label: "Other", icon: Package, maxLimit: 500 },
-];
+]
 
 const CLOTHES_SUBTYPES = [
   { value: "Jeans", label: "Jeans", icon: "👖" },
@@ -51,7 +27,7 @@ const CLOTHES_SUBTYPES = [
   { value: "Winter Clothes", label: "Winter Clothes", icon: "🧥" },
   { value: "Undergarments", label: "Undergarments", icon: "👙" },
   { value: "Shoes", label: "Shoes", icon: "👟" },
-];
+]
 
 const FOOD_SUBTYPES = [
   { value: "Rice", label: "Rice", icon: "🍚" },
@@ -64,28 +40,28 @@ const FOOD_SUBTYPES = [
   { value: "Cooking Oil", label: "Cooking Oil", icon: "🫒" },
   { value: "Spices", label: "Spices", icon: "🌶️" },
   { value: "Ready Meals", label: "Ready Meals", icon: "🍽️" },
-];
+]
 
 const STATUS_COLORS = {
   Pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
   Fulfilled: "bg-green-50 text-green-700 border-green-200",
-};
+}
 
 // Read More/Less Component with popup functionality
-const ReadMoreText = ({ text, maxLength = 100, request }) => {
-  const [showModal, setShowModal] = useState(false);
+const ReadMoreText = ({ text, maxLength = 30, request }) => {
+  const [showModal, setShowModal] = useState(false)
 
   if (!text || text.length <= maxLength) {
-    return <span>{text}</span>;
+    return <span>{text}</span>
   }
 
   const openModal = () => {
-    setShowModal(true);
-  };
+    setShowModal(true)
+  }
 
   const closeModal = () => {
-    setShowModal(false);
-  };
+    setShowModal(false)
+  }
 
   return (
     <>
@@ -93,7 +69,7 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
         {text.substring(0, maxLength)}...
         <button
           onClick={openModal}
-          className=" text-green-600 hover:text-green-700 font-medium text-sm transition-colors"
+          className="ml-1 text-green-600 hover:text-green-700 font-medium text-sm transition-colors underline"
         >
           Read More
         </button>
@@ -116,9 +92,7 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
             {/* Fixed Header */}
             <div className="p-4 border-b border-gray-100 rounded-t-2xl">
               <div className="flex justify-between items-start mb-3">
-                <h2 className="text-lg font-bold text-gray-800">
-                  Request Details
-                </h2>
+                <h2 className="text-lg font-bold text-gray-800">Request Details</h2>
                 <button
                   onClick={closeModal}
                   className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors"
@@ -128,9 +102,7 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
               </div>
 
               <div className="space-y-2">
-                <h3 className="text-base font-bold text-gray-800">
-                  {request.title}
-                </h3>
+                <h3 className="text-base font-bold text-gray-800">{request.title}</h3>
                 <span
                   className={`inline-block px-2 py-1 rounded-full text-xs font-semibold border ${
                     STATUS_COLORS[request.status || "Pending"]
@@ -144,39 +116,25 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div>
-                <h4 className="font-semibold text-gray-700 mb-2 text-sm">
-                  Description:
-                </h4>
-                <p className="text-gray-600 leading-relaxed text-sm">
-                  {request.description}
-                </p>
+                <h4 className="font-semibold text-gray-700 mb-2 text-sm">Description:</h4>
+                <p className="text-gray-600 leading-relaxed text-sm">{request.description}</p>
               </div>
 
               <div>
-                <h4 className="font-semibold text-gray-700 mb-2 text-sm">
-                  Request Type:
-                </h4>
-                <p className="text-green-600 font-semibold text-sm">
-                  {request.requestType}
-                </p>
+                <h4 className="font-semibold text-gray-700 mb-2 text-sm">Request Type:</h4>
+                <p className="text-green-600 font-semibold text-sm">{request.requestType}</p>
               </div>
 
               {request.subtypes && request.subtypes.length > 0 ? (
                 <div>
-                  <h4 className="font-semibold text-gray-700 mb-2 text-sm">
-                    Items Needed:
-                  </h4>
+                  <h4 className="font-semibold text-gray-700 mb-2 text-sm">Items Needed:</h4>
                   <div className="space-y-2">
                     {request.subtypes.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="flex justify-between items-center p-2 bg-blue-50 rounded-lg"
-                      >
-                        <span className="text-blue-700 font-medium text-sm">
-                          {item.subtype}
-                        </span>
+                      <div key={idx} className="flex justify-between items-center p-2 bg-blue-50 rounded-lg">
+                        <span className="text-blue-700 font-medium text-sm">{item.subtype}</span>
                         <span className="font-semibold text-blue-800 text-sm">
-                          {item.donatedAmount || 0} / {item.quantity}
+                          {request.subtypeDonations?.[item.subtype] || 0} / {item.quantity}{" "}
+                          {REQUEST_TYPES.find((t) => t.value === request.requestType)?.unit || ""}
                         </span>
                       </div>
                     ))}
@@ -185,11 +143,10 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
               ) : (
                 request.totalQuantity && (
                   <div>
-                    <h4 className="font-semibold text-gray-700 mb-2 text-sm">
-                      Quantity:
-                    </h4>
+                    <h4 className="font-semibold text-gray-700 mb-2 text-sm">Quantity:</h4>
                     <p className="text-green-600 font-semibold text-sm">
-                      {request.donatedAmount || 0} / {request.totalQuantity}
+                      {request.donatedAmount || 0} / {request.totalQuantity}{" "}
+                      {REQUEST_TYPES.find((t) => t.value === request.requestType)?.unit || ""}
                     </p>
                   </div>
                 )
@@ -198,9 +155,7 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
 
             {/* Fixed Progress Bar at Bottom */}
             <div className="p-4 border-t border-gray-100 rounded-b-2xl">
-              <h4 className="font-semibold text-gray-700 mb-2 text-sm">
-                Progress:
-              </h4>
+              <h4 className="font-semibold text-gray-700 mb-2 text-sm">Progress:</h4>
               <div className="h-2 w-full bg-gray-200 rounded-full">
                 <div
                   className="h-2 bg-gradient-to-r from-green-500 to-green-600 rounded-full"
@@ -208,17 +163,15 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
                 ></div>
               </div>
               <p className="text-xs text-green-600 font-medium mt-1">
-                {typeof request.progress === "number"
-                  ? `${request.progress.toFixed(1)}% completed`
-                  : "No data"}
+                {typeof request.progress === "number" ? `${request.progress.toFixed(1)}% completed` : "No data"}
               </p>
             </div>
           </motion.div>
         </motion.div>
       )}
     </>
-  );
-};
+  )
+}
 
 // Loading skeleton component
 const RequestSkeleton = () => (
@@ -243,122 +196,145 @@ const RequestSkeleton = () => (
       <div className="h-8 bg-red-100 rounded-lg flex-1"></div>
     </div>
   </div>
-);
+)
 
 export default function RequestsDashboard() {
-  const [requests, setRequests] = useState([]);
+  const [requests, setRequests] = useState([])
   const [form, setForm] = useState({
     title: "",
     description: "",
     requestType: "",
     subtypes: [{ subtype: "", quantity: "" }], // Array for multiple subtypes
     quantity: "",
-  });
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [formError, setFormError] = useState("");
-  const [page, setPage] = useState(1);
-  const [filterType, setFilterType] = useState("All");
-  const [filterStatus, setFilterStatus] = useState("All");
+  })
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [formError, setFormError] = useState("")
+  const [page, setPage] = useState(1)
+  const [filterType, setFilterType] = useState("All")
+  const [filterStatus, setFilterStatus] = useState("All")
 
   const fetchRequests = useCallback(async () => {
-    const user = auth.currentUser;
+    const user = auth.currentUser
     if (!user) {
-      toast.error("Please log in to view requests");
-      return;
+      toast.error("Please log in to view requests")
+      return
     }
-    setLoading(true);
+    setLoading(true)
 
     try {
-      const q = query(
-        collection(firestore, "requests"),
-        where("orphanageId", "==", user.uid)
-      );
-      const snapshot = await getDocs(q);
+      // FIXED: Only filter by orphanageId and deleted status - show ALL requests posted by this orphanage
+      const q = query(collection(firestore, "requests"), where("orphanageId", "==", user.uid))
+
+      const snapshot = await getDocs(q)
       const list = await Promise.all(
-        snapshot.docs.map(async (docSnap) => {
-          const request = { id: docSnap.id, ...docSnap.data() };
+        snapshot.docs
+          .filter((doc) => {
+            const data = doc.data()
+            return !data.deleted // Filter out deleted requests on client side
+          })
+          .map(async (docSnap) => {
+            const request = { id: docSnap.id, ...docSnap.data() }
 
-          // Fetch related donations
-          const donationQuery = query(
-            collection(firestore, "donations"),
-            where("requestId", "==", request.id),
-            where("confirmed", "==", true)
-          );
-          const donationSnap = await getDocs(donationQuery);
+            // Fetch related donations to calculate progress
+            const donationQuery = query(
+              collection(firestore, "donations"),
+              where("requestId", "==", request.id),
+              where("confirmed", "==", true),
+            )
+            const donationSnap = await getDocs(donationQuery)
 
-          let donated = 0;
-          donationSnap.forEach((don) => {
-            const data = don.data();
-            if (request.requestType === "Money")
-              donated += Number(data.amount || 0);
-            if (request.requestType === "Clothes")
-              donated += Number(data.numClothes || 0);
-            if (request.requestType === "Food")
-              donated += Number(data.numMeals || 0);
-          });
+            let donated = 0
+            const subtypeDonations = {}
 
-          return {
-            ...request,
-            donatedAmount: donated,
-            progress: request.totalQuantity
-              ? Math.min((donated / request.totalQuantity) * 100, 100)
-              : 0,
-          };
-        })
-      );
+            donationSnap.forEach((don) => {
+              const data = don.data()
 
-      setRequests(list);
+              // Handle multiple subtypes
+              if (data.subtypes && Array.isArray(data.subtypes)) {
+                data.subtypes.forEach((subtypeItem) => {
+                  subtypeDonations[subtypeItem.subtype] =
+                    (subtypeDonations[subtypeItem.subtype] || 0) + subtypeItem.quantity
+                  donated += subtypeItem.quantity
+                })
+              } else {
+                // Handle legacy single donations
+                if (request.requestType === "Money") donated += Number(data.amount || 0)
+                if (request.requestType === "Clothes") donated += Number(data.numClothes || 0)
+                if (request.requestType === "Food") donated += Number(data.numMeals || 0)
+              }
+            })
+
+            // Calculate progress and determine status
+            const progress = request.totalQuantity ? Math.min((donated / request.totalQuantity) * 100, 100) : 0
+
+            // Auto-update status to Fulfilled if progress reaches 100%
+            let currentStatus = request.status || "Pending"
+            if (progress >= 100 && currentStatus !== "Fulfilled") {
+              currentStatus = "Fulfilled"
+              // Update the status in Firestore
+              try {
+                await updateDoc(doc(firestore, "requests", request.id), {
+                  status: "Fulfilled",
+                })
+              } catch (err) {
+                console.log("Could not update status:", err)
+              }
+            }
+
+            return {
+              ...request,
+              donatedAmount: donated,
+              subtypeDonations,
+              progress: progress,
+              status: currentStatus, // Use the updated status
+            }
+          }),
+      )
+
+      setRequests(list)
     } catch (err) {
-      toast.error("Failed to load requests: " + err.message);
+      toast.error("Failed to load requests: " + err.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    fetchRequests();
-  }, [fetchRequests]);
+    fetchRequests()
+  }, [fetchRequests])
 
   const validateForm = useCallback(() => {
-    const errors = [];
+    const errors = []
 
     if (!form.title?.trim()) {
-      errors.push("Title is required");
+      errors.push("Title is required")
     } else if (form.title.length > 30) {
-      errors.push("Title must be 30 characters or less");
+      errors.push("Title must be 30 characters or less")
     }
 
     if (!form.description?.trim()) {
-      errors.push("Description is required");
+      errors.push("Description is required")
     } else if (form.description.length < 60) {
-      errors.push("Description must be at least 60 characters");
+      errors.push("Description must be at least 60 characters")
     } else if (form.description.length > 250) {
-      errors.push("Description must be 250 characters or less");
+      errors.push("Description must be 250 characters or less")
     }
 
     if (!form.requestType) {
-      errors.push("Request type is required");
+      errors.push("Request type is required")
     }
 
     // For Money and Other types, validate single quantity
     if (form.requestType === "Money" || form.requestType === "Other") {
-      if (
-        !form.quantity ||
-        isNaN(form.quantity) ||
-        Number(form.quantity) <= 0
-      ) {
-        errors.push("Quantity is required and must be a positive number");
+      if (!form.quantity || isNaN(form.quantity) || Number(form.quantity) <= 0) {
+        errors.push("Quantity is required and must be a positive number")
       } else {
-        const requestTypeConfig = REQUEST_TYPES.find(
-          (t) => t.value === form.requestType
-        );
-        const maxLimit = requestTypeConfig?.maxLimit || 1000;
+        const requestTypeConfig = REQUEST_TYPES.find((t) => t.value === form.requestType)
+        const maxLimit = requestTypeConfig?.maxLimit || 1000
         if (Number(form.quantity) > maxLimit) {
-          errors.push(
-            `Maximum ${form.requestType.toLowerCase()} quantity is ${maxLimit}`
-          );
+          errors.push(`Maximum ${form.requestType.toLowerCase()} quantity is ${maxLimit}`)
         }
       }
     }
@@ -366,161 +342,144 @@ export default function RequestsDashboard() {
     // For Clothes and Food, validate subtypes
     if (form.requestType === "Clothes" || form.requestType === "Food") {
       if (!form.subtypes || form.subtypes.length === 0) {
-        errors.push(`${form.requestType} subtypes are required`);
+        errors.push(`${form.requestType} subtypes are required`)
       } else {
-        let totalQuantity = 0;
-        const subtypeNames = new Set();
+        let totalQuantity = 0
+        const subtypeNames = new Set()
 
         for (const subtypeItem of form.subtypes) {
           if (!subtypeItem.subtype) {
-            errors.push("All subtype selections are required");
-            break;
+            errors.push("All subtype selections are required")
+            break
           }
-          if (
-            !subtypeItem.quantity ||
-            isNaN(subtypeItem.quantity) ||
-            Number(subtypeItem.quantity) <= 0
-          ) {
-            errors.push("All subtype quantities must be positive numbers");
-            break;
+          if (!subtypeItem.quantity || isNaN(subtypeItem.quantity) || Number(subtypeItem.quantity) <= 0) {
+            errors.push("All subtype quantities must be positive numbers")
+            break
           }
           if (subtypeNames.has(subtypeItem.subtype)) {
-            errors.push("Duplicate subtypes are not allowed");
-            break;
+            errors.push("Duplicate subtypes are not allowed")
+            break
           }
-          subtypeNames.add(subtypeItem.subtype);
-          totalQuantity += Number(subtypeItem.quantity);
+          subtypeNames.add(subtypeItem.subtype)
+          totalQuantity += Number(subtypeItem.quantity)
         }
 
-        const requestTypeConfig = REQUEST_TYPES.find(
-          (t) => t.value === form.requestType
-        );
-        const maxLimit = requestTypeConfig?.maxLimit || 1000;
+        const requestTypeConfig = REQUEST_TYPES.find((t) => t.value === form.requestType)
+        const maxLimit = requestTypeConfig?.maxLimit || 1000
         if (totalQuantity > maxLimit) {
-          errors.push(
-            `Total ${form.requestType.toLowerCase()} quantity cannot exceed ${maxLimit}`
-          );
+          errors.push(`Total ${form.requestType.toLowerCase()} quantity cannot exceed ${maxLimit}`)
         }
       }
     }
 
-    return errors;
-  }, [form]);
+    return errors
+  }, [form])
 
   const filteredRequests = useMemo(() => {
     return requests.filter((request) => {
-      const typeMatch =
-        filterType === "All" || request.requestType === filterType;
-      const statusMatch =
-        filterStatus === "All" ||
-        (request.status || "Pending") === filterStatus;
-      return typeMatch && statusMatch;
-    });
-  }, [requests, filterType, filterStatus]);
+      const typeMatch = filterType === "All" || request.requestType === filterType
+      const statusMatch = filterStatus === "All" || (request.status || "Pending") === filterStatus
+      return typeMatch && statusMatch
+    })
+  }, [requests, filterType, filterStatus])
 
-  const totalPages = Math.ceil(filteredRequests.length / PAGE_SIZE);
-  const paginatedRequests = filteredRequests.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE
-  );
+  const totalPages = Math.ceil(filteredRequests.length / PAGE_SIZE)
+  const paginatedRequests = filteredRequests.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const handleSave = async (e) => {
-    e.preventDefault();
-    setFormError("");
+    e.preventDefault()
+    setFormError("")
 
-    const errors = validateForm();
+    const errors = validateForm()
     if (errors.length > 0) {
-      setFormError(errors.join(", "));
-      return;
+      setFormError(errors.join(", "))
+      return
     }
 
-    const user = auth.currentUser;
+    const user = auth.currentUser
     if (!user) {
-      toast.error("Please log in to create requests");
-      return;
+      toast.error("Please log in to create requests")
+      return
     }
 
-    const isEdit = !!form.id;
+    const isEdit = !!form.id
 
     // Calculate total quantity
-    let totalQuantity = 0;
+    let totalQuantity = 0
     if (form.requestType === "Money" || form.requestType === "Other") {
-      totalQuantity = Number(form.quantity);
+      totalQuantity = Number(form.quantity)
     } else if (form.requestType === "Clothes" || form.requestType === "Food") {
-      totalQuantity = form.subtypes.reduce(
-        (sum, item) => sum + Number(item.quantity),
-        0
-      );
+      totalQuantity = form.subtypes.reduce((sum, item) => sum + Number(item.quantity), 0)
     }
 
     const payload = {
       title: form.title.trim(),
       description: form.description.trim(),
       requestType: form.requestType,
-      subtypes:
-        form.requestType === "Clothes" || form.requestType === "Food"
-          ? form.subtypes
-          : null,
-      quantity:
-        form.requestType === "Money" || form.requestType === "Other"
-          ? Number(form.quantity)
-          : null,
+      subtypes: form.requestType === "Clothes" || form.requestType === "Food" ? form.subtypes : null,
+      quantity: form.requestType === "Money" || form.requestType === "Other" ? Number(form.quantity) : null,
       totalQuantity: totalQuantity,
       orphanageId: user.uid,
       orphanageEmail: user.email,
       status: form.status || "Pending",
+      deleted: false, // Ensure new requests are not marked as deleted
       timestamp: serverTimestamp(),
-    };
+    }
 
     try {
-      setLoading(true);
+      setLoading(true)
       if (isEdit) {
-        const ref = doc(firestore, "requests", form.id);
-        await updateDoc(ref, payload);
-        setRequests((prev) =>
-          prev.map((r) => (r.id === form.id ? { ...r, ...payload } : r))
-        );
-        toast.success("Request updated successfully");
+        const ref = doc(firestore, "requests", form.id)
+        await updateDoc(ref, payload)
+        setRequests((prev) => prev.map((r) => (r.id === form.id ? { ...r, ...payload } : r)))
+        toast.success("Request updated successfully")
       } else {
-        const ref = await addDoc(collection(firestore, "requests"), payload);
-        setRequests((prev) => [...prev, { id: ref.id, ...payload }]);
-        toast.success("Request posted successfully");
+        const ref = await addDoc(collection(firestore, "requests"), payload)
+        setRequests((prev) => [...prev, { id: ref.id, ...payload }])
+        toast.success("Request posted successfully")
       }
-      setModalOpen(false);
+      setModalOpen(false)
       setForm({
         title: "",
         description: "",
         requestType: "",
         subtypes: [{ subtype: "", quantity: "" }],
         quantity: "",
-      });
+      })
     } catch (err) {
-      setFormError(err.message);
-      toast.error("Error: " + err.message);
+      setFormError(err.message)
+      toast.error("Error: " + err.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
+  // Soft delete implementation
   const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this request?")) return;
+    if (!confirm("Are you sure you want to delete this request?")) return
 
     try {
-      await deleteDoc(doc(firestore, "requests", id));
-      setRequests((prev) => prev.filter((r) => r.id !== id));
-      toast.success("Request deleted successfully");
+      // Soft delete: mark as deleted instead of removing from database
+      await updateDoc(doc(firestore, "requests", id), {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+      })
+
+      // Remove from local state
+      setRequests((prev) => prev.filter((r) => r.id !== id))
+      toast.success("Request deleted successfully")
     } catch (err) {
-      toast.error("Failed to delete request");
+      toast.error("Failed to delete request")
     }
-  };
+  }
 
   const openModal = (request = null) => {
     if (request) {
       setForm({
         ...request,
         subtypes: request.subtypes || [{ subtype: "", quantity: "" }],
-      });
-      setEditMode(true);
+      })
+      setEditMode(true)
     } else {
       setForm({
         title: "",
@@ -528,37 +487,40 @@ export default function RequestsDashboard() {
         requestType: "",
         subtypes: [{ subtype: "", quantity: "" }],
         quantity: "",
-      });
-      setEditMode(false);
+      })
+      setEditMode(false)
     }
-    setFormError("");
-    setModalOpen(true);
-  };
+    setFormError("")
+    setModalOpen(true)
+  }
 
   const closeModal = () => {
-    setModalOpen(false);
+    setModalOpen(false)
     setForm({
       title: "",
       description: "",
       requestType: "",
       subtypes: [{ subtype: "", quantity: "" }],
       quantity: "",
-    });
-    setFormError("");
-  };
+    })
+    setFormError("")
+  }
 
   const getSubtypeOptions = () => {
-    if (form.requestType === "Clothes") return CLOTHES_SUBTYPES;
-    if (form.requestType === "Food") return FOOD_SUBTYPES;
-    return [];
-  };
+    if (form.requestType === "Clothes") return CLOTHES_SUBTYPES
+    if (form.requestType === "Food") return FOOD_SUBTYPES
+    return []
+  }
 
   const getMaxLimit = () => {
-    const requestTypeConfig = REQUEST_TYPES.find(
-      (t) => t.value === form.requestType
-    );
-    return requestTypeConfig?.maxLimit || 1000;
-  };
+    const requestTypeConfig = REQUEST_TYPES.find((t) => t.value === form.requestType)
+    return requestTypeConfig?.maxLimit || 1000
+  }
+
+  const getUnit = () => {
+    const requestTypeConfig = REQUEST_TYPES.find((t) => t.value === form.requestType)
+    return requestTypeConfig?.unit || ""
+  }
 
   const addSubtype = () => {
     // Restrict to maximum 3 items for non-Money types
@@ -566,27 +528,27 @@ export default function RequestsDashboard() {
       setForm({
         ...form,
         subtypes: [...form.subtypes, { subtype: "", quantity: "" }],
-      });
+      })
     }
-  };
+  }
 
   const removeSubtype = (index) => {
     if (form.subtypes.length > 1) {
       setForm({
         ...form,
         subtypes: form.subtypes.filter((_, i) => i !== index),
-      });
+      })
     }
-  };
+  }
 
   const updateSubtype = (index, field, value) => {
-    const newSubtypes = [...form.subtypes];
-    newSubtypes[index][field] = value;
+    const newSubtypes = [...form.subtypes]
+    newSubtypes[index][field] = value
     setForm({
       ...form,
       subtypes: newSubtypes,
-    });
-  };
+    })
+  }
 
   if (loading && requests.length === 0) {
     return (
@@ -596,9 +558,7 @@ export default function RequestsDashboard() {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
               <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800">
-              Loading Requests...
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-800">Loading Requests...</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
@@ -607,7 +567,7 @@ export default function RequestsDashboard() {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -620,9 +580,7 @@ export default function RequestsDashboard() {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
             <FileText className="w-10 h-10 text-green-600" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            Donation Requests
-          </h1>
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">My Donation Requests</h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Create and manage your donation requests to get the support you need
           </p>
@@ -672,17 +630,12 @@ export default function RequestsDashboard() {
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
             <div className="bg-green-50 p-4 rounded-xl border border-green-100">
-              <div className="text-2xl font-bold text-green-600">
-                {requests.length}
-              </div>
+              <div className="text-2xl font-bold text-green-600">{requests.length}</div>
               <div className="text-sm text-green-600">Total Requests</div>
             </div>
             <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
               <div className="text-2xl font-bold text-yellow-600">
-                {
-                  requests.filter((r) => (r.status || "Pending") === "Pending")
-                    .length
-                }
+                {requests.filter((r) => (r.status || "Pending") === "Pending").length}
               </div>
               <div className="text-sm text-yellow-600">Pending</div>
             </div>
@@ -693,9 +646,7 @@ export default function RequestsDashboard() {
               <div className="text-sm text-green-600">Fulfilled</div>
             </div>
             <div className="bg-green-50 p-4 rounded-xl border border-green-100">
-              <div className="text-2xl font-bold text-green-600">
-                {filteredRequests.length}
-              </div>
+              <div className="text-2xl font-bold text-green-600">{filteredRequests.length}</div>
               <div className="text-sm text-green-600">Filtered</div>
             </div>
           </div>
@@ -703,17 +654,11 @@ export default function RequestsDashboard() {
 
         {/* Requests Grid */}
         {paginatedRequests.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-20"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
             <div className="inline-flex items-center justify-center w-24 h-24 bg-green-100 rounded-full mb-6">
               <FileText className="w-12 h-12 text-green-600" />
             </div>
-            <h3 className="text-2xl font-bold text-gray-600 mb-4">
-              No requests found
-            </h3>
+            <h3 className="text-2xl font-bold text-gray-600 mb-4">No requests found</h3>
             <p className="text-gray-500 text-lg mb-6">
               {filterType !== "All" || filterStatus !== "All"
                 ? "Try adjusting your filters"
@@ -733,11 +678,9 @@ export default function RequestsDashboard() {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12"
           >
             {paginatedRequests.map((request, index) => {
-              const requestType = REQUEST_TYPES.find(
-                (t) => t.value === request.requestType
-              );
-              const status = request.status || "Pending";
-              const IconComponent = requestType?.icon || Package;
+              const requestType = REQUEST_TYPES.find((t) => t.value === request.requestType)
+              const status = request.status || "Pending"
+              const IconComponent = requestType?.icon || Package
 
               return (
                 <motion.div
@@ -758,9 +701,7 @@ export default function RequestsDashboard() {
                         </span>
                       </div>
                     </div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold border ${STATUS_COLORS[status]}`}
-                    >
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${STATUS_COLORS[status]}`}>
                       {status}
                     </span>
                   </div>
@@ -770,38 +711,26 @@ export default function RequestsDashboard() {
                   </h3>
 
                   <div className="text-gray-600 mb-4 leading-relaxed flex-1 min-h-[60px]">
-                    <ReadMoreText
-                      text={request.description}
-                      maxLength={100}
-                      request={request}
-                    />
+                    <ReadMoreText text={request.description} maxLength={30} request={request} />
                   </div>
 
                   <div className="space-y-2 mb-6 flex-1">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500 font-medium">Type:</span>
-                      <span className="font-semibold text-green-600">
-                        {request.requestType}
-                      </span>
+                      <span className="font-semibold text-green-600">{request.requestType}</span>
                     </div>
 
                     {/* Display subtypes if available with fixed height container */}
                     {request.subtypes && request.subtypes.length > 0 ? (
                       <div className="space-y-1">
-                        <span className="text-gray-500 font-medium text-sm">
-                          Items:
-                        </span>
+                        <span className="text-gray-500 font-medium text-sm">Items:</span>
                         <div className="space-y-1 max-h-[120px] overflow-y-auto">
                           {request.subtypes.map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="flex justify-between text-xs bg-blue-50 px-2 py-1 rounded"
-                            >
-                              <span className="text-blue-700 truncate flex-1 mr-2">
-                                {item.subtype}
-                              </span>
+                            <div key={idx} className="flex justify-between text-xs bg-blue-50 px-2 py-1 rounded">
+                              <span className="text-blue-700 truncate flex-1 mr-2">{item.subtype}</span>
                               <span className="font-semibold text-blue-800 whitespace-nowrap">
-                                {item.donatedAmount || 0} / {item.quantity}
+                                {request.subtypeDonations?.[item.subtype] || 0} / {item.quantity}{" "}
+                                {requestType?.unit || ""}
                               </span>
                             </div>
                           ))}
@@ -810,12 +739,9 @@ export default function RequestsDashboard() {
                     ) : (
                       request.totalQuantity && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-500 font-medium">
-                            Donated:
-                          </span>
+                          <span className="text-gray-500 font-medium">Donated:</span>
                           <span className="font-semibold text-green-600">
-                            {request.donatedAmount || 0} /{" "}
-                            {request.totalQuantity}
+                            {request.donatedAmount || 0} / {request.totalQuantity} {requestType?.unit || ""}
                           </span>
                         </div>
                       )
@@ -832,9 +758,7 @@ export default function RequestsDashboard() {
                         {request.progress.toFixed(1)}% completed
                       </p>
                     ) : (
-                      <p className="text-xs text-gray-400 font-medium mt-1">
-                        No data
-                      </p>
+                      <p className="text-xs text-gray-400 font-medium mt-1">No data</p>
                     )}
                   </div>
 
@@ -856,18 +780,14 @@ export default function RequestsDashboard() {
                     </button>
                   </div>
                 </motion.div>
-              );
+              )
             })}
           </motion.div>
         )}
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex justify-center"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-center">
             <div className="flex space-x-2">
               {Array.from({ length: totalPages }, (_, i) => (
                 <button
@@ -906,34 +826,24 @@ export default function RequestsDashboard() {
 
                 {/* Move error messages here - static at top */}
                 {formError && (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-                    {formError}
-                  </div>
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{formError}</div>
                 )}
               </div>
 
               {/* Modal Content - Scrollable */}
               <div className="flex-1 overflow-y-auto p-6">
                 <form onSubmit={handleSave} className="space-y-6">
-                  {/* Remove the formError div from here */}
-
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-3">
-                      Title * (Max: 30 characters)
-                    </label>
+                    <label className="block text-sm font-bold text-gray-700 mb-3">Title * (Max: 30 characters)</label>
                     <input
                       type="text"
                       value={form.title}
-                      onChange={(e) =>
-                        setForm({ ...form, title: e.target.value })
-                      }
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
                       maxLength={30}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                       placeholder="Enter request title"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      {form.title.length}/30 characters
-                    </p>
+                    <p className="text-xs text-gray-500 mt-1">{form.title.length}/30 characters</p>
                   </div>
 
                   <div>
@@ -942,9 +852,7 @@ export default function RequestsDashboard() {
                     </label>
                     <textarea
                       value={form.description}
-                      onChange={(e) =>
-                        setForm({ ...form, description: e.target.value })
-                      }
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
                       maxLength={250}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all resize-none"
                       rows={4}
@@ -959,9 +867,7 @@ export default function RequestsDashboard() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-3">
-                      Request Type *
-                    </label>
+                    <label className="block text-sm font-bold text-gray-700 mb-3">Request Type *</label>
                     <select
                       value={form.requestType}
                       onChange={(e) =>
@@ -977,20 +883,18 @@ export default function RequestsDashboard() {
                       <option value="">Select type</option>
                       {REQUEST_TYPES.map((type) => (
                         <option key={type.value} value={type.value}>
-                          {type.label} (Max: {type.maxLimit})
+                          {type.label} (Max: {type.maxLimit} {type.unit || ""})
                         </option>
                       ))}
                     </select>
                   </div>
 
                   {/* Multiple Subtypes for Clothes and Food with max 3 items restriction */}
-                  {(form.requestType === "Clothes" ||
-                    form.requestType === "Food") && (
+                  {(form.requestType === "Clothes" || form.requestType === "Food") && (
                     <div>
                       <div className="flex justify-between items-center mb-3">
                         <label className="block text-sm font-bold text-gray-700">
-                          {form.requestType} Items * (Max Total: {getMaxLimit()}
-                          )
+                          {form.requestType} Items * (Max Total: {getMaxLimit()} {getUnit()})
                         </label>
                         <button
                           type="button"
@@ -1009,30 +913,16 @@ export default function RequestsDashboard() {
 
                       <div className="space-y-3">
                         {form.subtypes.map((subtypeItem, index) => (
-                          <div
-                            key={index}
-                            className="flex gap-3 items-center p-3 bg-gray-50 rounded-xl"
-                          >
+                          <div key={index} className="flex gap-3 items-center p-3 bg-gray-50 rounded-xl">
                             <div className="flex-1">
                               <select
                                 value={subtypeItem.subtype}
-                                onChange={(e) =>
-                                  updateSubtype(
-                                    index,
-                                    "subtype",
-                                    e.target.value
-                                  )
-                                }
+                                onChange={(e) => updateSubtype(index, "subtype", e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
                               >
-                                <option value="">
-                                  Select {form.requestType.toLowerCase()} type
-                                </option>
+                                <option value="">Select {form.requestType.toLowerCase()} type</option>
                                 {getSubtypeOptions().map((subtype) => (
-                                  <option
-                                    key={subtype.value}
-                                    value={subtype.value}
-                                  >
+                                  <option key={subtype.value} value={subtype.value}>
                                     {subtype.icon} {subtype.label}
                                   </option>
                                 ))}
@@ -1042,15 +932,9 @@ export default function RequestsDashboard() {
                               <input
                                 type="number"
                                 value={subtypeItem.quantity}
-                                onChange={(e) =>
-                                  updateSubtype(
-                                    index,
-                                    "quantity",
-                                    e.target.value
-                                  )
-                                }
+                                onChange={(e) => updateSubtype(index, "quantity", e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
-                                placeholder="Qty"
+                                placeholder={`Qty (${getUnit()})`}
                                 min="1"
                               />
                             </div>
@@ -1068,37 +952,29 @@ export default function RequestsDashboard() {
                       </div>
 
                       <p className="text-xs text-gray-500 mt-2">
-                        Total quantity:{" "}
-                        {form.subtypes.reduce(
-                          (sum, item) => sum + (Number(item.quantity) || 0),
-                          0
-                        )}{" "}
-                        / {getMaxLimit()} | Items: {form.subtypes.length} / 3
+                        Total quantity: {form.subtypes.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)} /{" "}
+                        {getMaxLimit()} {getUnit()} | Items: {form.subtypes.length} / 3
                       </p>
                     </div>
                   )}
 
                   {/* Single Quantity for Money and Other */}
-                  {(form.requestType === "Money" ||
-                    form.requestType === "Other") && (
+                  {(form.requestType === "Money" || form.requestType === "Other") && (
                     <div>
                       <label className="block text-sm font-bold text-gray-700 mb-3">
-                        Quantity * (Max: {getMaxLimit()})
+                        Quantity * (Max: {getMaxLimit()} {getUnit()})
                       </label>
                       <input
                         type="number"
                         value={form.quantity}
-                        onChange={(e) =>
-                          setForm({ ...form, quantity: e.target.value })
-                        }
+                        onChange={(e) => setForm({ ...form, quantity: e.target.value })}
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                        placeholder="Enter quantity"
+                        placeholder={`Enter quantity ${getUnit() ? `(${getUnit()})` : ""}`}
                         min="1"
                         max={getMaxLimit()}
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Maximum allowed: {getMaxLimit()}{" "}
-                        {form.requestType === "Money" ? "Rs." : "items"}
+                        Maximum allowed: {getMaxLimit()} {form.requestType === "Money" ? "Rs." : getUnit()}
                       </p>
                     </div>
                   )}
@@ -1113,11 +989,7 @@ export default function RequestsDashboard() {
                     disabled={loading}
                     className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-green-400 disabled:to-green-500 text-white py-3 px-6 rounded-xl font-semibold transition-all duration-300"
                   >
-                    {loading
-                      ? "Saving..."
-                      : editMode
-                      ? "Update Request"
-                      : "Create Request"}
+                    {loading ? "Saving..." : editMode ? "Update Request" : "Create Request"}
                   </button>
                   <button
                     type="button"
@@ -1133,5 +1005,5 @@ export default function RequestsDashboard() {
         )}
       </div>
     </div>
-  );
+  )
 }

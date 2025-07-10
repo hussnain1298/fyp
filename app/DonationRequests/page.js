@@ -56,9 +56,7 @@ const HeroSection = () => (
 
       {/* Main title */}
       <h1 className="text-4xl md:text-4xl lg:text-4xl xl:text-5xl font-bold mb-6">
-        <span className=" text-black bg-clip-text ">
-          DONATION REQUESTS
-        </span>
+        <span className=" text-black bg-clip-text ">DONATION REQUESTS</span>
       </h1>
 
       {/* Subtitle */}

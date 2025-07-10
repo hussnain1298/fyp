@@ -1,7 +1,7 @@
-"use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { auth, firestore } from "@/lib/firebase";
+"use client"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { auth, firestore } from "@/lib/firebase"
 import {
   collection,
   query,
@@ -12,9 +12,9 @@ import {
   arrayUnion,
   where,
   serverTimestamp,
-} from "firebase/firestore";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+} from "firebase/firestore"
+import { toast, ToastContainer } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
 import {
   Heart,
   Building,
@@ -32,39 +32,63 @@ import {
   Plus,
   Minus,
   FileText,
-} from "lucide-react";
-import { motion } from "framer-motion";
-import PaymentModule from "../payment/paymentModule";
+} from "lucide-react"
+import { motion } from "framer-motion"
+import PaymentModule from "../payment/paymentModule"
 
-const PAGE_SIZE = 9;
+const PAGE_SIZE = 9
 
 const REQUEST_TYPES = [
   { value: "Money", label: "Money", icon: DollarSign, maxLimit: 50000 },
-  { value: "Clothes", label: "Clothes", icon: Shirt, maxLimit: 200 },
-  { value: "Food", label: "Food", icon: UtensilsCrossed, maxLimit: 100 },
+  { value: "Clothes", label: "Clothes", icon: Shirt, maxLimit: 200, unit: "piece" },
+  { value: "Food", label: "Food", icon: UtensilsCrossed, maxLimit: 100, unit: "KG" },
   { value: "Other", label: "Other", icon: Package, maxLimit: 500 },
-];
+]
+
+const CLOTHES_SUBTYPES = [
+  { value: "Jeans", label: "Jeans", icon: "👖" },
+  { value: "Shirts", label: "Shirts", icon: "👔" },
+  { value: "Shalwar Kameez", label: "Shalwar Kameez", icon: "🥻" },
+  { value: "Trousers", label: "Trousers", icon: "👖" },
+  { value: "School Uniforms", label: "School Uniforms", icon: "👕" },
+  { value: "Winter Clothes", label: "Winter Clothes", icon: "🧥" },
+  { value: "Undergarments", label: "Undergarments", icon: "👙" },
+  { value: "Shoes", label: "Shoes", icon: "👟" },
+]
+
+const FOOD_SUBTYPES = [
+  { value: "Rice", label: "Rice", icon: "🍚" },
+  { value: "Wheat/Flour", label: "Wheat/Flour", icon: "🌾" },
+  { value: "Lentils", label: "Lentils", icon: "🫘" },
+  { value: "Vegetables", label: "Vegetables", icon: "🥬" },
+  { value: "Fruits", label: "Fruits", icon: "🍎" },
+  { value: "Meat/Chicken", label: "Meat/Chicken", icon: "🍗" },
+  { value: "Milk/Dairy", label: "Milk/Dairy", icon: "🥛" },
+  { value: "Cooking Oil", label: "Cooking Oil", icon: "🫒" },
+  { value: "Spices", label: "Spices", icon: "🌶️" },
+  { value: "Ready Meals", label: "Ready Meals", icon: "🍽️" },
+]
 
 const STATUS_COLORS = {
   Pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
   Fulfilled: "bg-green-50 text-green-700 border-green-200",
-};
+}
 
 // Read More/Less Component with complete request card popup
 const ReadMoreText = ({ text, maxLength = 100, request }) => {
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(false)
 
   if (!text || text.length <= maxLength) {
-    return <span className="text-xs">{text}</span>;
+    return <span className="text-xs">{text}</span>
   }
 
   const openModal = () => {
-    setShowModal(true);
-  };
+    setShowModal(true)
+  }
 
   const closeModal = () => {
-    setShowModal(false);
-  };
+    setShowModal(false)
+  }
 
   return (
     <>
@@ -95,9 +119,7 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
             {/* Complete Request Card Display */}
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
-                <h2 className="text-lg font-bold text-gray-800">
-                  Request Details
-                </h2>
+                <h2 className="text-lg font-bold text-gray-800">Request Details</h2>
                 <button
                   onClick={closeModal}
                   className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors"
@@ -112,13 +134,9 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                       {(() => {
-                        const requestType = REQUEST_TYPES.find(
-                          (t) => t.value === request.requestType
-                        );
-                        const IconComponent = requestType?.icon || Package;
-                        return (
-                          <IconComponent className="w-4 h-4 text-green-600" />
-                        );
+                        const requestType = REQUEST_TYPES.find((t) => t.value === request.requestType)
+                        const IconComponent = requestType?.icon || Package
+                        return <IconComponent className="w-4 h-4 text-green-600" />
                       })()}
                     </div>
                     <span className="bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded-full text-xs font-medium">
@@ -134,52 +152,41 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
                   </span>
                 </div>
 
-                <h3 className="text-lg font-bold text-gray-800">
-                  {request.title}
-                </h3>
+                <h3 className="text-lg font-bold text-gray-800">{request.title}</h3>
 
-                <div className="text-gray-600 text-sm leading-relaxed">
-                  {request.description}
-                </div>
+                <div className="text-gray-600 text-sm leading-relaxed">{request.description}</div>
 
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500 font-medium">Type:</span>
-                    <span className="font-semibold text-green-600 text-xs">
-                      {request.requestType}
-                    </span>
+                    <span className="font-semibold text-green-600 text-xs">{request.requestType}</span>
                   </div>
 
                   {request.subtypes && request.subtypes.length > 0 ? (
                     <div className="space-y-1">
-                      <span className="text-gray-500 font-medium text-sm">
-                        Items:
-                      </span>
+                      <span className="text-gray-500 font-medium text-sm">Items:</span>
                       <div className="space-y-1">
-                        {request.subtypes.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className="flex justify-between text-xs bg-blue-50 px-2 py-1 rounded"
-                          >
-                            <span className="text-blue-700 truncate flex-1 mr-2">
-                              {item.subtype}
-                            </span>
-                            <span className="font-semibold text-blue-800 whitespace-nowrap">
-                              {request.subtypeDonations?.[item.subtype] || 0} /{" "}
-                              {item.quantity}
-                            </span>
-                          </div>
-                        ))}
+                        {request.subtypes.map((item, idx) => {
+                          const requestType = REQUEST_TYPES.find((t) => t.value === request.requestType)
+                          return (
+                            <div key={idx} className="flex justify-between text-xs bg-blue-50 px-2 py-1 rounded">
+                              <span className="text-blue-700 truncate flex-1 mr-2">{item.subtype}</span>
+                              <span className="font-semibold text-blue-800 whitespace-nowrap">
+                                {request.subtypeDonations?.[item.subtype] || 0} / {item.quantity}{" "}
+                                {requestType?.unit || ""}
+                              </span>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   ) : (
                     request.totalQuantity && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500 font-medium">
-                          Donated:
-                        </span>
+                        <span className="text-gray-500 font-medium">Donated:</span>
                         <span className="font-semibold text-green-600 text-xs">
-                          {request.totalDonated || 0} / {request.totalQuantity}
+                          {request.totalDonated || 0} / {request.totalQuantity}{" "}
+                          {REQUEST_TYPES.find((t) => t.value === request.requestType)?.unit || ""}
                         </span>
                       </div>
                     )
@@ -192,36 +199,28 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
                     ></div>
                   </div>
                   <p className="text-xs text-green-600 font-medium">
-                    {typeof request.progress === "number"
-                      ? `${request.progress.toFixed(1)}% completed`
-                      : "No data"}
+                    {typeof request.progress === "number" ? `${request.progress.toFixed(1)}% completed` : "No data"}
                   </p>
 
                   {/* Orphanage Info */}
                   <div className="mt-3 p-3 bg-green-50 rounded-xl">
                     <div className="flex items-center text-sm text-gray-700 mb-1">
                       <Building className="w-4 h-4 mr-2 text-green-600" />
-                      <span className="font-semibold text-xs">
-                        {request.orphanInfo?.orgName || "N/A"}
-                      </span>
+                      <span className="font-semibold text-xs">{request.orphanInfo?.orgName || "N/A"}</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-700">
                       <MapPin className="w-4 h-4 mr-2 text-green-600" />
-                      <span className="text-xs">
-                        {request.orphanInfo?.city || "N/A"}
-                      </span>
+                      <span className="text-xs">{request.orphanInfo?.city || "N/A"}</span>
                     </div>
                   </div>
                 </div>
 
                 <button
                   onClick={() => {
-                    closeModal();
-                    window.setActiveModalId(request.id);
+                    closeModal()
+                    window.setActiveModalId(request.id)
                     if (request.subtypes && request.subtypes.length > 0) {
-                      window.setSelectedSubtypes([
-                        { subtype: "", quantity: "" },
-                      ]);
+                      window.setSelectedSubtypes([{ subtype: "", quantity: "" }])
                     }
                   }}
                   className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center space-x-2"
@@ -235,8 +234,8 @@ const ReadMoreText = ({ text, maxLength = 100, request }) => {
         </motion.div>
       )}
     </>
-  );
-};
+  )
+}
 
 // Loading skeleton component
 const RequestSkeleton = () => (
@@ -258,142 +257,129 @@ const RequestSkeleton = () => (
     </div>
     <div className="h-8 bg-green-100 rounded-lg w-full mt-auto"></div>
   </div>
-);
+)
 
 export default function FulfillRequests() {
-  const [requests, setRequests] = useState([]);
-  const [filteredRequests, setFilteredRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [donationNote, setDonationNote] = useState("");
-  const [donationAmount, setDonationAmount] = useState("");
-  const [selectedSubtypes, setSelectedSubtypes] = useState([]);
-  const [activeModalId, setActiveModalId] = useState(null);
-  const [page, setPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("All");
-  const [submitting, setSubmitting] = useState(false);
-  const [validationErrors, setValidationErrors] = useState({});
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState(0);
-  const [currentRequest, setCurrentRequest] = useState(null);
-  const router = useRouter();
+  const [requests, setRequests] = useState([])
+  const [filteredRequests, setFilteredRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [donationNote, setDonationNote] = useState("")
+  const [donationAmount, setDonationAmount] = useState("")
+  const [selectedSubtypes, setSelectedSubtypes] = useState([])
+  const [activeModalId, setActiveModalId] = useState(null)
+  const [page, setPage] = useState(1)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterType, setFilterType] = useState("All")
+  const [submitting, setSubmitting] = useState(false)
+  const [validationErrors, setValidationErrors] = useState({})
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentAmount, setPaymentAmount] = useState(0)
+  const [currentRequest, setCurrentRequest] = useState(null)
+  const router = useRouter()
 
   // Expose functions to window for ReadMoreText component
   useEffect(() => {
-    window.setActiveModalId = setActiveModalId;
-    window.setSelectedSubtypes = setSelectedSubtypes;
+    window.setActiveModalId = setActiveModalId
+    window.setSelectedSubtypes = setSelectedSubtypes
     return () => {
-      delete window.setActiveModalId;
-      delete window.setSelectedSubtypes;
-    };
-  }, []);
+      delete window.setActiveModalId
+      delete window.setSelectedSubtypes
+    }
+  }, [])
 
   useEffect(() => {
-    fetchRequests();
-  }, []);
+    fetchRequests()
+  }, [])
 
   useEffect(() => {
-    filterAndSearchRequests();
-  }, [requests, searchTerm, filterType]);
+    filterAndSearchRequests()
+  }, [requests, searchTerm, filterType])
 
   const fetchRequests = async () => {
-    setLoading(true);
+    setLoading(true)
     try {
-      const reqSnap = await getDocs(collection(firestore, "requests"));
+      // Only fetch non-deleted requests
+      const reqQuery = query(collection(firestore, "requests"), where("deleted", "!=", true))
+      const reqSnap = await getDocs(reqQuery)
       const rawRequests = reqSnap.docs
         .map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }))
-        .filter((r) => r.status === "Pending");
+        .filter((r) => r.status === "Pending")
 
-      const orphanageIds = [
-        ...new Set(rawRequests.map((r) => r.orphanageId).filter(Boolean)),
-      ];
-      const orphanageMap = {};
+      const orphanageIds = [...new Set(rawRequests.map((r) => r.orphanageId).filter(Boolean))]
+      const orphanageMap = {}
 
       if (orphanageIds.length > 0) {
-        const batches = [];
-        while (orphanageIds.length) batches.push(orphanageIds.splice(0, 10));
+        const batches = []
+        while (orphanageIds.length) batches.push(orphanageIds.splice(0, 10))
         for (const batch of batches) {
-          const orphanSnap = await getDocs(
-            query(
-              collection(firestore, "users"),
-              where("__name__", "in", batch)
-            )
-          );
+          const orphanSnap = await getDocs(query(collection(firestore, "users"), where("__name__", "in", batch)))
           orphanSnap.forEach((doc) => {
-            orphanageMap[doc.id] = doc.data();
-          });
+            orphanageMap[doc.id] = doc.data()
+          })
         }
       }
 
       const enriched = await Promise.all(
         rawRequests.map(async (r) => {
           const donationSnap = await getDocs(
-            query(
-              collection(firestore, "donations"),
-              where("requestId", "==", r.id),
-              where("confirmed", "==", true)
-            )
-          );
-          let totalDonated = 0;
-          const subtypeDonations = {};
+            query(collection(firestore, "donations"), where("requestId", "==", r.id), where("confirmed", "==", true)),
+          )
+          let totalDonated = 0
+          const subtypeDonations = {}
 
           donationSnap.forEach((d) => {
-            const donationData = d.data();
+            const donationData = d.data()
 
             if (donationData.subtypes && Array.isArray(donationData.subtypes)) {
               donationData.subtypes.forEach((subtypeItem) => {
                 subtypeDonations[subtypeItem.subtype] =
-                  (subtypeDonations[subtypeItem.subtype] || 0) +
-                  subtypeItem.quantity;
-                totalDonated += subtypeItem.quantity;
-              });
+                  (subtypeDonations[subtypeItem.subtype] || 0) + subtypeItem.quantity
+                totalDonated += subtypeItem.quantity
+              })
             } else if (donationData.subtype) {
-              const amount = donationData.donatedAmount || 0;
-              subtypeDonations[donationData.subtype] =
-                (subtypeDonations[donationData.subtype] || 0) + amount;
-              totalDonated += amount;
+              const amount = donationData.donatedAmount || 0
+              subtypeDonations[donationData.subtype] = (subtypeDonations[donationData.subtype] || 0) + amount
+              totalDonated += amount
             } else {
               if (r.requestType === "Money") {
-                totalDonated += Number(donationData.amount || 0);
+                totalDonated += Number(donationData.amount || 0)
               } else if (r.requestType === "Clothes") {
-                totalDonated += Number(donationData.numClothes || 0);
+                totalDonated += Number(donationData.numClothes || 0)
               } else if (r.requestType === "Food") {
-                totalDonated += Number(donationData.numMeals || 0);
+                totalDonated += Number(donationData.numMeals || 0)
               }
             }
-          });
+          })
 
           return {
             ...r,
             totalDonated,
             subtypeDonations,
             orphanInfo: orphanageMap[r.orphanageId] || {},
-            progress: r.totalQuantity
-              ? Math.min((totalDonated / r.totalQuantity) * 100, 100)
-              : 0,
-          };
-        })
-      );
+            progress: r.totalQuantity ? Math.min((totalDonated / r.totalQuantity) * 100, 100) : 0,
+          }
+        }),
+      )
 
-      setRequests(enriched);
-      setPage(1);
+      setRequests(enriched)
+      setPage(1)
     } catch (err) {
-      setError("Failed to load requests: " + err.message);
-      toast.error("Failed to load requests");
+      setError("Failed to load requests: " + err.message)
+      toast.error("Failed to load requests")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const filterAndSearchRequests = () => {
-    let filtered = requests;
+    let filtered = requests
 
     if (filterType !== "All") {
-      filtered = filtered.filter((r) => r.requestType === filterType);
+      filtered = filtered.filter((r) => r.requestType === filterType)
     }
 
     if (searchTerm) {
@@ -401,138 +387,109 @@ export default function FulfillRequests() {
         (r) =>
           r.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           r.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          r.orphanInfo?.orgName
-            ?.toLowerCase()
-            .includes(searchTerm.toLowerCase())
-      );
+          r.orphanInfo?.orgName?.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
     }
 
-    setFilteredRequests(filtered);
-    setPage(1);
-  };
+    setFilteredRequests(filtered)
+    setPage(1)
+  }
 
   const validateDonation = (request, note, selectedSubtypes) => {
-    const errors = {};
+    const errors = {}
 
     if (!note.trim()) {
-      errors.note = "Please add a note about your donation";
+      errors.note = "Please add a note about your donation"
     } else if (note.trim().length < 10) {
-      errors.note = "Note must be at least 10 characters long";
+      errors.note = "Note must be at least 10 characters long"
     }
 
     if (["Money", "Clothes", "Food"].includes(request.requestType)) {
-      if (
-        request.requestType === "Money" ||
-        !request.subtypes ||
-        request.subtypes.length === 0
-      ) {
-        if (
-          !donationAmount ||
-          isNaN(donationAmount) ||
-          Number(donationAmount) <= 0
-        ) {
-          const typeText =
-            request.requestType === "Food"
-              ? "number of meals"
-              : "donation amount";
-          errors.amount = `Please enter a valid ${typeText}`;
+      if (request.requestType === "Money" || !request.subtypes || request.subtypes.length === 0) {
+        if (!donationAmount || isNaN(donationAmount) || Number(donationAmount) <= 0) {
+          const typeText = request.requestType === "Food" ? "number of meals" : "donation amount"
+          errors.amount = `Please enter a valid ${typeText}`
         } else if (Number(donationAmount) > 1000000) {
-          errors.amount = "Amount cannot exceed 1,000,000";
-        } else if (
-          request.requestType === "Money" &&
-          Number(donationAmount) < 1
-        ) {
-          errors.amount = "Minimum donation amount is Rs. 1";
-        } else if (
-          ["Clothes", "Food"].includes(request.requestType) &&
-          Number(donationAmount) < 1
-        ) {
-          errors.amount = "Minimum quantity is 1";
+          errors.amount = "Amount cannot exceed 1,000,000"
+        } else if (request.requestType === "Money" && Number(donationAmount) < 1) {
+          errors.amount = "Minimum donation amount is Rs. 1"
+        } else if (["Clothes", "Food"].includes(request.requestType) && Number(donationAmount) < 1) {
+          errors.amount = "Minimum quantity is 1"
         }
 
-        const remainingAmount =
-          (request.totalQuantity || 0) - (request.totalDonated || 0);
+        const remainingAmount = (request.totalQuantity || 0) - (request.totalDonated || 0)
         if (remainingAmount <= 0) {
-          errors.amount = "This request is already fulfilled";
+          errors.amount = "This request is already fulfilled"
         } else if (Number(donationAmount) > remainingAmount) {
-          errors.amount = `Cannot donate more than needed. Maximum: ${remainingAmount}`;
+          errors.amount = `Cannot donate more than needed. Maximum: ${remainingAmount}`
         }
       } else {
         if (!selectedSubtypes || selectedSubtypes.length === 0) {
-          errors.subtypes = "Please select at least one item to donate";
+          errors.subtypes = "Please select at least one item to donate"
         } else {
-          let hasValidSubtype = false;
+          let hasValidSubtype = false
           for (const subtypeItem of selectedSubtypes) {
             if (!subtypeItem.subtype) {
-              errors.subtypes = "Please select all subtype items";
-              break;
+              errors.subtypes = "Please select all subtype items"
+              break
             }
-            if (
-              !subtypeItem.quantity ||
-              isNaN(subtypeItem.quantity) ||
-              Number(subtypeItem.quantity) <= 0
-            ) {
-              errors.subtypes = "All quantities must be positive numbers";
-              break;
+            if (!subtypeItem.quantity || isNaN(subtypeItem.quantity) || Number(subtypeItem.quantity) <= 0) {
+              errors.subtypes = "All quantities must be positive numbers"
+              break
             }
 
-            const requestSubtype = request.subtypes.find(
-              (item) => item.subtype === subtypeItem.subtype
-            );
+            const requestSubtype = request.subtypes.find((item) => item.subtype === subtypeItem.subtype)
             if (requestSubtype) {
-              const subtypeDonated =
-                request.subtypeDonations?.[subtypeItem.subtype] || 0;
-              const remainingAmount = requestSubtype.quantity - subtypeDonated;
+              const subtypeDonated = request.subtypeDonations?.[subtypeItem.subtype] || 0
+              const remainingAmount = requestSubtype.quantity - subtypeDonated
               if (remainingAmount <= 0) {
-                errors.subtypes = `${subtypeItem.subtype} is already fulfilled`;
-                break;
+                errors.subtypes = `${subtypeItem.subtype} is already fulfilled`
+                break
               } else if (Number(subtypeItem.quantity) > remainingAmount) {
-                errors.subtypes = `Cannot donate more than needed for ${subtypeItem.subtype}. Maximum: ${remainingAmount}`;
-                break;
+                errors.subtypes = `Cannot donate more than needed for ${subtypeItem.subtype}. Maximum: ${remainingAmount}`
+                break
               }
-              hasValidSubtype = true;
+              hasValidSubtype = true
             }
           }
 
           if (!hasValidSubtype && !errors.subtypes) {
-            errors.subtypes = "Please select valid items to donate";
+            errors.subtypes = "Please select valid items to donate"
           }
         }
       }
     }
 
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
 
   const handleFulfill = async (request) => {
-    const user = auth.currentUser;
+    const user = auth.currentUser
     if (!user) {
-      toast.error("Please log in to make a donation");
-      return;
+      toast.error("Please log in to make a donation")
+      return
     }
 
     const isValid =
-      request.requestType === "Money" ||
-      !request.subtypes ||
-      request.subtypes.length === 0
+      request.requestType === "Money" || !request.subtypes || request.subtypes.length === 0
         ? validateDonation(request, donationNote, [])
-        : validateDonation(request, donationNote, selectedSubtypes);
+        : validateDonation(request, donationNote, selectedSubtypes)
 
     if (!isValid) {
-      toast.error("Please fix the validation errors");
-      return;
+      toast.error("Please fix the validation errors")
+      return
     }
 
     if (request.requestType === "Money") {
-      setCurrentRequest(request);
-      setPaymentAmount(Number(donationAmount));
-      setActiveModalId(null);
-      setShowPaymentModal(true);
-      return;
+      setCurrentRequest(request)
+      setPaymentAmount(Number(donationAmount))
+      setActiveModalId(null)
+      setShowPaymentModal(true)
+      return
     }
 
-    setSubmitting(true);
+    setSubmitting(true)
     try {
       const donationData = {
         donorId: user.uid,
@@ -543,55 +500,40 @@ export default function FulfillRequests() {
         description: donationNote.trim(),
         confirmed: false,
         timestamp: serverTimestamp(),
-      };
+      }
 
-      if (
-        request.subtypes &&
-        request.subtypes.length > 0 &&
-        selectedSubtypes.length > 0
-      ) {
+      if (request.subtypes && request.subtypes.length > 0 && selectedSubtypes.length > 0) {
         donationData.subtypes = selectedSubtypes.map((item) => ({
           subtype: item.subtype,
           quantity: Number(item.quantity),
-        }));
-        donationData.donatedAmount = selectedSubtypes.reduce(
-          (sum, item) => sum + Number(item.quantity),
-          0
-        );
+        }))
+        donationData.donatedAmount = selectedSubtypes.reduce((sum, item) => sum + Number(item.quantity), 0)
       } else {
-        donationData.amount =
-          request.requestType === "Money" ? Number(donationAmount) : null;
-        donationData.numClothes =
-          request.requestType === "Clothes" ? Number(donationAmount) : null;
-        donationData.numMeals =
-          request.requestType === "Food" ? Number(donationAmount) : null;
-        donationData.donatedAmount = Number(donationAmount);
+        donationData.amount = request.requestType === "Money" ? Number(donationAmount) : null
+        donationData.numClothes = request.requestType === "Clothes" ? Number(donationAmount) : null
+        donationData.numMeals = request.requestType === "Food" ? Number(donationAmount) : null
+        donationData.donatedAmount = Number(donationAmount)
       }
 
-      const donationRef = await addDoc(
-        collection(firestore, "donations"),
-        donationData
-      );
+      const donationRef = await addDoc(collection(firestore, "donations"), donationData)
 
       await updateDoc(doc(firestore, "requests", request.id), {
         donations: arrayUnion(donationRef.id),
-      });
+      })
 
-      toast.success(
-        "Donation submitted successfully! Awaiting orphanage confirmation."
-      );
-      closeModal();
-      fetchRequests();
+      toast.success("Donation submitted successfully! Awaiting orphanage confirmation.")
+      closeModal()
+      fetchRequests()
     } catch (err) {
-      toast.error("Error submitting donation: " + err.message);
+      toast.error("Error submitting donation: " + err.message)
     } finally {
-      setSubmitting(false);
+      setSubmitting(false)
     }
-  };
+  }
 
   const handlePaymentSuccess = async (paymentData) => {
     try {
-      if (!currentRequest) return;
+      if (!currentRequest) return
 
       const donationData = {
         donorId: auth.currentUser.uid,
@@ -609,66 +551,64 @@ export default function FulfillRequests() {
           timestamp: paymentData.timestamp,
         },
         timestamp: serverTimestamp(),
-      };
+      }
 
-      const donationRef = await addDoc(
-        collection(firestore, "donations"),
-        donationData
-      );
+      const donationRef = await addDoc(collection(firestore, "donations"), donationData)
 
       await updateDoc(doc(firestore, "requests", currentRequest.id), {
         donations: arrayUnion(donationRef.id),
-      });
+      })
 
-      setShowPaymentModal(false);
-      setCurrentRequest(null);
-      setPaymentAmount(0);
-      setDonationNote("");
-      setDonationAmount("");
-      setSelectedSubtypes([]);
-      setValidationErrors({});
+      setShowPaymentModal(false)
+      setCurrentRequest(null)
+      setPaymentAmount(0)
+      setDonationNote("")
+      setDonationAmount("")
+      setSelectedSubtypes([])
+      setValidationErrors({})
 
-      toast.success("Payment successful! Your donation has been confirmed.");
-      fetchRequests();
+      toast.success("Payment successful! Your donation has been confirmed.")
+      fetchRequests()
     } catch (err) {
-      console.error("Payment success handler error:", err.message);
-      toast.error(
-        "Payment was successful but there was an error recording the donation. Please contact support."
-      );
+      console.error("Payment success handler error:", err.message)
+      toast.error("Payment was successful but there was an error recording the donation. Please contact support.")
     }
-  };
+  }
 
   const closeModal = () => {
-    setActiveModalId(null);
-    setDonationNote("");
-    setDonationAmount("");
-    setSelectedSubtypes([]);
-    setValidationErrors({});
-  };
+    setActiveModalId(null)
+    setDonationNote("")
+    setDonationAmount("")
+    setSelectedSubtypes([])
+    setValidationErrors({})
+  }
 
   const addSubtypeSelection = () => {
     if (selectedSubtypes.length < 3) {
-      setSelectedSubtypes([...selectedSubtypes, { subtype: "", quantity: "" }]);
+      setSelectedSubtypes([...selectedSubtypes, { subtype: "", quantity: "" }])
     }
-  };
+  }
 
   const removeSubtypeSelection = (index) => {
     if (selectedSubtypes.length > 1) {
-      setSelectedSubtypes(selectedSubtypes.filter((_, i) => i !== index));
+      setSelectedSubtypes(selectedSubtypes.filter((_, i) => i !== index))
     }
-  };
+  }
 
   const updateSubtypeSelection = (index, field, value) => {
-    const newSubtypes = [...selectedSubtypes];
-    newSubtypes[index][field] = value;
-    setSelectedSubtypes(newSubtypes);
-  };
+    const newSubtypes = [...selectedSubtypes]
+    newSubtypes[index][field] = value
+    setSelectedSubtypes(newSubtypes)
+  }
 
-  const totalPages = Math.ceil(filteredRequests.length / PAGE_SIZE);
-  const paginatedRequests = filteredRequests.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE
-  );
+  const getSubtypeOptions = (requestType) => {
+    if (requestType === "Clothes") return CLOTHES_SUBTYPES
+    if (requestType === "Food") return FOOD_SUBTYPES
+    return []
+  }
+
+  const totalPages = Math.ceil(filteredRequests.length / PAGE_SIZE)
+  const paginatedRequests = filteredRequests.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   if (loading) {
     return (
@@ -678,9 +618,7 @@ export default function FulfillRequests() {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
               <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800">
-              Loading Requests...
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-800">Loading Requests...</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
@@ -689,7 +627,17 @@ export default function FulfillRequests() {
           </div>
         </div>
       </div>
-    );
+    )
+  }
+
+  const handleDonateClick = (req) => {
+    if (!auth.currentUser) {
+      toast.error("Please log in to make a donation")
+      return
+    }
+    setActiveModalId(req.id)
+    setDonationNote("")
+    setDonationAmount("")
   }
 
   return (
@@ -702,9 +650,7 @@ export default function FulfillRequests() {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
             <FileText className="w-10 h-10 text-green-600" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            Fulfill Donation Requests
-          </h1>
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">Fulfill Donation Requests</h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Help those in need by fulfilling donation requests from orphanages
           </p>
@@ -745,30 +691,21 @@ export default function FulfillRequests() {
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
             <div className="bg-green-50 p-4 rounded-xl border border-green-100">
-              <div className="text-2xl font-bold text-green-600">
-                {requests.length}
-              </div>
+              <div className="text-2xl font-bold text-green-600">{requests.length}</div>
               <div className="text-sm text-green-600">Total Requests</div>
             </div>
             <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
               <div className="text-2xl font-bold text-yellow-600">
-                {
-                  requests.filter((r) => (r.status || "Pending") === "Pending")
-                    .length
-                }
+                {requests.filter((r) => (r.status || "Pending") === "Pending").length}
               </div>
               <div className="text-sm text-yellow-600">Pending</div>
             </div>
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-              <div className="text-2xl font-bold text-blue-600">
-                {filteredRequests.length}
-              </div>
+              <div className="text-2xl font-bold text-blue-600">{filteredRequests.length}</div>
               <div className="text-sm text-blue-600">Filtered</div>
             </div>
             <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
-              <div className="text-2xl font-bold text-purple-600">
-                {totalPages}
-              </div>
+              <div className="text-2xl font-bold text-purple-600">{totalPages}</div>
               <div className="text-sm text-purple-600">Pages</div>
             </div>
           </div>
@@ -783,17 +720,11 @@ export default function FulfillRequests() {
 
         {/* Requests Grid */}
         {paginatedRequests.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-20"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
             <div className="inline-flex items-center justify-center w-24 h-24 bg-green-100 rounded-full mb-6">
               <FileText className="w-12 h-12 text-green-600" />
             </div>
-            <h3 className="text-2xl font-bold text-gray-600 mb-4">
-              No requests found
-            </h3>
+            <h3 className="text-2xl font-bold text-gray-600 mb-4">No requests found</h3>
             <p className="text-gray-500 text-lg mb-6">
               {filterType !== "All" || searchTerm
                 ? "Try adjusting your filters"
@@ -807,11 +738,9 @@ export default function FulfillRequests() {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12"
           >
             {paginatedRequests.map((request, index) => {
-              const requestType = REQUEST_TYPES.find(
-                (t) => t.value === request.requestType
-              );
-              const status = request.status || "Pending";
-              const IconComponent = requestType?.icon || Package;
+              const requestType = REQUEST_TYPES.find((t) => t.value === request.requestType)
+              const status = request.status || "Pending"
+              const IconComponent = requestType?.icon || Package
 
               return (
                 <motion.div
@@ -830,9 +759,7 @@ export default function FulfillRequests() {
                         {request.requestType}
                       </span>
                     </div>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-semibold border ${STATUS_COLORS[status]}`}
-                    >
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${STATUS_COLORS[status]}`}>
                       {status}
                     </span>
                   </div>
@@ -842,11 +769,7 @@ export default function FulfillRequests() {
                   </h3>
 
                   <div className="text-gray-600 mb-2 leading-relaxed flex-shrink-0">
-                    <ReadMoreText
-                      text={request.description}
-                      maxLength={100}
-                      request={request}
-                    />
+                    <ReadMoreText text={request.description} maxLength={100} request={request} />
                   </div>
 
                   {/* Flexible spacer to push bottom content down */}
@@ -856,34 +779,24 @@ export default function FulfillRequests() {
                   <div className="mb-2 flex-shrink-0">
                     {request.requestType === "Money" ? (
                       <div className="space-y-1">
-                        <span className="text-gray-500 font-medium text-xs">
-                          Money needed:
-                        </span>
+                        <span className="text-gray-500 font-medium text-xs">Money needed:</span>
                         <div className="flex justify-between text-xs bg-green-50 px-2 py-1 rounded">
                           <span className="text-green-700">Money</span>
                           <span className="font-semibold text-green-800">
-                            {request.totalDonated || 0} /{" "}
-                            {request.totalQuantity || request.quantity || 0}
+                            {request.totalDonated || 0} / {request.totalQuantity || request.quantity || 0}
                           </span>
                         </div>
                       </div>
                     ) : request.subtypes && request.subtypes.length > 0 ? (
                       <div className="space-y-1">
-                        <span className="text-gray-500 font-medium text-xs">
-                          Items:
-                        </span>
+                        <span className="text-gray-500 font-medium text-xs">Items:</span>
                         <div className="space-y-1 max-h-[100px] overflow-y-auto">
                           {request.subtypes.map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="flex justify-between text-xs bg-blue-50 px-2 py-1 rounded"
-                            >
-                              <span className="text-blue-700 truncate flex-1 mr-2">
-                                {item.subtype}
-                              </span>
+                            <div key={idx} className="flex justify-between text-xs bg-blue-50 px-2 py-1 rounded">
+                              <span className="text-blue-700 truncate flex-1 mr-2">{item.subtype}</span>
                               <span className="font-semibold text-blue-800 whitespace-nowrap">
-                                {request.subtypeDonations?.[item.subtype] || 0}{" "}
-                                / {item.quantity}
+                                {request.subtypeDonations?.[item.subtype] || 0} / {item.quantity}{" "}
+                                {requestType?.unit || ""}
                               </span>
                             </div>
                           ))}
@@ -892,12 +805,9 @@ export default function FulfillRequests() {
                     ) : (
                       request.totalQuantity && (
                         <div className="flex justify-between text-xs">
-                          <span className="text-gray-500 font-medium">
-                            Donated:
-                          </span>
+                          <span className="text-gray-500 font-medium">Donated:</span>
                           <span className="font-semibold text-green-600">
-                            {request.totalDonated || 0} /{" "}
-                            {request.totalQuantity}
+                            {request.totalDonated || 0} / {request.totalQuantity} {requestType?.unit || ""}
                           </span>
                         </div>
                       )
@@ -913,9 +823,7 @@ export default function FulfillRequests() {
                       ></div>
                     </div>
                     <p className="text-xs text-green-600 font-medium mt-1">
-                      {typeof request.progress === "number"
-                        ? `${request.progress.toFixed(1)}% completed`
-                        : "No data"}
+                      {typeof request.progress === "number" ? `${request.progress.toFixed(1)}% completed` : "No data"}
                     </p>
                   </div>
 
@@ -923,24 +831,20 @@ export default function FulfillRequests() {
                   <div className="mb-2 p-2 bg-green-50 rounded-lg flex-shrink-0">
                     <div className="flex items-center text-xs text-gray-700 mb-1">
                       <Building className="w-3 h-3 mr-1 text-green-600" />
-                      <span className="font-semibold truncate">
-                        {request.orphanInfo?.orgName || "N/A"}
-                      </span>
+                      <span className="font-semibold truncate">{request.orphanInfo?.orgName || "N/A"}</span>
                     </div>
                     <div className="flex items-center text-xs text-gray-700">
                       <MapPin className="w-3 h-3 mr-1 text-green-600" />
-                      <span className="truncate">
-                        {request.orphanInfo?.city || "N/A"}
-                      </span>
+                      <span className="truncate">{request.orphanInfo?.city || "N/A"}</span>
                     </div>
                   </div>
 
                   {/* Donate button - fixed at bottom */}
                   <button
                     onClick={() => {
-                      setActiveModalId(request.id);
+                      setActiveModalId(request.id)
                       if (request.subtypes && request.subtypes.length > 0) {
-                        setSelectedSubtypes([{ subtype: "", quantity: "" }]);
+                        setSelectedSubtypes([{ subtype: "", quantity: "" }])
                       }
                     }}
                     className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl"
@@ -949,18 +853,14 @@ export default function FulfillRequests() {
                     <span>Donate Now</span>
                   </button>
                 </motion.div>
-              );
+              )
             })}
           </motion.div>
         )}
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex justify-center"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-center">
             <div className="flex space-x-2">
               {Array.from({ length: totalPages }, (_, i) => (
                 <button
@@ -992,25 +892,22 @@ export default function FulfillRequests() {
               className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col"
             >
               {(() => {
-                const request = requests.find((r) => r.id === activeModalId);
-                if (!request) return null;
+                const request = requests.find((r) => r.id === activeModalId)
+                if (!request) return null
 
-                const hasSubtypes =
-                  request.subtypes && request.subtypes.length > 0;
-                let remainingAmount = 0;
-                let isFullyFulfilled = false;
+                const hasSubtypes = request.subtypes && request.subtypes.length > 0
+                let remainingAmount = 0
+                let isFullyFulfilled = false
 
                 if (hasSubtypes) {
                   const availableSubtypes = request.subtypes.filter((item) => {
-                    const subtypeDonated =
-                      request.subtypeDonations?.[item.subtype] || 0;
-                    return item.quantity > subtypeDonated;
-                  });
-                  isFullyFulfilled = availableSubtypes.length === 0;
+                    const subtypeDonated = request.subtypeDonations?.[item.subtype] || 0
+                    return item.quantity > subtypeDonated
+                  })
+                  isFullyFulfilled = availableSubtypes.length === 0
                 } else {
-                  remainingAmount =
-                    (request.totalQuantity || 0) - (request.totalDonated || 0);
-                  isFullyFulfilled = remainingAmount <= 0;
+                  remainingAmount = (request.totalQuantity || 0) - (request.totalDonated || 0)
+                  isFullyFulfilled = remainingAmount <= 0
                 }
 
                 return (
@@ -1018,13 +915,8 @@ export default function FulfillRequests() {
                     {/* Modal Header - Fixed */}
                     <div className="p-6 border-b border-gray-100 rounded-t-2xl">
                       <div className="flex items-center justify-between">
-                        <h2 className="text-2xl font-bold text-gray-800">
-                          Make a Donation
-                        </h2>
-                        <button
-                          onClick={closeModal}
-                          className="text-gray-400 hover:text-gray-600 transition-colors"
-                        >
+                        <h2 className="text-2xl font-bold text-gray-800">Make a Donation</h2>
+                        <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors">
                           <X className="w-6 h-6" />
                         </button>
                       </div>
@@ -1043,30 +935,21 @@ export default function FulfillRequests() {
                       {hasSubtypes ? (
                         <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                           <div className="text-sm text-blue-800 space-y-2">
-                            <p className="font-semibold">
-                              Items available for donation:
-                            </p>
+                            <p className="font-semibold">Items available for donation:</p>
                             {request.subtypes.map((item, idx) => {
-                              const subtypeDonated =
-                                request.subtypeDonations?.[item.subtype] || 0;
-                              const subtypeRemaining =
-                                item.quantity - subtypeDonated;
+                              const subtypeDonated = request.subtypeDonations?.[item.subtype] || 0
+                              const subtypeRemaining = item.quantity - subtypeDonated
+                              const requestType = REQUEST_TYPES.find((t) => t.value === request.requestType)
                               return (
                                 <div key={idx} className="flex justify-between">
                                   <span>{item.subtype}:</span>
-                                  <span
-                                    className={
-                                      subtypeRemaining > 0
-                                        ? "text-green-600 font-bold"
-                                        : "text-gray-500"
-                                    }
-                                  >
+                                  <span className={subtypeRemaining > 0 ? "text-green-600 font-bold" : "text-gray-500"}>
                                     {subtypeRemaining > 0
-                                      ? `${subtypeRemaining} available`
+                                      ? `${subtypeRemaining} ${requestType?.unit || ""} available`
                                       : "Fulfilled"}
                                   </span>
                                 </div>
-                              );
+                              )
                             })}
                           </div>
                         </div>
@@ -1075,17 +958,18 @@ export default function FulfillRequests() {
                           <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                             <div className="text-sm text-blue-800">
                               <p>
-                                <strong>Total Needed:</strong>{" "}
-                                {request.totalQuantity}
+                                <strong>Total Needed:</strong> {request.totalQuantity}{" "}
+                                {REQUEST_TYPES.find((t) => t.value === request.requestType)?.unit || ""}
                               </p>
                               <p>
-                                <strong>Already Donated:</strong>{" "}
-                                {request.totalDonated || 0}
+                                <strong>Already Donated:</strong> {request.totalDonated || 0}{" "}
+                                {REQUEST_TYPES.find((t) => t.value === request.requestType)?.unit || ""}
                               </p>
                               <p>
                                 <strong>Still Needed:</strong>{" "}
                                 <span className="font-bold text-green-600">
-                                  {remainingAmount}
+                                  {remainingAmount}{" "}
+                                  {REQUEST_TYPES.find((t) => t.value === request.requestType)?.unit || ""}
                                 </span>
                               </p>
                             </div>
@@ -1096,9 +980,7 @@ export default function FulfillRequests() {
                       {isFullyFulfilled ? (
                         <div className="text-center py-4">
                           <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-                          <p className="text-green-600 font-semibold">
-                            This request is already fulfilled!
-                          </p>
+                          <p className="text-green-600 font-semibold">This request is already fulfilled!</p>
                           <button
                             onClick={closeModal}
                             className="mt-4 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
@@ -1113,8 +995,7 @@ export default function FulfillRequests() {
                             <div className="mb-4">
                               <div className="flex items-center justify-between mb-3">
                                 <label className="block font-semibold text-sm">
-                                  Select Items to Donate{" "}
-                                  <span className="text-red-500">*</span>
+                                  Select Items to Donate <span className="text-red-500">*</span>
                                 </label>
                                 <button
                                   type="button"
@@ -1133,51 +1014,33 @@ export default function FulfillRequests() {
 
                               <div className="space-y-3 max-h-60 overflow-y-auto">
                                 {selectedSubtypes.map((subtypeItem, index) => (
-                                  <div
-                                    key={index}
-                                    className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg"
-                                  >
+                                  <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                                     <div className="flex-1">
                                       <select
                                         value={subtypeItem.subtype}
-                                        onChange={(e) =>
-                                          updateSubtypeSelection(
-                                            index,
-                                            "subtype",
-                                            e.target.value
-                                          )
-                                        }
+                                        onChange={(e) => updateSubtypeSelection(index, "subtype", e.target.value)}
                                         className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-transparent"
                                         required
                                       >
-                                        <option value="">
-                                          Select item type
-                                        </option>
-                                        {request.subtypes.map((item, idx) => {
-                                          const subtypeDonated =
-                                            request.subtypeDonations?.[
-                                              item.subtype
-                                            ] || 0;
-                                          const subtypeRemaining =
-                                            item.quantity - subtypeDonated;
-                                          const alreadySelectedElsewhere =
-                                            selectedSubtypes.some(
-                                              (selected, selectedIndex) =>
-                                                selectedIndex !== index &&
-                                                selected.subtype ===
-                                                  item.subtype
-                                            );
+                                        <option value="">Select item type</option>
+                                        {getSubtypeOptions(request.requestType).map((subtype, idx) => {
+                                          const requestSubtype = request.subtypes.find(
+                                            (item) => item.subtype === subtype.value,
+                                          )
+                                          if (!requestSubtype) return null
 
-                                          return subtypeRemaining > 0 &&
-                                            !alreadySelectedElsewhere ? (
-                                            <option
-                                              key={idx}
-                                              value={item.subtype}
-                                            >
-                                              {item.subtype} ({subtypeRemaining}{" "}
-                                              available)
+                                          const subtypeDonated = request.subtypeDonations?.[subtype.value] || 0
+                                          const subtypeRemaining = requestSubtype.quantity - subtypeDonated
+                                          const alreadySelectedElsewhere = selectedSubtypes.some(
+                                            (selected, selectedIndex) =>
+                                              selectedIndex !== index && selected.subtype === subtype.value,
+                                          )
+
+                                          return subtypeRemaining > 0 && !alreadySelectedElsewhere ? (
+                                            <option key={idx} value={subtype.value}>
+                                              {subtype.icon} {subtype.label} ({subtypeRemaining} available)
                                             </option>
-                                          ) : null;
+                                          ) : null
                                         })}
                                       </select>
                                     </div>
@@ -1185,35 +1048,20 @@ export default function FulfillRequests() {
                                       <input
                                         type="number"
                                         value={subtypeItem.quantity}
-                                        onChange={(e) =>
-                                          updateSubtypeSelection(
-                                            index,
-                                            "quantity",
-                                            e.target.value
-                                          )
-                                        }
+                                        onChange={(e) => updateSubtypeSelection(index, "quantity", e.target.value)}
                                         placeholder="Qty"
                                         min="1"
                                         max={(() => {
                                           if (subtypeItem.subtype) {
-                                            const requestSubtype =
-                                              request.subtypes.find(
-                                                (item) =>
-                                                  item.subtype ===
-                                                  subtypeItem.subtype
-                                              );
+                                            const requestSubtype = request.subtypes.find(
+                                              (item) => item.subtype === subtypeItem.subtype,
+                                            )
                                             if (requestSubtype) {
-                                              const donated =
-                                                request.subtypeDonations?.[
-                                                  subtypeItem.subtype
-                                                ] || 0;
-                                              return (
-                                                requestSubtype.quantity -
-                                                donated
-                                              );
+                                              const donated = request.subtypeDonations?.[subtypeItem.subtype] || 0
+                                              return requestSubtype.quantity - donated
                                             }
                                           }
-                                          return 999;
+                                          return 999
                                         })()}
                                         className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-transparent"
                                         required
@@ -1222,9 +1070,7 @@ export default function FulfillRequests() {
                                     {selectedSubtypes.length > 1 && (
                                       <button
                                         type="button"
-                                        onClick={() =>
-                                          removeSubtypeSelection(index)
-                                        }
+                                        onClick={() => removeSubtypeSelection(index)}
                                         className="text-red-500 hover:text-red-700 p-1 transition-colors"
                                       >
                                         <Minus className="w-4 h-4" />
@@ -1243,16 +1089,14 @@ export default function FulfillRequests() {
                                 {request.requestType === "Money"
                                   ? "Donation Amount (Rs.)"
                                   : request.requestType === "Clothes"
-                                  ? "Clothes Quantity"
-                                  : "Number of Meals"}
+                                    ? "Clothes Quantity (piece)"
+                                    : "Food Quantity (KG)"}
                                 <span className="text-red-500">*</span>
                               </label>
                               <input
                                 type="number"
                                 value={donationAmount}
-                                onChange={(e) =>
-                                  setDonationAmount(e.target.value)
-                                }
+                                onChange={(e) => setDonationAmount(e.target.value)}
                                 placeholder={`Max: ${remainingAmount}`}
                                 className="w-full border border-gray-300 rounded p-2"
                                 required
@@ -1260,7 +1104,8 @@ export default function FulfillRequests() {
                                 max={remainingAmount}
                               />
                               <p className="text-xs text-gray-500 mt-1">
-                                Maximum you can donate: {remainingAmount}
+                                Maximum you can donate: {remainingAmount}{" "}
+                                {REQUEST_TYPES.find((t) => t.value === request.requestType)?.unit || ""}
                               </p>
                             </div>
                           )}
@@ -1279,10 +1124,7 @@ export default function FulfillRequests() {
                     {/* Modal Footer - Fixed */}
                     <div className="p-6 border-t border-gray-100 rounded-b-2xl">
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={closeModal}
-                          className="px-4 py-2 border rounded hover:bg-gray-100"
-                        >
+                        <button onClick={closeModal} className="px-4 py-2 border rounded hover:bg-gray-100">
                           Cancel
                         </button>
                         <button
@@ -1314,7 +1156,7 @@ export default function FulfillRequests() {
                       </div>
                     </div>
                   </>
-                );
+                )
               })()}
             </motion.div>
           </motion.div>
@@ -1324,14 +1166,14 @@ export default function FulfillRequests() {
         <PaymentModule
           isOpen={showPaymentModal}
           onClose={() => {
-            setShowPaymentModal(false);
-            setCurrentRequest(null);
-            setPaymentAmount(0);
+            setShowPaymentModal(false)
+            setCurrentRequest(null)
+            setPaymentAmount(0)
           }}
           amount={paymentAmount}
           onPaymentSuccess={handlePaymentSuccess}
         />
       </div>
     </div>
-  );
+  )
 }
