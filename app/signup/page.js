@@ -1,77 +1,103 @@
 // app/signup/page.jsx
-"use client"
+"use client";
 
-import React, { useState } from "react"
-import { useRouter } from "next/navigation"
-import { auth, firestore } from "@/lib/firebase"
-import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth"
-import { setDoc, doc } from "firebase/firestore"
-import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai"
-import { toast, ToastContainer } from "react-toastify"
-import "react-toastify/dist/ReactToastify.css"
-import { useForm, Controller } from "react-hook-form"
-import PhoneInput from "react-phone-input-2"
-import "react-phone-input-2/lib/style.css"
-import dynamic from "next/dynamic"
-import { motion, AnimatePresence } from "framer-motion"
-const AsyncSelect = dynamic(() => import("react-select/async"), { ssr: false })
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { auth, firestore } from "@/lib/firebase";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+} from "firebase/auth";
+import { setDoc, doc } from "firebase/firestore";
+import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { useForm, Controller } from "react-hook-form";
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/style.css";
+import dynamic from "next/dynamic";
+import { motion, AnimatePresence } from "framer-motion";
+const AsyncSelect = dynamic(() => import("react-select/async"), { ssr: false });
 
-import axios from "axios"
+import axios from "axios";
 
-const FormInput = React.forwardRef(({ label, type = "text", error, name, icon, ...rest }, ref) => {
-  const inputId = name || label.replace(/\s+/g, "")
-  return (
-    <div className="flex flex-col gap-2">
-      <label htmlFor={inputId} className="text-sm font-semibold text-gray-700">
-        {label}
-      </label>
-      <div className="relative">
-        {icon && (
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span className="text-gray-400">{icon}</span>
-          </div>
-        )}
-        <input
-          id={inputId}
-          name={name}
-          type={type}
-          placeholder={`Enter ${label.toLowerCase()}`}
-          autoComplete={name === "email" ? "email" : "off"}
-          className={`w-full ${icon ? "pl-10" : "pl-4"} pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
-            error ? "border-red-500 focus:border-red-500" : "border-gray-300 focus:border-green-500"
-          }`}
-          aria-invalid={error ? "true" : "false"}
-          aria-describedby={error ? `${inputId}-error` : undefined}
-          {...rest}
-          ref={ref}
-        />
-      </div>
-      <AnimatePresence>
-        {error && (
-          <motion.p
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            id={`${inputId}-error`}
-            className="text-red-600 text-sm flex items-center gap-1"
-            role="alert"
-          >
-            <span>⚠️</span>
-            {error.message}
-          </motion.p>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-})
-FormInput.displayName = "FormInput"
-
-const PasswordInput = React.forwardRef(
-  ({ label = "Password", error, showPassword, toggleShow, name, icon = "🔒", ...rest }, ref) => {
-    const inputId = name || "password"
+const FormInput = React.forwardRef(
+  ({ label, type = "text", error, name, icon, ...rest }, ref) => {
+    const inputId = name || label.replace(/\s+/g, "");
     return (
       <div className="flex flex-col gap-2">
-        <label htmlFor={inputId} className="text-sm font-semibold text-gray-700">
+        <label
+          htmlFor={inputId}
+          className="text-sm font-semibold text-gray-700"
+        >
+          {label}
+        </label>
+        <div className="relative">
+          {icon && (
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <span className="text-gray-400">{icon}</span>
+            </div>
+          )}
+          <input
+            id={inputId}
+            name={name}
+            type={type}
+            placeholder={`Enter ${label.toLowerCase()}`}
+            autoComplete={name === "email" ? "email" : "off"}
+            className={`w-full ${
+              icon ? "pl-10" : "pl-4"
+            } pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
+              error
+                ? "border-red-500 focus:border-red-500"
+                : "border-gray-300 focus:border-green-500"
+            }`}
+            aria-invalid={error ? "true" : "false"}
+            aria-describedby={error ? `${inputId}-error` : undefined}
+            {...rest}
+            ref={ref}
+          />
+        </div>
+        <AnimatePresence>
+          {error && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              id={`${inputId}-error`}
+              className="text-red-600 text-sm flex items-center gap-1"
+              role="alert"
+            >
+              <span>⚠️</span>
+              {error.message}
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+);
+FormInput.displayName = "FormInput";
+
+const PasswordInput = React.forwardRef(
+  (
+    {
+      label = "Password",
+      error,
+      showPassword,
+      toggleShow,
+      name,
+      icon = "🔒",
+      ...rest
+    },
+    ref
+  ) => {
+    const inputId = name || "password";
+    return (
+      <div className="flex flex-col gap-2">
+        <label
+          htmlFor={inputId}
+          className="text-sm font-semibold text-gray-700"
+        >
           {label}
         </label>
         <div className="relative">
@@ -85,7 +111,9 @@ const PasswordInput = React.forwardRef(
             placeholder="Minimum 8 characters"
             autoComplete="new-password"
             className={`w-full pl-10 pr-12 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
-              error ? "border-red-500 focus:border-red-500" : "border-gray-300 focus:border-green-500"
+              error
+                ? "border-red-500 focus:border-red-500"
+                : "border-gray-300 focus:border-green-500"
             }`}
             aria-invalid={error ? "true" : "false"}
             aria-describedby={error ? `${inputId}-error` : undefined}
@@ -98,7 +126,11 @@ const PasswordInput = React.forwardRef(
             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800 transition-colors"
             aria-label={showPassword ? "Hide password" : "Show password"}
           >
-            {showPassword ? <AiFillEyeInvisible size={20} /> : <AiFillEye size={20} />}
+            {showPassword ? (
+              <AiFillEyeInvisible size={20} />
+            ) : (
+              <AiFillEye size={20} />
+            )}
           </button>
         </div>
         <AnimatePresence>
@@ -117,47 +149,59 @@ const PasswordInput = React.forwardRef(
           )}
         </AnimatePresence>
       </div>
-    )
-  },
-)
-PasswordInput.displayName = "PasswordInput"
+    );
+  }
+);
+PasswordInput.displayName = "PasswordInput";
 
 const loadCityOptions = async (inputValue) => {
-  if (!inputValue) return []
+  if (!inputValue) return [];
   try {
-    const res = await axios.get("https://wft-geo-db.p.rapidapi.com/v1/geo/cities", {
-      params: { namePrefix: inputValue, sort: "-population", limit: 10 },
-      headers: {
-        "X-RapidAPI-Key": "75b9489edemshc4bf9834e6e1852p14e79ejsn0ec27f88f073",
-        "X-RapidAPI-Host": "wft-geo-db.p.rapidapi.com",
-      },
-    })
+    const res = await axios.get(
+      "https://wft-geo-db.p.rapidapi.com/v1/geo/cities",
+      {
+        params: { namePrefix: inputValue, sort: "-population", limit: 10 },
+        headers: {
+          "X-RapidAPI-Key":
+            "75b9489edemshc4bf9834e6e1852p14e79ejsn0ec27f88f073",
+          "X-RapidAPI-Host": "wft-geo-db.p.rapidapi.com",
+        },
+      }
+    );
     return res.data.data.map((city) => ({
       label: `${city.city}, ${city.countryCode}`,
       value: city.city,
-    }))
+    }));
   } catch {
-    return []
+    return [];
   }
-}
+};
 
 export default function SignUp() {
-  const [userType, setUserType] = useState("Donor")
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [showModal, setShowModal] = useState(false)
-  const [passwordInput, setPasswordInput] = useState("")
-  const [step, setStep] = useState(1)
+  const [userType, setUserType] = useState("Donor");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [step, setStep] = useState(1);
 
-  const router = useRouter()
+  const router = useRouter();
 
   const checkPasswordRules = (password) => ({
     length: password.length >= 8,
     hasLetter: /[A-Za-z]/.test(password),
     hasNumber: /[0-9]/.test(password),
     hasSpecial: /[@$!%*?&]/.test(password),
-  })
+  });
+
+  const formatBankAccount = (value) => {
+    // Remove all non-digits
+    const digits = value.replace(/\D/g, "");
+    // Format as XXXX-XXXX-XXXX-XXXX
+    const formatted = digits.replace(/(\d{4})(?=\d)/g, "$1-");
+    return formatted;
+  };
 
   const {
     register,
@@ -167,13 +211,18 @@ export default function SignUp() {
     reset,
     watch,
     trigger,
-  } = useForm()
+    setValue,
+  } = useForm();
 
   const onSubmit = async (data) => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const userCred = await createUserWithEmailAndPassword(auth, data.email, data.password)
-      await sendEmailVerification(userCred.user)
+      const userCred = await createUserWithEmailAndPassword(
+        auth,
+        data.email,
+        data.password
+      );
+      await sendEmailVerification(userCred.user);
 
       // Enhanced user data with all original fields preserved
       const userData = {
@@ -185,6 +234,7 @@ export default function SignUp() {
         city: data.city,
         orgName: data.orgName || "",
         licenseId: data.licenseId || "",
+        bankAccount: data.bankAccount || "",
         userType,
         createdAt: new Date(),
         emailVerified: false,
@@ -215,49 +265,62 @@ export default function SignUp() {
           verificationStatus: "pending",
           documents: [],
         }),
-      }
+      };
 
-      await setDoc(doc(firestore, "users", userCred.user.uid), userData)
+      await setDoc(doc(firestore, "users", userCred.user.uid), userData);
 
-      toast.success("🎉 Account created successfully! Please check your email for verification.", {
-        position: "top-right",
-        autoClose: 6000,
-      })
-      setShowModal(true)
-      reset()
+      toast.success(
+        "🎉 Account created successfully! Please check your email for verification.",
+        {
+          position: "top-right",
+          autoClose: 6000,
+        }
+      );
+      setShowModal(true);
+      reset();
     } catch (error) {
-      let msg = error.message
+      let msg = error.message;
       if (error.code === "auth/email-already-in-use")
-        msg = "This email is already registered. Please try logging in instead."
-      else if (error.code === "auth/weak-password") msg = "Password is too weak. Please choose a stronger password."
-      else if (error.code === "auth/invalid-email") msg = "Please enter a valid email address."
+        msg =
+          "This email is already registered. Please try logging in instead.";
+      else if (error.code === "auth/weak-password")
+        msg = "Password is too weak. Please choose a stronger password.";
+      else if (error.code === "auth/invalid-email")
+        msg = "Please enter a valid email address.";
 
       toast.error("❌ Error: " + msg, {
         position: "top-right",
         autoClose: 6000,
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const nextStep = async () => {
     const fieldsToValidate =
       step === 1
         ? ["email", "password", "confirmPassword"]
         : userType === "Donor"
-          ? ["fullName", "contactNumber", "orgAddress", "city"]
-          : ["orgName", "licenseId", "contactNumber", "orgAddress", "city"]
+        ? ["fullName", "contactNumber", "orgAddress", "city"]
+        : [
+            "orgName",
+            "licenseId",
+            "bankAccount",
+            "contactNumber",
+            "orgAddress",
+            "city",
+          ];
 
-    const isValid = await trigger(fieldsToValidate)
+    const isValid = await trigger(fieldsToValidate);
     if (isValid) {
-      setStep(2)
+      setStep(2);
     }
-  }
+  };
 
   const prevStep = () => {
-    setStep(1)
-  }
+    setStep(1);
+  };
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 px-4 sm:px-6 lg:px-8">
@@ -274,12 +337,16 @@ export default function SignUp() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="w-20 h-20 bg- rounded-full flex items-center justify-center mx-auto mb-4"
+            className="w-20 h-20 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4"
           >
             <span className="text-white text-2xl font-bold">CC</span>
           </motion.div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Join CareConnect</h2>
-          <p className="text-gray-600">Create your account and start making a difference</p>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            Join CareConnect
+          </h2>
+          <p className="text-gray-600">
+            Create your account and start making a difference
+          </p>
         </div>
 
         {/* Progress Indicator */}
@@ -287,15 +354,23 @@ export default function SignUp() {
           <div className="flex items-center">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                step >= 1 ? "bg-green-500 text-white" : "bg-gray-200 text-gray-500"
+                step >= 1
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 text-gray-500"
               }`}
             >
               1
             </div>
-            <div className={`w-16 h-1 ${step >= 2 ? "bg-green-500" : "bg-gray-200"}`}></div>
+            <div
+              className={`w-16 h-1 ${
+                step >= 2 ? "bg-green-500" : "bg-gray-200"
+              }`}
+            ></div>
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                step >= 2 ? "bg-green-500 text-white" : "bg-gray-200 text-gray-500"
+                step >= 2
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 text-gray-500"
               }`}
             >
               2
@@ -319,12 +394,16 @@ export default function SignUp() {
               role="tab"
               aria-selected={userType === type}
             >
-              {type === "Donor" ? " Donor" : " Orphanage"}
+              {type === "Donor" ? "❤️ Donor" : "🏠 Orphanage"}
             </motion.button>
           ))}
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-6"
+          noValidate
+        >
           <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div
@@ -354,11 +433,16 @@ export default function SignUp() {
                   {...register("password", {
                     required: "Password is required",
                     validate: (value) => {
-                      const rules = checkPasswordRules(value)
-                      if (!rules.length || !rules.hasLetter || !rules.hasNumber || !rules.hasSpecial) {
-                        return "Password must meet all requirements below"
+                      const rules = checkPasswordRules(value);
+                      if (
+                        !rules.length ||
+                        !rules.hasLetter ||
+                        !rules.hasNumber ||
+                        !rules.hasSpecial
+                      ) {
+                        return "Password must meet all requirements below";
                       }
-                      return true
+                      return true;
                     },
                   })}
                   error={errors.password}
@@ -366,7 +450,7 @@ export default function SignUp() {
                   toggleShow={() => setShowPassword(!showPassword)}
                   name="password"
                   onChange={(e) => {
-                    setPasswordInput(e.target.value)
+                    setPasswordInput(e.target.value);
                   }}
                 />
 
@@ -376,35 +460,53 @@ export default function SignUp() {
                     animate={{ opacity: 1, y: 0 }}
                     className="bg-gray-50 rounded-xl p-4 space-y-2"
                   >
-                    <p className="text-sm font-medium text-gray-700 mb-2">Password Requirements:</p>
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Password Requirements:
+                    </p>
                     {(() => {
-                      const rules = checkPasswordRules(passwordInput)
+                      const rules = checkPasswordRules(passwordInput);
                       return (
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div
-                            className={`flex items-center gap-2 ${rules.length ? "text-green-600" : "text-red-600"}`}
+                            className={`flex items-center gap-2 ${
+                              rules.length ? "text-green-600" : "text-red-600"
+                            }`}
                           >
-                            <span>{rules.length ? "✅" : "❌"}</span> 8+ characters
-                          </div>
-                          <div
-                            className={`flex items-center gap-2 ${rules.hasLetter ? "text-green-600" : "text-red-600"}`}
-                          >
-                            <span>{rules.hasLetter ? "✅" : "❌"}</span> Letter (A-Z)
-                          </div>
-                          <div
-                            className={`flex items-center gap-2 ${rules.hasNumber ? "text-green-600" : "text-red-600"}`}
-                          >
-                            <span>{rules.hasNumber ? "✅" : "❌"}</span> Number (0-9)
+                            <span>{rules.length ? "✅" : "❌"}</span> 8+
+                            characters
                           </div>
                           <div
                             className={`flex items-center gap-2 ${
-                              rules.hasSpecial ? "text-green-600" : "text-red-600"
+                              rules.hasLetter
+                                ? "text-green-600"
+                                : "text-red-600"
                             }`}
                           >
-                            <span>{rules.hasSpecial ? "✅" : "❌"}</span> Special (@$!%*?&)
+                            <span>{rules.hasLetter ? "✅" : "❌"}</span> Letter
+                            (A-Z)
+                          </div>
+                          <div
+                            className={`flex items-center gap-2 ${
+                              rules.hasNumber
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            <span>{rules.hasNumber ? "✅" : "❌"}</span> Number
+                            (0-9)
+                          </div>
+                          <div
+                            className={`flex items-center gap-2 ${
+                              rules.hasSpecial
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            <span>{rules.hasSpecial ? "✅" : "❌"}</span>{" "}
+                            Special (@$!%*?&)
                           </div>
                         </div>
-                      )
+                      );
                     })()}
                   </motion.div>
                 )}
@@ -414,11 +516,14 @@ export default function SignUp() {
                   icon="🔐"
                   {...register("confirmPassword", {
                     required: "Confirm your password",
-                    validate: (val) => val === watch("password") || "Passwords do not match",
+                    validate: (val) =>
+                      val === watch("password") || "Passwords do not match",
                   })}
                   error={errors.confirmPassword}
                   showPassword={showConfirmPassword}
-                  toggleShow={() => setShowConfirmPassword(!showConfirmPassword)}
+                  toggleShow={() =>
+                    setShowConfirmPassword(!showConfirmPassword)
+                  }
                   name="confirmPassword"
                 />
               </motion.div>
@@ -436,7 +541,9 @@ export default function SignUp() {
                   <FormInput
                     label="Full Name"
                     icon="👤"
-                    {...register("fullName", { required: "Full Name is required" })}
+                    {...register("fullName", {
+                      required: "Full Name is required",
+                    })}
                     error={errors.fullName}
                     name="fullName"
                   />
@@ -449,9 +556,21 @@ export default function SignUp() {
                       icon="🏢"
                       {...register("orgName", {
                         required: "Organization Name is required",
+                        pattern: {
+                          value: /^[A-Za-z\s]+$/,
+                          message:
+                            "Organization name should contain only alphabets and spaces",
+                        },
                       })}
                       error={errors.orgName}
                       name="orgName"
+                      onInput={(e) => {
+                        // Remove non-alphabetic characters except spaces
+                        e.target.value = e.target.value.replace(
+                          /[^A-Za-z\s]/g,
+                          ""
+                        );
+                      }}
                     />
                     <FormInput
                       label="License ID"
@@ -459,24 +578,82 @@ export default function SignUp() {
                       {...register("licenseId", {
                         required: "License ID is required",
                         pattern: {
-                          value: /^[A-Z0-9]{6,12}$/,
-                          message: "6–12 uppercase letters/numbers only",
+                          value:
+                            /^(SWD\/(PB|SD|KP|BL)\/\d{4}\/\d{4}|Charity-REG-\d{4}\/\d{4})$/,
+                          message:
+                            "Format: SWD/PB/XXXX/YYYY or Charity-REG-XXXX/YYYY",
                         },
                       })}
                       error={errors.licenseId}
                       name="licenseId"
+                      placeholder="SWD/PB/XXXX/YYYY or Charity-REG-XXXX/YYYY"
                     />
+                    <div className="space-y-2">
+                      <label className="block text-sm font-semibold text-gray-700">
+                        Bank Account *
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <span className="text-gray-400">🏦</span>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="XXXX-XXXX-XXXX-XXXX"
+                          {...register("bankAccount", {
+                            required: "Bank Account is required",
+                            validate: (value) => {
+                              const digits = value.replace(/\D/g, "");
+                              if (digits.length < 10 || digits.length > 20) {
+                                return "Bank account must be 10-20 digits";
+                              }
+                              return true;
+                            },
+                          })}
+                          className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 transition-all duration-200 ${
+                            errors.bankAccount
+                              ? "border-red-500 focus:border-red-500"
+                              : "border-gray-300 focus:border-green-500"
+                          }`}
+                          onInput={(e) => {
+                            const formatted = formatBankAccount(e.target.value);
+                            e.target.value = formatted;
+                            setValue(
+                              "bankAccount",
+                              formatted.replace(/-/g, "")
+                            );
+                          }}
+                          maxLength="19"
+                        />
+                      </div>
+                      <AnimatePresence>
+                        {errors.bankAccount && (
+                          <motion.p
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="text-red-600 text-sm flex items-center gap-1"
+                          >
+                            <span>⚠️</span>
+                            {errors.bankAccount.message}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </>
                 )}
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">Contact Number</label>
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Contact Number
+                  </label>
                   <Controller
                     name="contactNumber"
                     control={control}
                     rules={{
                       required: "Contact number is required",
-                      validate: (val) => val.replace(/\D/g, "").length >= 7 || "Invalid phone number",
+                      validate: (val) =>
+                        val.replace(/\D/g, "").length >= 7 ||
+                        "Invalid phone number",
                     }}
                     render={({ field }) => (
                       <PhoneInput
@@ -514,13 +691,17 @@ export default function SignUp() {
                 <FormInput
                   label="Address"
                   icon="📍"
-                  {...register("orgAddress", { required: "Address is required" })}
+                  {...register("orgAddress", {
+                    required: "Address is required",
+                  })}
                   error={errors.orgAddress}
                   name="orgAddress"
                 />
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">City</label>
+                  <label className="block text-sm font-semibold text-gray-700">
+                    City
+                  </label>
                   <Controller
                     name="city"
                     control={control}
@@ -532,7 +713,11 @@ export default function SignUp() {
                         isClearable
                         loadOptions={loadCityOptions}
                         onChange={(opt) => field.onChange(opt?.value || "")}
-                        value={field.value ? { label: field.value, value: field.value } : null}
+                        value={
+                          field.value
+                            ? { label: field.value, value: field.value }
+                            : null
+                        }
                         placeholder="🌍 Start typing your city..."
                         styles={{
                           control: (base) => ({
@@ -584,7 +769,7 @@ export default function SignUp() {
                 onClick={nextStep}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="ml-auto px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:from-green-600 hover:to-blue-600 transition-all duration-200"
+                className="ml-auto px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition-all duration-200"
               >
                 Next →
               </motion.button>
@@ -597,7 +782,7 @@ export default function SignUp() {
                 className={`ml-auto px-6 py-3 rounded-xl font-semibold text-white transition-all duration-200 ${
                   loading
                     ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
+                    : "bg-green-500 hover:bg-green-600"
                 }`}
               >
                 {loading ? (
@@ -606,7 +791,7 @@ export default function SignUp() {
                     Creating Account...
                   </div>
                 ) : (
-                  "🎉 Create Account"
+                  "Create Account"
                 )}
               </motion.button>
             )}
@@ -652,21 +837,23 @@ export default function SignUp() {
               className="bg-white p-8 rounded-2xl max-w-md text-center shadow-2xl"
             >
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-             
+                <span className="text-green-600 text-2xl">✅</span>
               </div>
-              <h2 className="text-2xl font-bold text-green-600 mb-4">Account Created Successfully!</h2>
+              <h2 className="text-2xl font-bold text-green-600 mb-4">
+                Account Created Successfully!
+              </h2>
               <p className="text-gray-700 mb-6">
-                We've sent a verification email to your inbox. Please verify your email address to complete your
-                registration.
+                We've sent a verification email to your inbox. Please verify
+                your email address to complete your registration.
               </p>
               <motion.button
                 onClick={() => {
-                  setShowModal(false)
-                  router.push("/login")
+                  setShowModal(false);
+                  router.push("/login");
                 }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="px-6 py-3 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-xl hover:from-green-600 hover:to-blue-600 font-semibold transition-all duration-200"
+                className="px-6 py-3 bg-green-500 text-white rounded-xl hover:bg-green-600 font-semibold transition-all duration-200"
               >
                 Continue to Login
               </motion.button>
@@ -675,5 +862,5 @@ export default function SignUp() {
         )}
       </AnimatePresence>
     </div>
-  )
+  );
 }
