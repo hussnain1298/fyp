@@ -16,13 +16,14 @@ import Footer from "../footer/page"
 import ManageContent from "./manage-content"
 import Messages from "./messages"
 import AdminDonations from "./donations"
-
+import DonationsHistory from "./donation-history"
 const navigationItems = [
   { id: "dashboard", label: "Dashboard", icon: Home, component: AdminHome },
   { id: "statistics", label: "Statistics", icon: BarChart3, component: Statistics },
   { id: "users", label: "Users", icon: Users, component: UserManagement },
   { id: "content", label: "Content Management", icon: Shield, component: ManageContent },
     { id: "donation", label: "Donations Management", icon: Shield, component: AdminDonations },
+      { id: "history", label: " History", icon: Shield, component: DonationsHistory },
   
   { id: "messages", label: "Messages", icon: MessageSquare, component: Messages },
   { id: "contact", label: "Contact", icon: MessageSquare, component: Contact },
