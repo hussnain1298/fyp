@@ -22,6 +22,7 @@ import Messages from "./messages";
 import Navbar from "../Navbar/navbar";
 import Footer from "../footer/page";
 import ConfirmFund from "./confirmation";
+import DonationReceived from "./donations-received";
 
 export default function MyAccount() {
   const [activeTab, setActiveTab] = useState("Dashboard");
@@ -69,13 +70,14 @@ export default function MyAccount() {
 
   const tabs = useMemo(
     () => [
-      { id: "Dashboard", label: "Dashboard", icon: "🏠" },
-      { id: "Account details", label: "Account Details", icon: "👤" },
-      { id: "Messages", label: "Messages", icon: "💬", badge: unreadCount },
-      { id: "Requests", label: "Requests", icon: "📋" },
-      { id: "Services", label: "Services", icon: "🎓" },
-      { id: "Fund Raise", label: "Fund Raise", icon: "💰" },
-      { id: "Confirm Donations", label: "Confirm Donations", icon: "✅" },
+      { id: "Dashboard", label: "Dashboard"},
+      { id: "Account details", label: "Account Details"},
+      { id: "Messages", label: "Messages", badge: unreadCount },
+      { id: "Requests", label: "Requests" },
+      { id: "Services", label: "Services"},
+      { id: "Fund Raise", label: "Fund Raise" },
+      { id: "Confirm Donations", label: "Confirm Donations" },
+       { id: "Donation Received", label: "Donations Received" },
       { id: "Logout", label: "Logout", icon: "🚪", isAction: true },
     ],
     [unreadCount]
@@ -97,6 +99,8 @@ export default function MyAccount() {
         return <FundRaise />;
       case "Confirm Donations":
         return <ConfirmFund />;
+         case "Donation Received":
+        return <DonationReceived />;
       default:
         return <OrphanageDashboard />;
     }

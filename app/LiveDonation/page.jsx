@@ -9,7 +9,8 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore"
-import { firestore } from "@/lib/firebase"
+
+import { firestore } from "../../lib/firebase";
 import { useEffect, useState, useCallback, useMemo } from "react"
 import {
   Heart,

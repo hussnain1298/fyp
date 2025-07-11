@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react"
 import React from "react"
 import PaymentModule from "../payment/paymentModule"
-import { firestore } from "@/lib/firebase"
+
+import { firestore } from "../../lib/firebase";
 import {
   doc,
   collection,
