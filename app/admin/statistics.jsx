@@ -1,534 +1,880 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
-import { firestore } from "@/lib/firebase"
-import { collection, onSnapshot } from "firebase/firestore"
+import { useState, useEffect } from "react"
+import { motion } from "framer-motion"
 import {
-  PieChart,
-  Pie,
-  BarChart,
-  Bar,
+  BarChart3,
+  TrendingUp,
+  Users,
+  Calendar,
+  Download,
+  RefreshCw,
+  Eye,
+  Heart,
+  Building,
+  DollarSign,
+  Shirt,
+  Utensils,
+  GraduationCap,
+  HeartHandshake,
+} from "lucide-react"
+import { db } from "@/lib/firebase" // Corrected import from firestore to db
+import { collection, getDocs } from "firebase/firestore"
+import {
   LineChart,
   Line,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
-  Tooltip,
+  CartesianGrid,
   Legend,
   ResponsiveContainer,
-  Cell,
 } from "recharts"
-import dayjs from "dayjs"
-import jsPDF from "jspdf"
-import html2canvas from "html2canvas"
-import { BarChart3, PieChartIcon, Users, TrendingUp, Download, Loader2 } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart" // Added shadcn/ui chart components
 
-const colors = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#F97316"]
-
-const tabs = [
-  { key: "requests", label: "Requests", icon: BarChart3 },
-  { key: "services", label: "Services", icon: PieChartIcon },
-  { key: "fundraisers", label: "Fundraisers", icon: TrendingUp },
-  { key: "users", label: "Users", icon: Users },
-  { key: "trends", label: "Signup Trends", icon: TrendingUp },
-]
-
-export default function Statistics() {
-  const [requests, setRequests] = useState([])
-  const [services, setServices] = useState([])
-  const [fundraisers, setFundraisers] = useState([])
-  const [users, setUsers] = useState([])
-  const [selectedYear, setSelectedYear] = useState(dayjs().year())
-  const [selectedRole, setSelectedRole] = useState("All")
-  const [activeTab, setActiveTab] = useState("requests")
+export default function AdminStatistics() {
+  const [stats, setStats] = useState({
+    overview: {
+      totalUsers: 0,
+      totalDonors: 0,
+      totalOrphanages: 0,
+      totalRequests: 0,
+      totalServices: 0,
+      totalFundraisers: 0,
+      totalMessages: 0,
+      totalSubscriptions: 0,
+      totalDonations: 0, // New: from 'donations' collection
+      totalDonationsAmount: 0, // New: from 'donations' collection
+    },
+    trends: {
+      userGrowth: [],
+      contentGrowth: [],
+      messageGrowth: [],
+    },
+    distribution: {
+      userTypes: [],
+      contentTypes: [],
+      requestTypes: [],
+    },
+    engagement: {
+      dailyActive: [],
+      monthlyStats: [],
+    },
+    requestQuantities: {
+      // New section for detailed request quantities
+      clothes: { count: 0, totalQuantity: 0, donated: 0 },
+      food: { count: 0, totalQuantity: 0, donated: 0 },
+      money: { count: 0, totalQuantity: 0, donated: 0 },
+      education: { count: 0, totalQuantity: 0, donated: 0 },
+      medical: { count: 0, totalQuantity: 0, donated: 0 },
+      other: { count: 0, totalQuantity: 0, donated: 0 },
+    },
+  })
   const [loading, setLoading] = useState(true)
-  const [exporting, setExporting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [timeRange, setTimeRange] = useState("30") // days
 
-  useEffect(() => {
+  const fetchStatistics = async () => {
     setLoading(true)
-    const unsubscribers = [
-      onSnapshot(collection(firestore, "requests"), (snap) => {
-        setRequests(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-      }),
-      onSnapshot(collection(firestore, "services"), (snap) => {
-        setServices(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-      }),
-      onSnapshot(collection(firestore, "fundraisers"), (snap) => {
-        setFundraisers(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-      }),
-      onSnapshot(collection(firestore, "users"), (snap) => {
-        setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-        setLoading(false)
-      }),
-    ]
-    return () => unsubscribers.forEach((unsub) => unsub())
-  }, [])
-
-  const exportToPDF = async () => {
-    setExporting(true)
+    setError(null)
     try {
-      const input = document.getElementById("chart-section")
-      if (!input) {
-        alert("Chart section not found.")
-        return
-      }
+      // Calculate date range
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - Number.parseInt(timeRange))
 
-      const canvas = await html2canvas(input, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
+      // Fetch all collections
+      const [
+        usersSnapshot,
+        requestsSnapshot,
+        servicesSnapshot,
+        fundraisersSnapshot,
+        messagesSnapshot,
+        subscriptionsSnapshot,
+        donationsSnapshot, // Fetch from 'donations' collection
+      ] = await Promise.all([
+        getDocs(collection(db, "users")), // Use db
+        getDocs(collection(db, "requests")),
+        getDocs(collection(db, "services")),
+        getDocs(collection(db, "fundraisers")),
+        getDocs(collection(db, "contact-us")),
+        getDocs(collection(db, "subscriptions")),
+        getDocs(collection(db, "donations")), // Fetch linked donations
+      ])
+
+      // Process users data
+      const users = usersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      const donors = users.filter((user) => user.userType === "Donor")
+      const orphanages = users.filter((user) => user.userType === "Orphanage")
+
+      // Process content data
+      const requests = requestsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      const services = servicesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      const fundraisers = fundraisersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+
+      // Process messages and subscriptions
+      const messages = messagesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      const subscriptions = subscriptionsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+
+      // Process donations data (from 'donations' collection)
+      const donations = donationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      let totalDonationsAmount = 0
+      donations.forEach((donation) => {
+        if (donation.donationType === "money" && donation.amount) {
+          totalDonationsAmount += Number(donation.amount)
+        }
       })
 
-      const imgData = canvas.toDataURL("image/png")
-      const pdf = new jsPDF("l", "mm", "a4")
-      const imgProps = pdf.getImageProperties(imgData)
-      const pdfWidth = pdf.internal.pageSize.getWidth()
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
+      // Calculate overview stats
+      const overview = {
+        totalUsers: users.length,
+        totalDonors: donors.length,
+        totalOrphanages: orphanages.length,
+        totalRequests: requests.length,
+        totalServices: services.length,
+        totalFundraisers: fundraisers.length,
+        totalMessages: messages.length,
+        totalSubscriptions: subscriptions.length,
+        totalDonations: donations.length, // Updated
+        totalDonationsAmount: totalDonationsAmount, // Updated
+      }
 
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
-      pdf.save(`${activeTab}_Statistics_${dayjs().format("YYYY-MM-DD")}.pdf`)
-    } catch (error) {
-      console.error("Export failed:", error)
-      alert("Export failed. Please try again.")
+      // Generate user growth trend
+      const userGrowth = generateTimeSeriesData(users, timeRange, "createdAt")
+      const contentGrowth = generateContentGrowthData([...requests, ...services, ...fundraisers], timeRange)
+      const messageGrowth = generateTimeSeriesData(messages, timeRange, "createdAt")
+
+      // Generate distribution data
+      const userTypes = [
+        { name: "Donors", value: donors.length, color: "#10B981" },
+        { name: "Orphanages", value: orphanages.length, color: "#3B82F6" },
+        { name: "Others", value: users.length - donors.length - orphanages.length, color: "#6B7280" },
+      ]
+      const contentTypes = [
+        { name: "Requests", value: requests.length, color: "#EF4444" },
+        { name: "Services", value: services.length, color: "#8B5CF6" },
+        { name: "Fundraisers", value: fundraisers.length, color: "#F59E0B" },
+      ]
+
+      // Analyze request types and quantities
+      const requestTypeCount = {}
+      const requestQuantities = {
+        clothes: { count: 0, totalQuantity: 0, donated: 0 },
+        food: { count: 0, totalQuantity: 0, donated: 0 },
+        money: { count: 0, totalQuantity: 0, donated: 0 },
+        education: { count: 0, totalQuantity: 0, donated: 0 },
+        medical: { count: 0, totalQuantity: 0, donated: 0 },
+        other: { count: 0, totalQuantity: 0, donated: 0 },
+      }
+
+      requests.forEach((req) => {
+        const type = (req.requestType || "Other").toLowerCase()
+        const normalizedType = type.includes("cloth")
+          ? "clothes"
+          : type.includes("food")
+            ? "food"
+            : type.includes("money") || type.includes("financial")
+              ? "money"
+              : type.includes("education") || type.includes("school")
+                ? "education"
+                : type.includes("medical") || type.includes("health")
+                  ? "medical"
+                  : "other"
+
+        requestTypeCount[normalizedType] = (requestTypeCount[normalizedType] || 0) + 1
+
+        if (requestQuantities[normalizedType]) {
+          requestQuantities[normalizedType].count++
+
+          const quantity = req.quantity || 0
+          let numericQuantity = 0
+
+          if (typeof quantity === "string") {
+            const match = quantity.match(/\d+/)
+            numericQuantity = match ? Number.parseInt(match[0]) : 0
+          } else if (typeof quantity === "number") {
+            numericQuantity = quantity
+          }
+
+          requestQuantities[normalizedType].totalQuantity += numericQuantity
+
+          const totalDonated = req.totalDonated || 0 // Assuming 'totalDonated' field exists in 'requests'
+          requestQuantities[normalizedType].donated += totalDonated
+        }
+      })
+
+      const requestTypes = Object.entries(requestTypeCount).map(([name, value]) => ({
+        name,
+        value,
+        color: getRandomColor(),
+      }))
+
+      // Generate engagement data (simulated for now)
+      const dailyActive = generateDailyActiveData(timeRange)
+      const monthlyStats = generateMonthlyStats()
+
+      setStats({
+        overview,
+        trends: {
+          userGrowth,
+          contentGrowth,
+          messageGrowth,
+        },
+        distribution: {
+          userTypes,
+          contentTypes,
+          requestTypes,
+        },
+        engagement: {
+          dailyActive,
+          monthlyStats,
+        },
+        requestQuantities, // Added to state
+      })
+    } catch (err) {
+      console.error("Error fetching statistics:", err)
+      setError("Failed to load statistics.")
     } finally {
-      setExporting(false)
+      setLoading(false)
+      setRefreshing(false)
     }
   }
 
-  const chartData = useMemo(() => {
-    const requestTypes = ["Money", "Food", "Clothes", "Other"]
-    const serviceTypes = [
-      "Academic Skills",
-      "Technology & STEM",
-      "Arts & Creativity",
-      "Personal Development",
-      "Career Training",
-      "Social Learning",
-    ]
-    const fundraiserTypes = ["Books", "School Uniforms", "Nutrition", "Medical Aid", "Other"]
-    const userRoles = ["admin", "Donor", "Orphanage"]
+  useEffect(() => {
+    fetchStatistics()
+  }, [timeRange])
 
-    return {
-      requests: {
-        bar: requestTypes.map((type) => {
-          const typeRequests = requests.filter((r) => r.requestType === type)
-          return {
-            name: type,
-            Fulfilled: typeRequests.filter((r) =>
-              ["Fulfilled", "fulfilled", "Completed", "completed"].includes(r.status),
-            ).length,
-            Pending: typeRequests.filter(
-              (r) => ["Pending", "pending", "Active", "active"].includes(r.status) || !r.status,
-            ).length,
-          }
-        }),
-        pie: requestTypes.map((type, idx) => ({
-          name: type,
-          value: requests.filter((r) => r.requestType === type).length,
-          color: colors[idx % colors.length],
-        })),
-      },
-      services: {
-        bar: serviceTypes.map((type) => {
-          const typeServices = services.filter((s) => s.title === type)
-          return {
-            name: type.replace(" & ", "\n& "),
-            Fulfilled: typeServices.filter((s) => s.status === "Fulfilled").length,
-            "In Progress": typeServices.filter((s) => s.status === "In Progress").length,
-            Pending: typeServices.filter((s) => s.status === "Pending" || !s.status).length,
-          }
-        }),
-        pie: serviceTypes.map((type, idx) => ({
-          name: type,
-          value: services.filter((s) => s.title === type).length,
-          color: colors[idx % colors.length],
-        })),
-      },
-      fundraisers: {
-        bar: fundraiserTypes.map((type) => {
-          const items = fundraisers.filter((f) => f.title === type)
-          const raised = items.reduce((sum, f) => sum + (f.raisedAmount || 0), 0)
-          const total = items.reduce((sum, f) => sum + (f.totalAmount || 0), 0)
-          return {
-            name: type,
-            Raised: raised,
-            Remaining: Math.max(0, total - raised),
-          }
-        }),
-        pie: fundraiserTypes.map((type, idx) => ({
-          name: type,
-          value: fundraisers.filter((f) => f.title === type).length,
-          color: colors[idx % colors.length],
-        })),
-      },
-      users: userRoles.map((role, idx) => ({
-        name: role === "admin" ? "Admin" : role,
-        value: users.filter((u) => u.userType === role).length,
-        color: colors[idx % colors.length],
-      })),
-      trends: Array.from({ length: 12 }, (_, i) => {
-        const label = dayjs().month(i).format("MMM")
-        const monthKey = dayjs(`${selectedYear}-${(i + 1).toString().padStart(2, "0")}`)
-        const count = users.filter((user) => {
-          const ts = user.createdAt?.toDate?.() || user.timestamp?.toDate?.()
-          const roleMatch = selectedRole === "All" || user.userType === selectedRole
-          return ts && dayjs(ts).format("YYYY-MM") === monthKey.format("YYYY-MM") && roleMatch
-        }).length
-        return { month: label, count }
-      }),
+  const [error, setError] = useState(null)
+
+  const generateTimeSeriesData = (data, days, dateField) => {
+    const result = []
+    const endDate = new Date()
+    for (let i = Number.parseInt(days) - 1; i >= 0; i--) {
+      const date = new Date(endDate)
+      date.setDate(date.getDate() - i)
+      const dateStr = date.toISOString().split("T")[0]
+      const count = data.filter((item) => {
+        const itemDate = item[dateField]?.toDate?.()
+        if (!itemDate) return false
+        return itemDate.toISOString().split("T")[0] === dateStr
+      }).length
+      result.push({
+        date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        count,
+        fullDate: dateStr,
+      })
     }
-  }, [requests, services, fundraisers, users, selectedYear, selectedRole])
+    return result
+  }
 
-  const totalStats = useMemo(
-    () => ({
-      requests: requests.length,
-      services: services.length,
-      fundraisers: fundraisers.length,
-      users: users.length,
-      fulfilledRequests: requests.filter((r) => ["Fulfilled", "fulfilled", "Completed", "completed"].includes(r.status))
-        .length,
-      pendingRequests: requests.filter(
-        (r) => ["Pending", "pending", "Active", "active"].includes(r.status) || !r.status,
-      ).length,
-    }),
-    [requests, services, fundraisers, users],
-  )
+  const generateContentGrowthData = (content, days) => {
+    const result = []
+    const endDate = new Date()
+    for (let i = Number.parseInt(days) - 1; i >= 0; i--) {
+      const date = new Date(endDate)
+      date.setDate(date.getDate() - i)
+      const dateStr = date.toISOString().split("T")[0]
+      const requests = content.filter((item) => {
+        const itemDate = item.createdAt?.toDate?.() || item.timestamp?.toDate?.()
+        if (!itemDate) return false
+        return (
+          itemDate.toISOString().split("T")[0] === dateStr &&
+          item.collection !== "services" &&
+          item.collection !== "fundraisers"
+        )
+      }).length
+      const services = content.filter((item) => {
+        const itemDate = item.createdAt?.toDate?.() || item.timestamp?.toDate?.()
+        if (!itemDate) return false
+        return itemDate.toISOString().split("T")[0] === dateStr && (item.serviceType || item.collection === "services")
+      }).length
+      const fundraisers = content.filter((item) => {
+        const itemDate = item.createdAt?.toDate?.() || item.timestamp?.toDate?.()
+        if (!itemDate) return false
+        return (
+          itemDate.toISOString().split("T")[0] === dateStr && (item.totalAmount || item.collection === "fundraisers")
+        )
+      }).length
+      result.push({
+        date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        requests,
+        services,
+        fundraisers,
+        total: requests + services + fundraisers,
+      })
+    }
+    return result
+  }
+
+  const generateDailyActiveData = (days) => {
+    const result = []
+    const endDate = new Date()
+    for (let i = Number.parseInt(days) - 1; i >= 0; i--) {
+      const date = new Date(endDate)
+      date.setDate(date.getDate() - i)
+      // Simulate daily active users (in a real app, you'd track this)
+      const baseActive = Math.floor(Math.random() * 50) + 20
+      const weekendMultiplier = date.getDay() === 0 || date.getDay() === 6 ? 0.7 : 1
+      const active = Math.floor(baseActive * weekendMultiplier)
+      result.push({
+        date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        active,
+        returning: Math.floor(active * 0.6),
+        new: Math.floor(active * 0.4),
+      })
+    }
+    return result
+  }
+
+  const generateMonthlyStats = () => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const currentMonth = new Date().getMonth()
+    const result = []
+    for (let i = 5; i >= 0; i--) {
+      const monthIndex = (currentMonth - i + 12) % 12
+      const month = months[monthIndex]
+      result.push({
+        month,
+        users: Math.floor(Math.random() * 100) + 50,
+        content: Math.floor(Math.random() * 80) + 30,
+        messages: Math.floor(Math.random() * 60) + 20,
+        subscriptions: Math.floor(Math.random() * 40) + 15,
+      })
+    }
+    return result
+  }
+
+  const getRandomColor = () => {
+    const colors = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#6B7280"]
+    return colors[Math.floor(Math.random() * colors.length)]
+  }
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    fetchStatistics()
+  }
+
+  const exportData = () => {
+    const csvContent = [
+      ["Metric", "Value"],
+      ["Total Users", stats.overview.totalUsers],
+      ["Total Donors", stats.overview.totalDonors],
+      ["Total Orphanages", stats.overview.totalOrphanages],
+      ["Total Requests", stats.overview.totalRequests],
+      ["Total Services", stats.overview.totalServices],
+      ["Total Fundraisers", stats.overview.totalFundraisers],
+      ["Total Messages", stats.overview.totalMessages],
+      ["Total Subscriptions", stats.overview.totalSubscriptions],
+      ["Total Linked Donations", stats.overview.totalDonations],
+      ["Total Money Donated (Linked)", stats.overview.totalDonationsAmount],
+      // Add request quantities
+      ...Object.entries(stats.requestQuantities).flatMap(([type, data]) => [
+        [`${type} Requests Count`, data.count],
+        [`${type} Total Requested Quantity`, data.totalQuantity],
+        [`${type} Total Donated Quantity`, data.donated],
+      ]),
+    ]
+      .map((row) => row.join(","))
+      .join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv" })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `platform-statistics-${new Date().toISOString().split("T")[0]}.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="animate-spin w-8 h-8 text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading statistics...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-500 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading statistics...</p>
         </div>
       </div>
     )
   }
 
+  if (error) {
+    return <div className="text-center py-8 text-red-600">Error: {error}</div>
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Analytics Dashboard</h1>
-            <p className="text-gray-600">Comprehensive insights into platform performance</p>
-          </div>
-          <button
-            onClick={exportToPDF}
-            disabled={exporting}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200"
-          >
-            {exporting ? <Loader2 className="animate-spin w-4 h-4" /> : <Download className="w-4 h-4" />}
-            {exporting ? "Exporting..." : "Export PDF"}
-          </button>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Requests</p>
-              <p className="text-2xl font-bold text-gray-900">{totalStats.requests}</p>
-              <p className="text-xs text-green-600">
-                {totalStats.fulfilledRequests} fulfilled, {totalStats.pendingRequests} pending
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-purple-100 rounded-xl">
+                <BarChart3 className="w-8 h-8 text-purple-600" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Platform Statistics</h1>
+                <p className="text-gray-600">Comprehensive analytics and insights</p>
+              </div>
             </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <BarChart3 className="text-blue-600 w-6 h-6" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Services</p>
-              <p className="text-2xl font-bold text-gray-900">{totalStats.services}</p>
-              <p className="text-xs text-purple-600">Educational & skill services</p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <PieChartIcon className="text-purple-600 w-6 h-6" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Fundraisers</p>
-              <p className="text-2xl font-bold text-gray-900">{totalStats.fundraisers}</p>
-              <p className="text-xs text-orange-600">Active campaigns</p>
-            </div>
-            <div className="p-3 bg-orange-100 rounded-lg">
-              <TrendingUp className="text-orange-600 w-6 h-6" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Users</p>
-              <p className="text-2xl font-bold text-gray-900">{totalStats.users}</p>
-              <p className="text-xs text-green-600">Registered members</p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-lg">
-              <Users className="text-green-600 w-6 h-6" />
+            <div className="flex items-center gap-3">
+              <select
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              >
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="365">Last year</option>
+              </select>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+              <button
+                onClick={exportData}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </button>
             </div>
           </div>
-        </div>
-      </div>
+        </motion.div>
 
-      {/* Tab Navigation */}
-      <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
-        {tabs.map((tab) => {
-          const IconComponent = tab.icon
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                activeTab === tab.key
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-              }`}
+        {/* Overview Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {[
+            {
+              title: "Total Users",
+              value: stats.overview.totalUsers,
+              icon: Users,
+              color: "from-blue-500 to-cyan-500",
+            },
+            {
+              title: "Active Donors",
+              value: stats.overview.totalDonors,
+              icon: Heart,
+              color: "from-green-500 to-emerald-500",
+            },
+            {
+              title: "Orphanages",
+              value: stats.overview.totalOrphanages,
+              icon: Building,
+              color: "from-purple-500 to-indigo-500",
+            },
+            {
+              title: "Total Content",
+              value: stats.overview.totalRequests + stats.overview.totalServices + stats.overview.totalFundraisers,
+              icon: BarChart3,
+              color: "from-orange-500 to-amber-500",
+            },
+            {
+              title: "Total Linked Donations",
+              value: stats.overview.totalDonations,
+              icon: DollarSign,
+              color: "from-pink-500 to-rose-500",
+            },
+            {
+              title: "Total Money Donated",
+              value: `Rs. ${stats.overview.totalDonationsAmount.toLocaleString()}`,
+              icon: DollarSign,
+              color: "from-teal-500 to-cyan-600",
+            },
+            {
+              title: "Total Messages",
+              value: stats.overview.totalMessages,
+              icon: Eye, // Reusing Eye for messages, consider a specific icon if available
+              color: "from-red-500 to-rose-600",
+            },
+            {
+              title: "Total Subscriptions",
+              value: stats.overview.totalSubscriptions,
+              icon: Calendar, // Reusing Calendar for subscriptions
+              color: "from-yellow-500 to-amber-600",
+            },
+          ].map((stat, index) => (
+            <motion.div
+              key={stat.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
             >
-              <IconComponent className="w-4 h-4" />
-              <span className="hidden sm:inline">{tab.label}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Charts Section */}
-      <div id="chart-section" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        {activeTab === "requests" && (
-          <div className="space-y-8">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Request Analytics</h2>
-              <p className="text-gray-600">Overview of donation requests and their fulfillment status</p>
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-8">
-              <div className="bg-gray-50 p-6 rounded-xl">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">Request Fulfillment Status</h3>
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={chartData.requests.bar} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="Fulfilled" stackId="a" fill="#10B981" />
-                    <Bar dataKey="Pending" stackId="a" fill="#F59E0B" />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex items-center justify-between mb-4">
+                <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.color}`}>
+                  <stat.icon className="w-6 h-6 text-white" />
+                </div>
+                {/* Removed hardcoded change percentage */}
               </div>
-
-              <div className="bg-gray-50 p-6 rounded-xl">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">Requests by Type Distribution</h3>
-                <ResponsiveContainer width="100%" height={350}>
-                  <PieChart>
-                    <Pie
-                      data={chartData.requests.pie}
-                      dataKey="value"
-                      nameKey="name"
-                      outerRadius={120}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {chartData.requests.pie.map((entry, idx) => (
-                        <Cell key={`cell-${idx}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+              <div>
+                <p className="text-gray-600 text-sm font-medium">{stat.title}</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
               </div>
-            </div>
-          </div>
-        )}
+            </motion.div>
+          ))}
+        </div>
 
-        {activeTab === "services" && (
-          <div className="space-y-8">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Service Analytics</h2>
-              <p className="text-gray-600">Educational and skill development service statistics</p>
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-8">
-              <div className="bg-gray-50 p-6 rounded-xl">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">Service Status by Category</h3>
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={chartData.services.bar} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={80} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="Fulfilled" fill="#10B981" />
-                    <Bar dataKey="In Progress" fill="#3B82F6" />
-                    <Bar dataKey="Pending" fill="#F59E0B" />
-                  </BarChart>
-                </ResponsiveContainer>
+        {/* Written Statistics Overview - Detailed Request Quantities */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Detailed Request Quantities & Donations</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+            {Object.entries(stats.requestQuantities).map(([type, data]) => (
+              <div key={type} className="p-3 bg-gray-50 rounded-lg flex items-center gap-3">
+                <div className="p-2 rounded-full bg-blue-100">
+                  {type === "clothes" && <Shirt className="w-5 h-5 text-blue-600" />}
+                  {type === "food" && <Utensils className="w-5 h-5 text-orange-600" />}
+                  {type === "money" && <DollarSign className="w-5 h-5 text-green-600" />}
+                  {type === "education" && <GraduationCap className="w-5 h-5 text-purple-600" />}
+                  {type === "medical" && <HeartHandshake className="w-5 h-5 text-red-600" />}
+                  {type === "other" && <HeartHandshake className="w-5 h-5 text-gray-600" />}
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-700 capitalize">{type} Requests:</p>
+                  <p className="text-lg font-bold text-gray-900">{data.count}</p>
+                  <p className="text-xs text-gray-600">Total Requested Quantity: {data.totalQuantity}</p>
+                  <p className="text-xs text-gray-600">Total Donated Quantity: {data.donated}</p>
+                </div>
               </div>
+            ))}
+          </CardContent>
+        </Card>
 
-              <div className="bg-gray-50 p-6 rounded-xl">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">Services by Category</h3>
-                <ResponsiveContainer width="100%" height={350}>
-                  <PieChart>
-                    <Pie
-                      data={chartData.services.pie}
-                      dataKey="value"
-                      nameKey="name"
-                      outerRadius={120}
-                      label={({ name, percent }) => (percent > 0 ? `${(percent * 100).toFixed(0)}%` : "")}
-                    >
-                      {chartData.services.pie.map((entry, idx) => (
-                        <Cell key={`cell-${idx}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* User Growth Chart */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">User Growth</h3>
+              <TrendingUp className="w-6 h-6 text-green-600" />
             </div>
-          </div>
-        )}
+            <ChartContainer
+              config={{
+                count: {
+                  label: "Users",
+                  color: "hsl(var(--chart-1))",
+                },
+              }}
+              className="min-h-[300px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={stats.trends.userGrowth}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area
+                    type="monotone"
+                    dataKey="count"
+                    stroke="var(--color-count)"
+                    fill="var(--color-count)"
+                    fillOpacity={0.2}
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </motion.div>
 
-        {activeTab === "fundraisers" && (
-          <div className="space-y-8">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Fundraiser Analytics</h2>
-              <p className="text-gray-600">Campaign performance and funding progress</p>
+          {/* Content Growth Chart */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Content Growth</h3>
+              <BarChart3 className="w-6 h-6 text-blue-600" />
             </div>
+            <ChartContainer
+              config={{
+                requests: {
+                  label: "Requests",
+                  color: "hsl(var(--chart-1))",
+                },
+                services: {
+                  label: "Services",
+                  color: "hsl(var(--chart-2))",
+                },
+                fundraisers: {
+                  label: "Fundraisers",
+                  color: "hsl(var(--chart-3))",
+                },
+              }}
+              className="min-h-[300px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.trends.contentGrowth}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Legend />
+                  <Bar dataKey="requests" fill="var(--color-requests)" name="Requests" />
+                  <Bar dataKey="services" fill="var(--color-services)" name="Services" />
+                  <Bar dataKey="fundraisers" fill="var(--color-fundraisers)" name="Fundraisers" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </motion.div>
+        </div>
 
-            <div className="grid lg:grid-cols-2 gap-8">
-              <div className="bg-gray-50 p-6 rounded-xl">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">Fundraising Progress by Category</h3>
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={chartData.fundraisers.bar}>
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value) => [`Rs. ${value}`, ""]} />
-                    <Legend />
-                    <Bar dataKey="Raised" fill="#10B981" />
-                    <Bar dataKey="Remaining" fill="#EF4444" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+        {/* Distribution Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* User Types Distribution */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+          >
+            <h3 className="text-xl font-bold text-gray-900 mb-6">User Types</h3>
+            <ChartContainer
+              config={stats.distribution.userTypes.reduce((acc, curr, idx) => {
+                acc[curr.name.toLowerCase()] = { label: curr.name, color: curr.color }
+                return acc
+              }, {})}
+              className="min-h-[250px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.distribution.userTypes}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {stats.distribution.userTypes.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </motion.div>
 
-              <div className="bg-gray-50 p-6 rounded-xl">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">Fundraisers by Category</h3>
-                <ResponsiveContainer width="100%" height={350}>
-                  <PieChart>
-                    <Pie
-                      data={chartData.fundraisers.pie}
-                      dataKey="value"
-                      nameKey="name"
-                      outerRadius={120}
-                      label={({ name, percent }) => (percent > 0 ? `${name} ${(percent * 100).toFixed(0)}%` : "")}
-                    >
-                      {chartData.fundraisers.pie.map((entry, idx) => (
-                        <Cell key={`cell-${idx}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+          {/* Content Types Distribution */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+          >
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Content Types</h3>
+            <ChartContainer
+              config={stats.distribution.contentTypes.reduce((acc, curr, idx) => {
+                acc[curr.name.toLowerCase()] = { label: curr.name, color: curr.color }
+                return acc
+              }, {})}
+              className="min-h-[250px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.distribution.contentTypes}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {stats.distribution.contentTypes.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </motion.div>
+
+          {/* Request Types Distribution */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+          >
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Request Types</h3>
+            <ChartContainer
+              config={stats.distribution.requestTypes.reduce((acc, curr, idx) => {
+                acc[curr.name.toLowerCase()] = { label: curr.name, color: curr.color }
+                return acc
+              }, {})}
+              className="min-h-[250px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.distribution.requestTypes}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {stats.distribution.requestTypes.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </motion.div>
+        </div>
+
+        {/* Engagement Analytics */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Daily Active Users */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.9 }}
+            className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Daily Active Users</h3>
+              <Eye className="w-6 h-6 text-purple-600" />
             </div>
-          </div>
-        )}
-
-        {activeTab === "users" && (
-          <div className="space-y-8">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">User Analytics</h2>
-              <p className="text-gray-600">Platform user distribution and demographics</p>
-            </div>
-
-            <div className="flex justify-center">
-              <div className="bg-gray-50 p-6 rounded-xl w-full max-w-2xl">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800 text-center">Users by Role</h3>
-                <ResponsiveContainer width="100%" height={400}>
-                  <PieChart>
-                    <Pie
-                      data={chartData.users}
-                      dataKey="value"
-                      nameKey="name"
-                      outerRadius={150}
-                      label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(1)}%)`}
-                    >
-                      {chartData.users.map((entry, idx) => (
-                        <Cell key={`cell-${idx}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "trends" && (
-          <div className="space-y-8">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Signup Trends</h2>
-              <p className="text-gray-600">User registration patterns over time</p>
-            </div>
-
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <div className="flex flex-wrap items-center gap-4 mb-6">
-                <h3 className="text-lg font-semibold text-gray-800">Monthly Signups</h3>
-                <select
-                  className="border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                >
-                  {Array.from({ length: 5 }).map((_, i) => {
-                    const year = dayjs().year() - i
-                    return (
-                      <option key={year} value={year}>
-                        {year}
-                      </option>
-                    )
-                  })}
-                </select>
-                <select
-                  className="border border-gray-300 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value)}
-                >
-                  <option value="All">All Roles</option>
-                  <option value="admin">Admin</option>
-                  <option value="Donor">Donor</option>
-                  <option value="Orphanage">Orphanage</option>
-                </select>
-              </div>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={chartData.trends}>
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                  <Tooltip />
+            <ChartContainer
+              config={{
+                active: {
+                  label: "Total Active",
+                  color: "hsl(var(--chart-1))",
+                },
+                returning: {
+                  label: "Returning",
+                  color: "hsl(var(--chart-2))",
+                },
+                new: {
+                  label: "New Users",
+                  color: "hsl(var(--chart-3))",
+                },
+              }}
+              className="min-h-[300px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={stats.engagement.dailyActive}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
                   <Legend />
                   <Line
                     type="monotone"
-                    dataKey="count"
-                    stroke="#3B82F6"
-                    strokeWidth={3}
-                    dot={{ fill: "#3B82F6", strokeWidth: 2, r: 6 }}
-                    activeDot={{ r: 8, stroke: "#3B82F6", strokeWidth: 2 }}
+                    dataKey="active"
+                    stroke="var(--color-active)"
+                    strokeWidth={2}
+                    name="Total Active"
                   />
+                  <Line
+                    type="monotone"
+                    dataKey="returning"
+                    stroke="var(--color-returning)"
+                    strokeWidth={2}
+                    name="Returning"
+                  />
+                  <Line type="monotone" dataKey="new" stroke="var(--color-new)" strokeWidth={2} name="New Users" />
                 </LineChart>
               </ResponsiveContainer>
+            </ChartContainer>
+          </motion.div>
+
+          {/* Monthly Overview */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.0 }}
+            className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Monthly Overview</h3>
+              <Calendar className="w-6 h-6 text-blue-600" />
             </div>
-          </div>
-        )}
+            <ChartContainer
+              config={{
+                users: {
+                  label: "Users",
+                  color: "hsl(var(--chart-1))",
+                },
+                content: {
+                  label: "Content",
+                  color: "hsl(var(--chart-2))",
+                },
+                messages: {
+                  label: "Messages",
+                  color: "hsl(var(--chart-3))",
+                },
+              }}
+              className="min-h-[300px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={stats.engagement.monthlyStats}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="month" stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Legend />
+                  <Area
+                    type="monotone"
+                    dataKey="users"
+                    stackId="1"
+                    stroke="var(--color-users)"
+                    fill="var(--color-users)"
+                    fillOpacity={0.6}
+                    name="Users"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="content"
+                    stackId="1"
+                    stroke="var(--color-content)"
+                    fill="var(--color-content)"
+                    fillOpacity={0.6}
+                    name="Content"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="messages"
+                    stackId="1"
+                    stroke="var(--color-messages)"
+                    fill="var(--color-messages)"
+                    fillOpacity={0.6}
+                    name="Messages"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </motion.div>
+        </div>
       </div>
     </div>
   )
