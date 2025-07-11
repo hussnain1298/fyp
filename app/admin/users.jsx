@@ -16,10 +16,9 @@ import {
   Calendar,
   Mail,
   Phone,
-  ToggleLeft,
-  ToggleRight,
   CheckCircle,
   XCircle,
+  AlertTriangle,
 } from "lucide-react"
 
 export default function UserManagement() {
@@ -31,6 +30,9 @@ export default function UserManagement() {
   const [filterStatus, setFilterStatus] = useState("all")
   const [selectedUser, setSelectedUser] = useState(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false)
+  const [userToDeactivate, setUserToDeactivate] = useState(null)
+  const [deactivationReason, setDeactivationReason] = useState("")
   const [updatingUser, setUpdatingUser] = useState(null)
 
   useEffect(() => {
@@ -93,18 +95,60 @@ export default function UserManagement() {
     setFilteredUsers(filtered)
   }
 
-  const activateUser = async (userId, currentStatus) => {
-    setUpdatingUser(userId)
+  const handleDeactivateUser = (user) => {
+    setUserToDeactivate(user)
+    setDeactivationReason("")
+    setShowDeactivateModal(true)
+  }
+
+  const confirmDeactivateUser = async () => {
+    if (!deactivationReason.trim()) {
+      alert("Please provide a reason for deactivation")
+      return
+    }
+
+    if (!userToDeactivate) return
+
+    setUpdatingUser(userToDeactivate.id)
     try {
-      const newStatus = !currentStatus
-      await updateDoc(doc(firestore, "users", userId), {
+      const newStatus = userToDeactivate.isActive !== false ? false : true
+
+      await updateDoc(doc(firestore, "users", userToDeactivate.id), {
         isActive: newStatus,
+        ...(newStatus === false && {
+          deactivatedAt: new Date(),
+          deactivationReason: deactivationReason.trim(),
+          deactivatedBy: "admin",
+        }),
+        ...(newStatus === true && {
+          reactivatedAt: new Date(),
+          reactivationReason: deactivationReason.trim(),
+          reactivatedBy: "admin",
+        }),
+        updatedAt: new Date(),
       })
 
       // Update local state
-      setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, isActive: newStatus } : user)))
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === userToDeactivate.id
+            ? {
+                ...user,
+                isActive: newStatus,
+                ...(newStatus === false && {
+                  deactivatedAt: new Date(),
+                  deactivationReason: deactivationReason.trim(),
+                }),
+              }
+            : user,
+        ),
+      )
 
-      console.log(`User ${newStatus ? "activated" : "deactivated"} successfully`)
+      setShowDeactivateModal(false)
+      setUserToDeactivate(null)
+      setDeactivationReason("")
+
+      alert(`User ${newStatus ? "reactivated" : "deactivated"} successfully`)
     } catch (error) {
       console.error("Error updating user status:", error)
       alert("Failed to update user status. Please try again.")
@@ -310,17 +354,27 @@ export default function UserManagement() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="hover:bg-gray-50 transition-colors"
+                      className={`hover:bg-gray-50 transition-colors ${user.isActive === false ? "bg-red-50" : ""}`}
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
+                              user.isActive === false
+                                ? "bg-gradient-to-r from-red-400 to-red-600"
+                                : "bg-gradient-to-r from-green-400 to-blue-500"
+                            }`}
+                          >
                             {(user.fullName || user.email || "U").charAt(0).toUpperCase()}
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <h3 className="text-sm font-semibold text-gray-900">{user.fullName || user.orgName  || "No Name"}</h3>
-                         
+                            <h3 className="text-sm font-semibold text-gray-900">
+                              {user.fullName || user.orgName || "No Name"}
+                            </h3>
+                            {user.isActive === false && user.deactivationReason && (
+                              <p className="text-xs text-red-600 mt-1">Deactivated: {user.deactivationReason}</p>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -383,21 +437,21 @@ export default function UserManagement() {
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => activateUser(user.id, user.isActive !== false)}
+                            onClick={() => handleDeactivateUser(user)}
                             disabled={updatingUser === user.id}
                             className={`p-2 rounded-lg transition-colors ${
                               user.isActive !== false
                                 ? "text-red-600 hover:bg-red-100"
                                 : "text-green-600 hover:bg-green-100"
                             } disabled:opacity-50`}
-                            title={user.isActive !== false ? "Deactivate User" : "Activate User"}
+                            title={user.isActive !== false ? "Deactivate User" : "Reactivate User"}
                           >
                             {updatingUser === user.id ? (
                               <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></div>
                             ) : user.isActive !== false ? (
-                              <ToggleRight className="w-4 h-4" />
+                              <UserX className="w-4 h-4" />
                             ) : (
-                              <ToggleLeft className="w-4 h-4" />
+                              <UserCheck className="w-4 h-4" />
                             )}
                           </motion.button>
                         </div>
@@ -430,7 +484,13 @@ export default function UserManagement() {
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                      <div
+                        className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                          selectedUser.isActive === false
+                            ? "bg-gradient-to-r from-red-400 to-red-600"
+                            : "bg-gradient-to-r from-green-400 to-blue-500"
+                        }`}
+                      >
                         {(selectedUser.fullName || selectedUser.email || "U").charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -464,7 +524,7 @@ export default function UserManagement() {
                         <div className="flex items-center gap-2">
                           {getRoleIcon(selectedUser.userType)}
                           <span
-                            className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full border ${getRoleColor(selectedUser.role)}`}
+                            className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full border ${getRoleColor(selectedUser.userType)}`}
                           >
                             {selectedUser.userType || "Unknown"}
                           </span>
@@ -508,6 +568,20 @@ export default function UserManagement() {
                       </div>
                     </div>
 
+                    {selectedUser.isActive === false && selectedUser.deactivationReason && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Deactivation Reason</label>
+                        <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                          <p className="text-red-900">{selectedUser.deactivationReason}</p>
+                          {selectedUser.deactivatedAt && (
+                            <p className="text-red-600 text-sm mt-2">
+                              Deactivated on: {selectedUser.deactivatedAt.toDate?.()?.toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {selectedUser.address && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
@@ -527,8 +601,8 @@ export default function UserManagement() {
                     </button>
                     <button
                       onClick={() => {
-                        activateUser(selectedUser.id, selectedUser.isActive !== false)
                         setShowDetailModal(false)
+                        handleDeactivateUser(selectedUser)
                       }}
                       className={`px-6 py-2 rounded-lg transition-colors font-medium flex items-center gap-2 ${
                         selectedUser.isActive !== false
@@ -544,7 +618,89 @@ export default function UserManagement() {
                       ) : (
                         <>
                           <UserCheck className="w-4 h-4" />
-                          Activate User
+                          Reactivate User
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Deactivation Modal */}
+        <AnimatePresence>
+          {showDeactivateModal && userToDeactivate && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+              onClick={() => setShowDeactivateModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-2xl max-w-md w-full shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-orange-100 rounded-full">
+                      <AlertTriangle className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {userToDeactivate.isActive !== false ? "Deactivate User" : "Reactivate User"}
+                    </h3>
+                  </div>
+
+                  <div className="mb-6">
+                    <p className="text-gray-600 mb-4">
+                      Are you sure you want to {userToDeactivate.isActive !== false ? "deactivate" : "reactivate"}{" "}
+                      <strong>{userToDeactivate.fullName || userToDeactivate.email}</strong>?
+                    </p>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Reason <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={deactivationReason}
+                        onChange={(e) => setDeactivationReason(e.target.value)}
+                        placeholder={`Please provide a reason for ${userToDeactivate.isActive !== false ? "deactivating" : "reactivating"} this user...`}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none"
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setShowDeactivateModal(false)}
+                      className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmDeactivateUser}
+                      disabled={!deactivationReason.trim()}
+                      className={`px-6 py-2 rounded-lg transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        userToDeactivate.isActive !== false
+                          ? "bg-red-600 text-white hover:bg-red-700"
+                          : "bg-green-600 text-white hover:bg-green-700"
+                      }`}
+                    >
+                      {userToDeactivate.isActive !== false ? (
+                        <>
+                          <UserX className="w-4 h-4" />
+                          Deactivate User
+                        </>
+                      ) : (
+                        <>
+                          <UserCheck className="w-4 h-4" />
+                          Reactivate User
                         </>
                       )}
                     </button>

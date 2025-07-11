@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { firestore, auth } from "@/lib/firebase";
+// import { firestore, auth } from "@/lib/firebase";
+import { firestore, auth} from "../../lib/firebase";
+
 import {
   collection,
   doc,

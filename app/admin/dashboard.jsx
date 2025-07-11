@@ -14,10 +14,12 @@ import {
   ArrowUp,
   ArrowDown,
   Shield,
-  Database,
-  Globe,
-  Zap,
   UserCheck,
+  Package,
+  DollarSign,
+  Shirt,
+  Utensils,
+  UserX,
 } from "lucide-react"
 import { firestore } from "@/lib/firebase"
 import { collection, onSnapshot } from "firebase/firestore"
@@ -60,85 +62,28 @@ const StatCard = ({ title, value, icon: Icon, color, trend, loading, subtitle, o
   </motion.div>
 )
 
-const ActivityItem = ({ icon: Icon, title, description, time, color, type, priority }) => (
+const RequestTypeCard = ({ type, count, totalQuantity, icon: Icon, color }) => (
   <motion.div
-    initial={{ opacity: 0, x: -20 }}
-    animate={{ opacity: 1, x: 0 }}
-    className="flex items-start space-x-4 p-4 hover:bg-gray-50 rounded-xl transition-colors group"
+    initial={{ opacity: 0, scale: 0.9 }}
+    animate={{ opacity: 1, scale: 1 }}
+    className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
   >
-    <div
-      className={`p-3 rounded-full shadow-sm group-hover:shadow-md transition-shadow ${
-        priority === "high" ? "ring-2 ring-red-200" : ""
-      }`}
-      style={{ backgroundColor: color }}
-    >
-      <Icon className="h-5 w-5 text-white" />
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-900">{title}</p>
-        <span className="text-xs text-gray-400">{time}</span>
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <div className={`p-2 rounded-lg`} style={{ backgroundColor: color + "20" }}>
+          <Icon className="w-5 h-5" style={{ color }} />
+        </div>
+        <h4 className="font-semibold text-gray-900">{type}</h4>
       </div>
-      <p className="text-sm text-gray-600 mt-1">{description}</p>
-      <div className="flex items-center mt-2">
-        <span
-          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            type === "success"
-              ? "bg-green-100 text-green-800"
-              : type === "warning"
-                ? "bg-yellow-100 text-yellow-800"
-                : type === "error"
-                  ? "bg-red-100 text-red-800"
-                  : type === "info"
-                    ? "bg-blue-100 text-blue-800"
-                    : "bg-gray-100 text-gray-800"
-          }`}
-        >
-          {type === "success"
-            ? "Completed"
-            : type === "warning"
-              ? "Pending"
-              : type === "error"
-                ? "Error"
-                : type === "info"
-                  ? "New"
-                  : "System"}
-        </span>
-        {priority === "high" && (
-          <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-            High Priority
-          </span>
-        )}
-      </div>
+      <span className="text-2xl font-bold text-gray-900">{count}</span>
     </div>
-  </motion.div>
-)
-
-const QuickActionCard = ({ icon: Icon, title, description, color, onClick, badge }) => (
-  <motion.button
-    whileHover={{ scale: 1.02, y: -2 }}
-    whileTap={{ scale: 0.98 }}
-    onClick={onClick}
-    className="w-full p-6 bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 text-left group relative"
-  >
-    {badge && (
-      <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
-        {badge}
+    {totalQuantity && (
+      <div className="text-sm text-gray-600">
+        <span className="font-medium">Total Quantity: </span>
+        <span className="text-gray-900 font-semibold">{totalQuantity}</span>
       </div>
     )}
-    <div className="flex items-center space-x-4">
-      <div
-        className={`p-4 rounded-2xl shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all`}
-        style={{ backgroundColor: color }}
-      >
-        <Icon className="h-6 w-6 text-white" />
-      </div>
-      <div>
-        <h3 className="font-semibold text-gray-900 group-hover:text-gray-700">{title}</h3>
-        <p className="text-sm text-gray-600 mt-1">{description}</p>
-      </div>
-    </div>
-  </motion.button>
+  </motion.div>
 )
 
 export default function AdminHome({ user }) {
@@ -146,37 +91,49 @@ export default function AdminHome({ user }) {
     totalUsers: 0,
     totalDonors: 0,
     totalOrphanages: 0,
+    activeUsers: 0,
+    inactiveUsers: 0,
     totalRequests: 0,
     totalServices: 0,
     totalFundraisers: 0,
     totalMessages: 0,
     totalSubscriptions: 0,
-    activeUsers: 0,
     pendingRequests: 0,
     totalDonations: 0,
     systemHealth: 98,
   })
+
+  const [requestStats, setRequestStats] = useState({
+    clothes: { count: 0, totalQuantity: 0, donated: 0 },
+    food: { count: 0, totalQuantity: 0, donated: 0 },
+    money: { count: 0, totalQuantity: 0, donated: 0 },
+    education: { count: 0, totalQuantity: 0, donated: 0 },
+    medical: { count: 0, totalQuantity: 0, donated: 0 },
+    other: { count: 0, totalQuantity: 0, donated: 0 },
+  })
+
   const [loading, setLoading] = useState(true)
-  const [recentActivity, setRecentActivity] = useState([])
   const [systemAlerts, setSystemAlerts] = useState([])
 
   useEffect(() => {
     const unsubscribers = []
 
-    // Enhanced real-time listeners with better error handling
     try {
-      // Users stats with real-time updates
+      // Enhanced users stats with active/inactive tracking
       const usersUnsub = onSnapshot(
         collection(firestore, "users"),
         (snapshot) => {
           const users = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
           const activeUsers = users.filter((u) => u.isActive !== false)
+          const inactiveUsers = users.filter((u) => u.isActive === false)
+
           setStats((prev) => ({
             ...prev,
             totalUsers: users.length,
             totalDonors: users.filter((u) => u.userType === "Donor").length,
             totalOrphanages: users.filter((u) => u.userType === "Orphanage").length,
             activeUsers: activeUsers.length,
+            inactiveUsers: inactiveUsers.length,
           }))
         },
         (error) => {
@@ -195,14 +152,63 @@ export default function AdminHome({ user }) {
       )
       unsubscribers.push(usersUnsub)
 
-      // Requests stats
+      // Enhanced requests stats with type breakdown
       const requestsUnsub = onSnapshot(
         collection(firestore, "requests"),
         (snapshot) => {
-          const requests = snapshot.docs.map((doc) => doc.data())
+          const requests = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+
+          // Calculate request type statistics
+          const typeStats = {
+            clothes: { count: 0, totalQuantity: 0, donated: 0 },
+            food: { count: 0, totalQuantity: 0, donated: 0 },
+            money: { count: 0, totalQuantity: 0, donated: 0 },
+            education: { count: 0, totalQuantity: 0, donated: 0 },
+            medical: { count: 0, totalQuantity: 0, donated: 0 },
+            other: { count: 0, totalQuantity: 0, donated: 0 },
+          }
+
+          requests.forEach((request) => {
+            const type = (request.requestType || "other").toLowerCase()
+            const normalizedType = type.includes("cloth")
+              ? "clothes"
+              : type.includes("food")
+                ? "food"
+                : type.includes("money") || type.includes("financial")
+                  ? "money"
+                  : type.includes("education") || type.includes("school")
+                    ? "education"
+                    : type.includes("medical") || type.includes("health")
+                      ? "medical"
+                      : "other"
+
+            if (typeStats[normalizedType]) {
+              typeStats[normalizedType].count++
+
+              // Parse quantity (handle different formats)
+              const quantity = request.quantity || 0
+              let numericQuantity = 0
+
+              if (typeof quantity === "string") {
+                // Extract numbers from string (e.g., "50 pieces", "Rs. 1000", "10 kg")
+                const match = quantity.match(/\d+/)
+                numericQuantity = match ? Number.parseInt(match[0]) : 0
+              } else if (typeof quantity === "number") {
+                numericQuantity = quantity
+              }
+
+              typeStats[normalizedType].totalQuantity += numericQuantity
+
+              // Calculate donated amount
+              const totalDonated = request.totalDonated || 0
+              typeStats[normalizedType].donated += totalDonated
+            }
+          })
+
+          setRequestStats(typeStats)
           setStats((prev) => ({
             ...prev,
-            totalRequests: snapshot.size,
+            totalRequests: requests.length,
             pendingRequests: requests.filter((r) => r.status === "Pending").length,
           }))
         },
@@ -230,16 +236,6 @@ export default function AdminHome({ user }) {
       )
       unsubscribers.push(fundraisersUnsub)
 
-      // Donations stats
-      const donationsUnsub = onSnapshot(
-        collection(firestore, "donations"),
-        (snapshot) => {
-          setStats((prev) => ({ ...prev, totalDonations: snapshot.size }))
-        },
-        (error) => console.error("Error fetching donations:", error),
-      )
-      unsubscribers.push(donationsUnsub)
-
       // Contact messages stats
       const contactUnsub = onSnapshot(
         collection(firestore, "contact-us"),
@@ -263,9 +259,6 @@ export default function AdminHome({ user }) {
         },
       )
       unsubscribers.push(subscriptionsUnsub)
-
-      // Load recent activity
-      loadRecentActivity()
     } catch (error) {
       console.error("Error setting up listeners:", error)
       setLoading(false)
@@ -273,73 +266,6 @@ export default function AdminHome({ user }) {
 
     return () => unsubscribers.forEach((unsub) => unsub())
   }, [])
-
-  const loadRecentActivity = async () => {
-    try {
-      // Simulate recent activity data
-      const activities = [
-        {
-          id: 1,
-          icon: Users,
-          title: "New user registered",
-          description: "John Doe joined as a donor from Karachi",
-          time: "2 min ago",
-          color: "#10B981",
-          type: "success",
-        },
-        {
-          id: 2,
-          icon: MessageSquare,
-          title: "New donation request",
-          description: "Hope Orphanage requested food supplies for 50 children",
-          time: "5 min ago",
-          color: "#3B82F6",
-          type: "info",
-        },
-        {
-          id: 3,
-          icon: TrendingUp,
-          title: "Fundraiser milestone",
-          description: "Education fund reached 75% of Rs. 100,000 goal",
-          time: "10 min ago",
-          color: "#8B5CF6",
-          type: "success",
-        },
-        {
-          id: 4,
-          icon: Mail,
-          title: "New contact message",
-          description: "Support inquiry from donor about donation process",
-          time: "15 min ago",
-          color: "#F59E0B",
-          type: "warning",
-        },
-        {
-          id: 5,
-          icon: AlertCircle,
-          title: "System notification",
-          description: "Weekly backup completed successfully",
-          time: "1 hour ago",
-          color: "#6B7280",
-          type: "system",
-        },
-        {
-          id: 6,
-          icon: Shield,
-          title: "Security alert",
-          description: "Multiple failed login attempts detected",
-          time: "2 hours ago",
-          color: "#EF4444",
-          type: "error",
-          priority: "high",
-        },
-      ]
-
-      setRecentActivity(activities)
-    } catch (error) {
-      console.error("Error loading recent activity:", error)
-    }
-  }
 
   const statCards = useMemo(
     () => [
@@ -349,7 +275,7 @@ export default function AdminHome({ user }) {
         icon: Users,
         color: "#3B82F6",
         trend: 12,
-        subtitle: `${stats.activeUsers} active users`,
+        subtitle: `${stats.activeUsers} active, ${stats.inactiveUsers} inactive`,
         onClick: () => console.log("Navigate to users"),
       },
       {
@@ -369,6 +295,15 @@ export default function AdminHome({ user }) {
         trend: 5,
         subtitle: "Partner organizations",
         onClick: () => console.log("Navigate to orphanages"),
+      },
+      {
+        title: "Inactive Users",
+        value: stats.inactiveUsers,
+        icon: UserX,
+        color: "#EF4444",
+        trend: -10,
+        subtitle: "Deactivated accounts",
+        onClick: () => console.log("Navigate to inactive users"),
       },
       {
         title: "Total Requests",
@@ -398,15 +333,6 @@ export default function AdminHome({ user }) {
         onClick: () => console.log("Navigate to fundraisers"),
       },
       {
-        title: "Contact Messages",
-        value: stats.totalMessages,
-        icon: MessageSquare,
-        color: "#EF4444",
-        trend: -3,
-        subtitle: "Support inquiries",
-        onClick: () => console.log("Navigate to messages"),
-      },
-      {
         title: "Newsletter Subscribers",
         value: stats.totalSubscriptions,
         icon: Mail,
@@ -419,58 +345,19 @@ export default function AdminHome({ user }) {
     [stats],
   )
 
-  const quickActions = [
-    {
-      icon: BarChart3,
-      title: "View Analytics",
-      description: "Check detailed platform statistics",
-      color: "#3B82F6",
-      onClick: () => console.log("Navigate to analytics"),
-    },
-    {
-      icon: Users,
-      title: "Manage Users",
-      description: "Add, edit, or remove users",
-      color: "#10B981",
-      onClick: () => console.log("Navigate to user management"),
-      badge: stats.pendingRequests > 0 ? stats.pendingRequests : null,
-    },
-    {
-      icon: MessageSquare,
-      title: "Check Messages",
-      description: "Review contact form submissions",
-      color: "#8B5CF6",
-      onClick: () => console.log("Navigate to messages"),
-      badge: stats.totalMessages > 10 ? "!" : null,
-    },
-    {
-      icon: Mail,
-      title: "Email Subscribers",
-      description: "Send newsletter to subscribers",
-      color: "#F59E0B",
-      onClick: () => console.log("Navigate to email"),
-    },
-    {
-      icon: Shield,
-      title: "Security Center",
-      description: "Monitor system security",
-      color: "#EF4444",
-      onClick: () => console.log("Navigate to security"),
-    },
-    {
-      icon: Database,
-      title: "Database Health",
-      description: "Check database performance",
-      color: "#6366F1",
-      onClick: () => console.log("Navigate to database"),
-    },
+  const requestTypeCards = [
+    { type: "Clothes", ...requestStats.clothes, icon: Shirt, color: "#3B82F6" },
+    { type: "Food", ...requestStats.food, icon: Utensils, color: "#10B981" },
+    { type: "Money", ...requestStats.money, icon: DollarSign, color: "#F59E0B" },
+    { type: "Education", ...requestStats.education, icon: Activity, color: "#8B5CF6" },
+    { type: "Medical", ...requestStats.medical, icon: Shield, color: "#EF4444" },
+    { type: "Other", ...requestStats.other, icon: Package, color: "#6B7280" },
   ]
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50 flex items-center justify-center">
         <div className="text-center">
-       
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-gray-600 text-lg font-medium">
             Loading admin dashboard...
           </motion.p>
@@ -504,7 +391,7 @@ export default function AdminHome({ user }) {
                   </div>
                   <div>
                     <h1 className="text-3xl lg:text-4xl font-bold mb-2">
-                      Welcome back, {user?.fullName || "Admin"}! 👋
+                      Welcome back, {user?.displayName || user?.email?.split("@")[0] || "Admin"}! 👋
                     </h1>
                     <p className="text-green-100 text-lg">Here's what's happening with your platform today.</p>
                   </div>
@@ -525,10 +412,6 @@ export default function AdminHome({ user }) {
                         day: "numeric",
                       })}
                     </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Zap className="h-4 w-4" />
-                    <span>System Health: {stats.systemHealth}%</span>
                   </div>
                 </div>
               </div>
@@ -556,6 +439,36 @@ export default function AdminHome({ user }) {
           ))}
         </div>
 
+        {/* Request Type Statistics */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-8"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <BarChart3 className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Request Type Breakdown</h3>
+              <p className="text-gray-600 text-sm mt-1">Detailed analysis of request categories and quantities</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {requestTypeCards.map((card, index) => (
+              <motion.div
+                key={card.type}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.9 + index * 0.1 }}
+              >
+                <RequestTypeCard {...card} />
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
         {/* System Alerts */}
         {systemAlerts.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
@@ -578,80 +491,6 @@ export default function AdminHome({ user }) {
             </div>
           </motion.div>
         )}
-
-        {/* Activity and Quick Actions */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Recent Activity */}
-          <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white rounded-3xl shadow-lg border border-gray-100"
-            >
-              <div className="p-6 border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Activity className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">Recent Activity</h3>
-                      <p className="text-gray-600 text-sm mt-1">Latest platform updates and notifications</p>
-                    </div>
-                  </div>
-                  <button className="text-sm text-blue-600 hover:text-blue-700 font-medium px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                    View all
-                  </button>
-                </div>
-              </div>
-              <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
-                {recentActivity.map((activity, index) => (
-                  <motion.div
-                    key={activity.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <ActivityItem {...activity} />
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="lg:col-span-1">
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Zap className="w-6 h-6 text-green-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Quick Actions</h3>
-                  <p className="text-gray-600 text-sm mt-1">Frequently used admin tools</p>
-                </div>
-              </div>
-              <div className="space-y-4">
-                {quickActions.map((action, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <QuickActionCard {...action} />
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        </div>
-
-        
       </div>
     </div>
   )

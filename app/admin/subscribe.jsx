@@ -15,7 +15,7 @@ import {
   CheckCircle,
 } from "lucide-react"
 import { firestore } from "@/lib/firebase"
-import { collection, onSnapshot, doc, updateDoc, query, where, orderBy } from "firebase/firestore"
+import { collection, onSnapshot, doc, updateDoc, query, orderBy } from "firebase/firestore"
 
 export default function SubscriptionManagement() {
   const [subscriptions, setSubscriptions] = useState([])
@@ -34,20 +34,24 @@ export default function SubscriptionManagement() {
   })
 
   useEffect(() => {
+    console.log("Subscribe.jsx: useEffect triggered, setting up onSnapshot listener.") // DEBUG LOG
     const unsubscribe = onSnapshot(
-      query(collection(firestore, "subscriptions"), where("isDeleted", "!=", true), orderBy("createdAt", "desc")),
+      query(collection(firestore, "subscriptions"), orderBy("createdAt", "desc")),
       (snapshot) => {
+        console.log("Subscribe.jsx: onSnapshot callback fired.") // DEBUG LOG
+        console.log("Subscribe.jsx: Number of documents received:", snapshot.docs.length) // DEBUG LOG
         const subscriptionsData = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }))
+        console.log("Subscribe.jsx: Raw subscriptions data:", subscriptionsData) // DEBUG LOG
 
         setSubscriptions(subscriptionsData)
         calculateStats(subscriptionsData)
         setLoading(false)
       },
       (error) => {
-        console.error("Error fetching subscriptions:", error)
+        console.error("Subscribe.jsx: Error fetching subscriptions in onSnapshot:", error) // DEBUG LOG
         setLoading(false)
       },
     )
@@ -56,15 +60,15 @@ export default function SubscriptionManagement() {
   }, [])
 
   useEffect(() => {
+    console.log("Subscribe.jsx: Filtering subscriptions based on state change.") // DEBUG LOG
     filterSubscriptions()
   }, [subscriptions, searchTerm, filterStatus])
 
   const calculateStats = (subscriptionsData) => {
     const total = subscriptionsData.length
-    const active = subscriptionsData.filter((sub) => sub.isActive !== false).length
-    const unsubscribed = subscriptionsData.filter((sub) => sub.isActive === false).length
+    const active = subscriptionsData.filter((sub) => sub.isActive !== false && sub.isDeleted !== true).length
+    const unsubscribed = subscriptionsData.filter((sub) => sub.isActive === false || sub.isDeleted === true).length
 
-    // Calculate this month and this week subscriptions
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()))
@@ -80,25 +84,24 @@ export default function SubscriptionManagement() {
     }).length
 
     setStats({ total, active, unsubscribed, thisMonth, thisWeek })
+    console.log("Subscribe.jsx: Calculated stats:", { total, active, unsubscribed, thisMonth, thisWeek }) // DEBUG LOG
   }
 
   const filterSubscriptions = () => {
     let filtered = subscriptions
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter((sub) => sub.email?.toLowerCase().includes(searchTerm.toLowerCase()))
     }
 
-    // Status filter
     if (filterStatus !== "all") {
       if (filterStatus === "active") {
-        filtered = filtered.filter((sub) => sub.isActive !== false)
+        filtered = filtered.filter((sub) => sub.isActive !== false && sub.isDeleted !== true)
       } else if (filterStatus === "unsubscribed") {
-        filtered = filtered.filter((sub) => sub.isActive === false)
+        filtered = filtered.filter((sub) => sub.isActive === false || sub.isDeleted === true)
       }
     }
-
+    console.log("Subscribe.jsx: Filtered subscriptions count:", filtered.length) // DEBUG LOG
     setFilteredSubscriptions(filtered)
   }
 
@@ -137,9 +140,9 @@ export default function SubscriptionManagement() {
       ["Email", "Status", "Subscribed Date", "Last Updated"],
       ...filteredSubscriptions.map((sub) => [
         sub.email,
-        sub.isActive === false ? "Unsubscribed" : "Active",
+        getStatusText(sub),
         sub.createdAt?.toDate?.()?.toLocaleDateString() || "Unknown",
-        sub.updatedAt?.toDate?.()?.toLocaleDateString() || "Unknown",
+        sub.updatedAt?.toDate?.()?.toLocaleDateString() || "Never",
       ]),
     ]
       .map((row) => row.join(","))
@@ -154,22 +157,31 @@ export default function SubscriptionManagement() {
     window.URL.revokeObjectURL(url)
   }
 
-  const getStatusIcon = (isActive) => {
-    if (isActive === false) {
+  const getStatusIcon = (subscription) => {
+    if (subscription.isDeleted === true) {
+      return <Trash2 className="w-4 h-4 text-gray-600" />
+    }
+    if (subscription.isActive === false) {
       return <AlertCircle className="w-4 h-4 text-red-600" />
     }
     return <CheckCircle className="w-4 h-4 text-green-600" />
   }
 
-  const getStatusColor = (isActive) => {
-    if (isActive === false) {
+  const getStatusColor = (subscription) => {
+    if (subscription.isDeleted === true) {
+      return "bg-gray-100 text-gray-800"
+    }
+    if (subscription.isActive === false) {
       return "bg-red-100 text-red-800"
     }
     return "bg-green-100 text-green-800"
   }
 
-  const getStatusText = (isActive) => {
-    if (isActive === false) {
+  const getStatusText = (subscription) => {
+    if (subscription.isDeleted === true) {
+      return "Deleted"
+    }
+    if (subscription.isActive === false) {
       return "Unsubscribed"
     }
     return "Active"
@@ -180,7 +192,7 @@ export default function SubscriptionManagement() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-500 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading subscriptions...</p>
+          <p className="ml-4 text-lg text-gray-600">Loading subscriptions...</p>
         </div>
       </div>
     )
@@ -377,11 +389,9 @@ export default function SubscriptionManagement() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        {getStatusIcon(subscription.isActive)}
-                        <span
-                          className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(subscription.isActive)}`}
-                        >
-                          {getStatusText(subscription.isActive)}
+                        {getStatusIcon(subscription)}
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(subscription)}`}>
+                          {getStatusText(subscription)}
                         </span>
                       </div>
                     </td>
@@ -393,21 +403,24 @@ export default function SubscriptionManagement() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => toggleSubscriptionStatus(subscription.id, subscription.isActive)}
-                          className={`p-2 rounded-lg transition-colors ${
-                            subscription.isActive === false
-                              ? "bg-green-100 text-green-600 hover:bg-green-200"
-                              : "bg-red-100 text-red-600 hover:bg-red-200"
-                          }`}
-                          title={subscription.isActive === false ? "Resubscribe" : "Unsubscribe"}
-                        >
-                          {subscription.isActive === false ? (
-                            <CheckCircle className="w-4 h-4" />
-                          ) : (
-                            <AlertCircle className="w-4 h-4" />
-                          )}
-                        </button>
+                        {/* Only allow toggling isActive if not soft-deleted */}
+                        {subscription.isDeleted !== true && (
+                          <button
+                            onClick={() => toggleSubscriptionStatus(subscription.id, subscription.isActive)}
+                            className={`p-2 rounded-lg transition-colors ${
+                              subscription.isActive === false
+                                ? "bg-green-100 text-green-600 hover:bg-green-200"
+                                : "bg-red-100 text-red-600 hover:bg-red-200"
+                            }`}
+                            title={subscription.isActive === false ? "Resubscribe" : "Unsubscribe"}
+                          >
+                            {subscription.isActive === false ? (
+                              <CheckCircle className="w-4 h-4" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
                         <button
                           onClick={() => window.open(`mailto:${subscription.email}`)}
                           className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
@@ -415,16 +428,19 @@ export default function SubscriptionManagement() {
                         >
                           <Send className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => {
-                            setSubscriptionToDelete(subscription)
-                            setShowDeleteModal(true)
-                          }}
-                          className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-                          title="Delete Subscription"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Only allow soft delete if not already deleted */}
+                        {subscription.isDeleted !== true && (
+                          <button
+                            onClick={() => {
+                              setSubscriptionToDelete(subscription)
+                              setShowDeleteModal(true)
+                            }}
+                            className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                            title="Delete Subscription"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </motion.tr>
