@@ -23,6 +23,8 @@ import {
 } from "lucide-react"
 import { firestore } from "@/lib/firebase"
 import { collection, onSnapshot } from "firebase/firestore"
+import DeleteHalfDonationsButton from "@/components/delete" 
+    
 
 const StatCard = ({ title, value, icon: Icon, color, trend, loading, subtitle, onClick }) => (
   <motion.div
@@ -369,6 +371,8 @@ export default function AdminHome({ user }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+         <DeleteHalfDonationsButton/>
+    
         {/* Enhanced Welcome Section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
