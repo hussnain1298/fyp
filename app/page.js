@@ -36,8 +36,7 @@ export default function Page() {
  <DonationRequest />
       <SponsorAnOrphan />
       <ServicesDisplay/>
-     
-     
+    
       <Services />
       <Fund />
       <WhyDonatelySection />

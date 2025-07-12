@@ -24,6 +24,7 @@ import {
 import { firestore } from "@/lib/firebase"
 import { collection, onSnapshot } from "firebase/firestore"
 
+
 const StatCard = ({ title, value, icon: Icon, color, trend, loading, subtitle, onClick }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
@@ -47,8 +48,8 @@ const StatCard = ({ title, value, icon: Icon, color, trend, loading, subtitle, o
         {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
         {trend && (
           <div className={`flex items-center mt-2 text-sm ${trend > 0 ? "text-green-600" : "text-red-600"}`}>
-            {trend > 0 ? <ArrowUp className="w-4 h-4 mr-1" /> : <ArrowDown className="w-4 h-4 mr-1" />}
-            <span className="font-medium">{Math.abs(trend)}% from last month</span>
+          
+            
           </div>
         )}
       </div>
@@ -369,6 +370,8 @@ export default function AdminHome({ user }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+         
+    
         {/* Enhanced Welcome Section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -439,58 +442,8 @@ export default function AdminHome({ user }) {
           ))}
         </div>
 
-        {/* Request Type Statistics */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-          className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 mb-8"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <BarChart3 className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">Request Type Breakdown</h3>
-              <p className="text-gray-600 text-sm mt-1">Detailed analysis of request categories and quantities</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {requestTypeCards.map((card, index) => (
-              <motion.div
-                key={card.type}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.9 + index * 0.1 }}
-              >
-                <RequestTypeCard {...card} />
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* System Alerts */}
-        {systemAlerts.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-                <h3 className="text-lg font-semibold text-red-800">System Alerts</h3>
-              </div>
-              <div className="space-y-2">
-                {systemAlerts.map((alert) => (
-                  <div key={alert.id} className="flex items-center justify-between p-3 bg-white rounded-lg">
-                    <div>
-                      <p className="font-medium text-red-800">{alert.title}</p>
-                      <p className="text-sm text-red-600">{alert.description}</p>
-                    </div>
-                    <span className="text-xs text-red-500">{alert.time}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
+    
+        
       </div>
     </div>
   )

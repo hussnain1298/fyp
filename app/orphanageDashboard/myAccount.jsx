@@ -78,7 +78,7 @@ export default function MyAccount() {
       { id: "Fund Raise", label: "Fund Raise" },
       { id: "Confirm Donations", label: "Confirm Donations" },
        { id: "Donation Received", label: "Donations Received" },
-      { id: "Logout", label: "Logout", icon: "🚪", isAction: true },
+      { id: "Logout", label: "Logout",  isAction: true },
     ],
     [unreadCount]
   );

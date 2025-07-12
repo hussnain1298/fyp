@@ -227,11 +227,7 @@ export default function DonorDashboard() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50 flex items-center justify-center">
         <div className="text-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-            className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full mx-auto mb-4"
-          />
+       
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-gray-600 text-lg font-medium">
             Loading your dashboard...
           </motion.p>
@@ -410,59 +406,7 @@ export default function DonorDashboard() {
             </motion.div>
           </div>
 
-          {/* Recent Activity */}
-          <div className="lg:col-span-1">
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.6 }}
-              className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Activity className="w-6 h-6 text-blue-600" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900">Recent Activity</h3>
-              </div>
-
-              <div className="space-y-4">
-                {recentActivity.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Activity className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p>No recent activity</p>
-                    <p className="text-sm">Start donating to see your impact!</p>
-                  </div>
-                ) : (
-                  recentActivity.map((activity, index) => (
-                    <motion.div
-                      key={activity.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.7 + index * 0.1 }}
-                      className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <Heart className="w-4 h-4 text-green-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{activity.title}</p>
-                        <p className="text-sm text-gray-500 truncate">{activity.description}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Calendar className="w-3 h-3 text-gray-400" />
-                          <span className="text-xs text-gray-400">
-                            {activity.timestamp?.toLocaleDateString() || "Recently"}
-                          </span>
-                        </div>
-                      </div>
-                      {activity.amount && (
-                        <span className="text-sm font-medium text-green-600">Rs. {activity.amount}</span>
-                      )}
-                    </motion.div>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          </div>
+         
         </div>
 
         {/* Enhanced Impact Summary */}
