@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { firestore } from "@/lib/firebase"; // Firebase client setup
+
+import { firestore } from "../../lib/firebase"; // Firebase client setup
 import { collection, addDoc } from "firebase/firestore"; // Firestore methods
 import Link from "next/link"; // Next.js routing
 

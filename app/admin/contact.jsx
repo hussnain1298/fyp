@@ -19,7 +19,7 @@ import {
   ChevronUp,
 } from "lucide-react"
 import { firestore } from "@/lib/firebase"
-import { collection, onSnapshot, doc, updateDoc, query, where, orderBy } from "firebase/firestore"
+import { collection, onSnapshot, doc, updateDoc, query, orderBy } from "firebase/firestore"
 
 export default function ContactManagement() {
   const [messages, setMessages] = useState([])
@@ -40,16 +40,20 @@ export default function ContactManagement() {
   })
 
   useEffect(() => {
+    // Set up real-time listener for contact messages
     const unsubscribe = onSnapshot(
-      query(collection(firestore, "contact-us"), where("isDeleted", "!=", true), orderBy("createdAt", "desc")),
+      query(collection(firestore, "contact-us"), orderBy("createdAt", "desc")),
       (snapshot) => {
         const messagesData = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }))
 
-        setMessages(messagesData)
-        calculateStats(messagesData)
+        // Filter out deleted messages
+        const activeMessages = messagesData.filter((msg) => !msg.isDeleted)
+
+        setMessages(activeMessages)
+        calculateStats(activeMessages)
         setLoading(false)
       },
       (error) => {
