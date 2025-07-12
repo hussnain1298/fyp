@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react"; // useEffect import kiya gaya hai
 import { createPortal } from "react-dom";
 import {
   Search,
@@ -11,6 +11,8 @@ import {
   ArrowLeft,
   Check,
 } from "lucide-react";
+import { doc, getDoc } from "firebase/firestore"; // Firebase imports
+import { firestore } from "@/lib/firebase"; // Firebase firestore instance
 
 const pakistaniBanks = [
   {
@@ -70,7 +72,6 @@ const pakistaniBanks = [
     name: "Faysal Bank",
     type: "bank",
     logo: "🏦",
-    cardTypes: ["Visa", "Mastercard"],
   },
   {
     id: "askari",
@@ -208,17 +209,9 @@ class OTPService {
 
   async initTwilio() {
     // Only initialize if we're in browser and have credentials
-    if (typeof window !== "undefined") {
-      try {
-        // For development, we'll use a mock service
-        // In production, you'd want to use server-side API
-        this.mockMode = true;
-        console.log("OTP Service initialized in mock mode");
-      } catch (error) {
-        console.error("Failed to initialize Twilio:", error);
-        this.mockMode = true;
-      }
-    }
+    // In production, you'd want to use server-side API
+    this.mockMode = true;
+    console.log("OTP Service initialized in mock mode");
   }
 
   generateOTP() {
@@ -350,16 +343,26 @@ class OTPService {
 // Initialize OTP service
 const otpService = new OTPService();
 
+// Helper function to format bank account for display
+const formatBankAccountForDisplay = (accountNumber) => {
+  if (!accountNumber) return "";
+  const digits = accountNumber.replace(/\D/g, ""); // Remove non-digits
+  return digits.replace(/(\d{4})(?=\d)/g, "$1-");
+};
+
 export default function PaymentModule({
   isOpen,
   onClose,
   amount,
   onPaymentSuccess,
+  orphanageId,
 }) {
   const [currentStep, setCurrentStep] = useState("bank-selection");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBank, setSelectedBank] = useState(null);
   const [filteredBanks, setFilteredBanks] = useState(pakistaniBanks);
+  const [orphanageDetails, setOrphanageDetails] = useState(null); // Orphanage details state
+  const [loadingOrphanage, setLoadingOrphanage] = useState(true); // Loading state for orphanage details
 
   // Card details state
   const [cardDetails, setCardDetails] = useState({
@@ -377,6 +380,38 @@ export default function PaymentModule({
   const [otpTimer, setOtpTimer] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [otpError, setOtpError] = useState("");
+
+  // Fetch orphanage details when modal opens or orphanageId changes
+  useEffect(() => {
+    const fetchOrphanageData = async () => {
+      if (!orphanageId) {
+        setLoadingOrphanage(false);
+        setOrphanageDetails(null);
+        return;
+      }
+      setLoadingOrphanage(true);
+      try {
+        const docRef = doc(firestore, "users", orphanageId);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          setOrphanageDetails(docSnap.data());
+        } else {
+          console.log("No such orphanage document!");
+          setOrphanageDetails(null);
+        }
+      } catch (error) {
+        console.error("Error fetching orphanage details:", error);
+        setOrphanageDetails(null);
+      } finally {
+        setLoadingOrphanage(false);
+      }
+    };
+
+    if (isOpen) {
+      fetchOrphanageData();
+    }
+  }, [isOpen, orphanageId]);
 
   // Filter banks based on search query
   React.useEffect(() => {
@@ -530,6 +565,8 @@ export default function PaymentModule({
     setIsProcessing(false);
     setOtpError("");
     setFilteredBanks(pakistaniBanks); // Reset filtered banks too
+    setOrphanageDetails(null); // Orphanage details bhi reset karein
+    setLoadingOrphanage(true); // Loading state bhi reset karein
 
     // Call parent close function
     onClose();
@@ -584,6 +621,8 @@ export default function PaymentModule({
       setIsProcessing(false);
       setOtpError("");
       setFilteredBanks(pakistaniBanks);
+      setOrphanageDetails(null); // Orphanage details bhi reset karein
+      setLoadingOrphanage(true); // Loading state bhi reset karein
     }
   }, [isOpen]);
 
@@ -1033,7 +1072,9 @@ export default function PaymentModule({
           </div>
 
           {/* Order Summary Sidebar */}
-          <div className="w-80 bg-gray-50 p-6 border-l overflow-y-auto">
+          <div className="w-80 bg-gray-50 p-6 border-l overflow-y-auto space-y-6">
+            {" "}
+            {/* Added space-y-6 for gap */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Your Order</CardTitle>
@@ -1069,6 +1110,44 @@ export default function PaymentModule({
                     </p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+            {/* Transferred To Box */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Transferred To</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingOrphanage ? (
+                  <div className="text-center text-gray-500">
+                    Loading orphanage details...
+                  </div>
+                ) : orphanageDetails ? (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">
+                        Account Title
+                      </p>
+                      <p className="text-base font-medium text-gray-800">
+                        {orphanageDetails.orgName || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">
+                        Account Number
+                      </p>
+                      <p className="text-base font-medium text-gray-800">
+                        {formatBankAccountForDisplay(
+                          orphanageDetails.bankAccount
+                        ) || "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center text-red-500">
+                    Orphanage details not found.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
