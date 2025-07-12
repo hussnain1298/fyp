@@ -14,7 +14,6 @@ import Nav from "./Navbar/page";
 import LowerHeader from "./Header/page";
 import PublicDonationsList from "./public-donation/page";
 import ServicesDisplay from "./servicesRequests/page";
-import DeleteHalfDonationsButton from "@/components/delete";
 export default function Page() {
   const [isReady, setIsReady] = useState(false);
 

@@ -57,16 +57,17 @@ export default function MyAccount() {
 
   const tabs = useMemo(
     () => [
-      { id: "Dashboard", label: "Dashboard", icon: "🏠" },
-      { id: "Account details", label: "Account Details", icon: "👤" },
-      { id: "Messages", label: "Messages", icon: "💬", badge: unreadCount },
+      { id: "Dashboard", label: "Dashboard" },
+      { id: "Account details", label: "Account Details" },
+      { id: "Messages", label: "Messages",  badge: unreadCount },
       // { id: "Fulfill Requests", label: "Fulfill Requests", icon: "❤️" },
       // { id: "Fulfill Services", label: "Fulfill Services", icon: "🎓" },
    
-      { id: "Donations", label: "Donation History", icon: "📊" },
+   
       // 🔥 NEW TAB
-      { id: "My Goal", label: "My Goal", icon: "🎯" },
-      { id: "Logout", label: "Logout", icon: "🚪", isAction: true },
+      { id: "My Goal", label: "My Goal" },
+         { id: "Donations", label: "Donation History"},
+      { id: "Logout", label: "Logout", isAction: true },
     ],
     [unreadCount]
   );
@@ -84,11 +85,14 @@ export default function MyAccount() {
       // case "Fulfill Services":
       //   return <FulfillServices />;
     
-      case "Donations":
-        return <DonationsHistory />;
+    
       // 🔥 NEW CASE
       case "My Goal":
         return <GoalAndChartSection />;
+
+          case "Donations":
+        return <DonationsHistory />;
+
       default:
         return <Dashboard />;
     }
