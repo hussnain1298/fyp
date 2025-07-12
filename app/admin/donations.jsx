@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo } from "react"
 import { Label } from "@/components/ui/label"
 
 import { db } from "@/lib/firebase"
+import { database } from "@/lib/firebase";
+
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
