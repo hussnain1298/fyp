@@ -36,7 +36,7 @@ export default function SubscriptionManagement() {
   useEffect(() => {
     console.log("Subscribe.jsx: useEffect triggered, setting up onSnapshot listener.") // DEBUG LOG
     const unsubscribe = onSnapshot(
-      query(collection(firestore, "subscriptions"), orderBy("createdAt", "desc")),
+      query(collection(firestore, "subscriptions"), ),
       (snapshot) => {
         console.log("Subscribe.jsx: onSnapshot callback fired.") // DEBUG LOG
         console.log("Subscribe.jsx: Number of documents received:", snapshot.docs.length) // DEBUG LOG

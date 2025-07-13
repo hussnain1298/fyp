@@ -62,7 +62,7 @@ export default function Navbar() {
 
   const getDonateLink = () => {
     if (userRole === "Donor") return "/donation";
-    if (userRole === "Orphanage") return "/confirmation";
+    if (userRole === "Orphanage") return "/donation";
     return "/login?redirect=donate";
   };
 
