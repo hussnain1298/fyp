@@ -72,6 +72,7 @@ const pakistaniBanks = [
     name: "Faysal Bank",
     type: "bank",
     logo: "🏦",
+    cardTypes: ["Visa", "Mastercard"],
   },
   {
     id: "askari",
@@ -1076,14 +1077,14 @@ export default function PaymentModule({
             {" "}
             {/* Added space-y-6 for gap */}
             <Card>
-              <CardHeader>
+              {/* <CardHeader>
                 <CardTitle className="text-lg">Your Order</CardTitle>
-              </CardHeader>
+              </CardHeader> */}
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Donation Amount</span>
-                    <span className="text-xl font-bold">
+                    <span className="text-red-600">Donation Amount</span>
+                    <span className="text-xl font-bold ">
                       Rs. {amount && amount.toLocaleString()}
                     </span>
                   </div>
@@ -1105,9 +1106,9 @@ export default function PaymentModule({
                       <div className="w-2 h-2 bg-green-600 rounded-full"></div>
                       <span>Secure Payment</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
+                    {/* <p className="text-xs text-gray-500 mt-1">
                       Your payment information is encrypted and secure
-                    </p>
+                    </p> */}
                   </div>
                 </div>
               </CardContent>
@@ -1115,7 +1116,9 @@ export default function PaymentModule({
             {/* Transferred To Box */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Transferred To</CardTitle>
+                <CardTitle className="text-lg text-green-600 font-bold">
+                  Transferred To
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {loadingOrphanage ? (
@@ -1128,7 +1131,7 @@ export default function PaymentModule({
                       <p className="text-sm text-gray-600 mb-1">
                         Account Title
                       </p>
-                      <p className="text-base font-medium text-gray-800">
+                      <p className="text-base font-semibold text-gray-950">
                         {orphanageDetails.orgName || "N/A"}
                       </p>
                     </div>
@@ -1136,7 +1139,7 @@ export default function PaymentModule({
                       <p className="text-sm text-gray-600 mb-1">
                         Account Number
                       </p>
-                      <p className="text-base font-medium text-gray-800">
+                      <p className="text-base font-semibold text-gray-950">
                         {formatBankAccountForDisplay(
                           orphanageDetails.bankAccount
                         ) || "N/A"}
