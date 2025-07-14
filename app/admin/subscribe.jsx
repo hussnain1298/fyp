@@ -1,5 +1,4 @@
 "use client"
-
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
@@ -36,16 +35,16 @@ export default function SubscriptionManagement() {
   useEffect(() => {
     console.log("Subscribe.jsx: useEffect triggered, setting up onSnapshot listener.") // DEBUG LOG
     const unsubscribe = onSnapshot(
-      query(collection(firestore, "subscriptions"), orderBy("createdAt", "desc")),
+      query(collection(firestore, "subscriptions"),), // Order by 'timestamp'
       (snapshot) => {
         console.log("Subscribe.jsx: onSnapshot callback fired.") // DEBUG LOG
         console.log("Subscribe.jsx: Number of documents received:", snapshot.docs.length) // DEBUG LOG
         const subscriptionsData = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
+          timestamp: doc.data().timestamp?.toDate(), // Convert Firestore Timestamp to Date object
         }))
         console.log("Subscribe.jsx: Raw subscriptions data:", subscriptionsData) // DEBUG LOG
-
         setSubscriptions(subscriptionsData)
         calculateStats(subscriptionsData)
         setLoading(false)
@@ -55,7 +54,6 @@ export default function SubscriptionManagement() {
         setLoading(false)
       },
     )
-
     return () => unsubscribe()
   }, [])
 
@@ -68,32 +66,26 @@ export default function SubscriptionManagement() {
     const total = subscriptionsData.length
     const active = subscriptionsData.filter((sub) => sub.isActive !== false && sub.isDeleted !== true).length
     const unsubscribed = subscriptionsData.filter((sub) => sub.isActive === false || sub.isDeleted === true).length
-
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()))
-
     const thisMonth = subscriptionsData.filter((sub) => {
-      const createdAt = sub.createdAt?.toDate?.()
-      return createdAt && createdAt >= startOfMonth
+      const timestamp = sub.timestamp
+      return timestamp && timestamp >= startOfMonth
     }).length
-
     const thisWeek = subscriptionsData.filter((sub) => {
-      const createdAt = sub.createdAt?.toDate?.()
-      return createdAt && createdAt >= startOfWeek
+      const timestamp = sub.timestamp
+      return timestamp && timestamp >= startOfWeek
     }).length
-
     setStats({ total, active, unsubscribed, thisMonth, thisWeek })
     console.log("Subscribe.jsx: Calculated stats:", { total, active, unsubscribed, thisMonth, thisWeek }) // DEBUG LOG
   }
 
   const filterSubscriptions = () => {
     let filtered = subscriptions
-
     if (searchTerm) {
       filtered = filtered.filter((sub) => sub.email?.toLowerCase().includes(searchTerm.toLowerCase()))
     }
-
     if (filterStatus !== "all") {
       if (filterStatus === "active") {
         filtered = filtered.filter((sub) => sub.isActive !== false && sub.isDeleted !== true)
@@ -103,21 +95,6 @@ export default function SubscriptionManagement() {
     }
     console.log("Subscribe.jsx: Filtered subscriptions count:", filtered.length) // DEBUG LOG
     setFilteredSubscriptions(filtered)
-  }
-
-  const toggleSubscriptionStatus = async (subscriptionId, currentStatus) => {
-    try {
-      const newStatus = currentStatus === false ? true : false
-      await updateDoc(doc(firestore, "subscriptions", subscriptionId), {
-        isActive: newStatus,
-        updatedAt: new Date(),
-        ...(newStatus === false && { unsubscribedAt: new Date() }),
-        ...(newStatus === true && { resubscribedAt: new Date() }),
-      })
-      console.log(`Subscription ${subscriptionId} status updated to: ${newStatus ? "active" : "unsubscribed"}`)
-    } catch (error) {
-      console.error("Error updating subscription status:", error)
-    }
   }
 
   const softDeleteSubscription = async (subscriptionId) => {
@@ -137,17 +114,15 @@ export default function SubscriptionManagement() {
 
   const exportSubscriptions = () => {
     const csvContent = [
-      ["Email", "Status", "Subscribed Date", "Last Updated"],
+      ["Email", "Status", "Subscribed Date"], // Removed "Last Updated"
       ...filteredSubscriptions.map((sub) => [
         sub.email,
         getStatusText(sub),
-        sub.createdAt?.toDate?.()?.toLocaleDateString() || "Unknown",
-        sub.updatedAt?.toDate?.()?.toLocaleDateString() || "Never",
+        sub.timestamp?.toLocaleDateString() || "Unknown", // Formatted as date only
       ]),
     ]
       .map((row) => row.join(","))
       .join("\n")
-
     const blob = new Blob([csvContent], { type: "text/csv" })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -244,7 +219,6 @@ export default function SubscriptionManagement() {
               <Users className="w-8 h-8 text-gray-600" />
             </div>
           </motion.div>
-
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -259,22 +233,7 @@ export default function SubscriptionManagement() {
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
           </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Unsubscribed</p>
-                <p className="text-2xl font-bold text-red-600">{stats.unsubscribed}</p>
-              </div>
-              <AlertCircle className="w-8 h-8 text-red-600" />
-            </div>
-          </motion.div>
-
+          
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -289,7 +248,6 @@ export default function SubscriptionManagement() {
               <TrendingUp className="w-8 h-8 text-blue-600" />
             </div>
           </motion.div>
-
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -327,7 +285,7 @@ export default function SubscriptionManagement() {
               </div>
             </div>
             <div>
-              <select
+              {/* <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -335,7 +293,7 @@ export default function SubscriptionManagement() {
                 <option value="all">All Subscribers</option>
                 <option value="active">Active</option>
                 <option value="unsubscribed">Unsubscribed</option>
-              </select>
+              </select> */}
             </div>
           </div>
         </motion.div>
@@ -359,9 +317,6 @@ export default function SubscriptionManagement() {
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Subscribed Date
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Updated
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -396,31 +351,10 @@ export default function SubscriptionManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {subscription.createdAt?.toDate?.()?.toLocaleDateString() || "Unknown"}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {subscription.updatedAt?.toDate?.()?.toLocaleDateString() || "Never"}
+                      {subscription.timestamp?.toLocaleDateString() || "Unknown"}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        {/* Only allow toggling isActive if not soft-deleted */}
-                        {subscription.isDeleted !== true && (
-                          <button
-                            onClick={() => toggleSubscriptionStatus(subscription.id, subscription.isActive)}
-                            className={`p-2 rounded-lg transition-colors ${
-                              subscription.isActive === false
-                                ? "bg-green-100 text-green-600 hover:bg-green-200"
-                                : "bg-red-100 text-red-600 hover:bg-red-200"
-                            }`}
-                            title={subscription.isActive === false ? "Resubscribe" : "Unsubscribe"}
-                          >
-                            {subscription.isActive === false ? (
-                              <CheckCircle className="w-4 h-4" />
-                            ) : (
-                              <AlertCircle className="w-4 h-4" />
-                            )}
-                          </button>
-                        )}
                         <button
                           onClick={() => window.open(`mailto:${subscription.email}`)}
                           className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
@@ -448,7 +382,6 @@ export default function SubscriptionManagement() {
               </tbody>
             </table>
           </div>
-
           {filteredSubscriptions.length === 0 && (
             <div className="text-center py-12">
               <Mail className="w-12 h-12 text-gray-300 mx-auto mb-4" />

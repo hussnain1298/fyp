@@ -57,7 +57,7 @@ const StatCard = ({ title, value, icon: Icon, color, trend, loading, subtitle, o
         className={`p-4 rounded-2xl shadow-lg group-hover:scale-110 transition-transform`}
         style={{ backgroundColor: color }}
       >
-        <Icon className="h-8 w-8 text-white" />
+        <Icon className="h-6 w-6 text-white" />
       </div>
     </div>
   </motion.div>
@@ -312,7 +312,7 @@ export default function AdminHome({ user }) {
         icon: MessageSquare,
         color: "#F59E0B",
         trend: 15,
-        subtitle: `${stats.pendingRequests} pending`,
+        subtitle: "Waiting for Help",
         onClick: () => console.log("Navigate to requests"),
       },
       {
@@ -346,14 +346,7 @@ export default function AdminHome({ user }) {
     [stats],
   )
 
-  const requestTypeCards = [
-    { type: "Clothes", ...requestStats.clothes, icon: Shirt, color: "#3B82F6" },
-    { type: "Food", ...requestStats.food, icon: Utensils, color: "#10B981" },
-    { type: "Money", ...requestStats.money, icon: DollarSign, color: "#F59E0B" },
-    { type: "Education", ...requestStats.education, icon: Activity, color: "#8B5CF6" },
-    { type: "Medical", ...requestStats.medical, icon: Shield, color: "#EF4444" },
-    { type: "Other", ...requestStats.other, icon: Package, color: "#6B7280" },
-  ]
+
 
   if (loading) {
     return (

@@ -62,7 +62,7 @@ export default function Navbar() {
 
   const getDonateLink = () => {
     if (userRole === "Donor") return "/donation";
-    if (userRole === "Orphanage") return "/confirmation";
+    if (userRole === "Orphanage") return "/donation";
     return "/login?redirect=donate";
   };
 
@@ -122,7 +122,7 @@ export default function Navbar() {
   return (
     <nav
       className={`fixed top-0 left-0 w-full z-50 transition duration-300 ${
-        isScrolled ? "bg-green-600 shadow-md" : "bg-[rgb(239,239,239)]"
+        isScrolled ? "bg-green-600 shadow-md" : "bg-green-600"
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">

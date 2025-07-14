@@ -61,7 +61,7 @@ export default function AdminStatistics() {
     distribution: {
       userTypes: [],
       contentTypes: [],
-      requestTypes: [],
+      requestTypes: [], // Will now include totalAmount and fulfilled
     },
     engagement: {
       dailyActive: [],
@@ -72,14 +72,17 @@ export default function AdminStatistics() {
       clothes: { count: 0, totalQuantity: 0, donated: 0 },
       food: { count: 0, totalQuantity: 0, donated: 0 },
       money: { count: 0, totalQuantity: 0, donated: 0 },
-      education: { count: 0, totalQuantity: 0, donated: 0 },
-      medical: { count: 0, totalQuantity: 0, donated: 0 },
-      other: { count: 0, totalQuantity: 0, donated: 0 },
+    
+    },
+    topPerformers: {
+      topDonors: [],
+      topOrphanages: [],
     },
   })
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [timeRange, setTimeRange] = useState("30") // days
+  const [error, setError] = useState(null)
 
   const fetchStatistics = async () => {
     setLoading(true)
@@ -114,6 +117,10 @@ export default function AdminStatistics() {
       const donors = users.filter((user) => user.userType === "Donor")
       const orphanages = users.filter((user) => user.userType === "Orphanage")
 
+      // Add these two lines to create lookup maps for donors and orphanages:
+      const donorMap = new Map(donors.map((d) => [d.id, d.fullName || d.name || "Anonymous Donor"]))
+      const orphanageMap = new Map(orphanages.map((o) => [o.id, o.orgName || o.name || "Unknown Orphanage"]))
+
       // Process content data
       const requests = requestsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
       const services = servicesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
@@ -126,9 +133,25 @@ export default function AdminStatistics() {
       // Process donations data (from 'donations' collection)
       const donations = donationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
       let totalDonationsAmount = 0
+
+      // Sum from 'donations' collection
       donations.forEach((donation) => {
         if (donation.donationType === "money" && donation.amount) {
           totalDonationsAmount += Number(donation.amount)
+        }
+      })
+
+      // Sum from 'fundraisers' collection
+      fundraisers.forEach((fundraiser) => {
+        if (fundraiser.raisedAmount) {
+          totalDonationsAmount += Number(fundraiser.raisedAmount)
+        }
+      })
+
+      // Sum from 'requests' collection (totalDonated field)
+      requests.forEach((req) => {
+        if (req.totalDonated && typeof req.totalDonated === "number") {
+          totalDonationsAmount += req.totalDonated
         }
       })
 
@@ -163,15 +186,12 @@ export default function AdminStatistics() {
         { name: "Fundraisers", value: fundraisers.length, color: "#F59E0B" },
       ]
 
-      // Analyze request types and quantities
-      const requestTypeCount = {}
-      const requestQuantities = {
-        clothes: { count: 0, totalQuantity: 0, donated: 0 },
-        food: { count: 0, totalQuantity: 0, donated: 0 },
-        money: { count: 0, totalQuantity: 0, donated: 0 },
-        education: { count: 0, totalQuantity: 0, donated: 0 },
-        medical: { count: 0, totalQuantity: 0, donated: 0 },
-        other: { count: 0, totalQuantity: 0, donated: 0 },
+      // Analyze request types and quantities for detailed view and pie chart
+      const requestTypeDetails = {
+        clothes: { count: 0, totalQuantity: 0, fulfilled: 0, icon: Shirt, color: "#3B82F6" }, // Blue
+        food: { count: 0, totalQuantity: 0, fulfilled: 0, icon: Utensils, color: "#F59E0B" }, // Orange
+        money: { count: 0, totalQuantity: 0, fulfilled: 0, icon: DollarSign, color: "#10B981" }, // Green
+      
       }
 
       requests.forEach((req) => {
@@ -188,37 +208,71 @@ export default function AdminStatistics() {
                   ? "medical"
                   : "other"
 
-        requestTypeCount[normalizedType] = (requestTypeCount[normalizedType] || 0) + 1
+        if (requestTypeDetails[normalizedType]) {
+          requestTypeDetails[normalizedType].count++
+          const numericQuantity = Number(req.totalQuantity) || 0
+          requestTypeDetails[normalizedType].totalQuantity += numericQuantity
 
-        if (requestQuantities[normalizedType]) {
-          requestQuantities[normalizedType].count++
-
-          const quantity = req.quantity || 0
-          let numericQuantity = 0
-
-          if (typeof quantity === "string") {
-            const match = quantity.match(/\d+/)
-            numericQuantity = match ? Number.parseInt(match[0]) : 0
-          } else if (typeof quantity === "number") {
-            numericQuantity = quantity
-          }
-
-          requestQuantities[normalizedType].totalQuantity += numericQuantity
-
-          const totalDonated = req.totalDonated || 0 // Assuming 'totalDonated' field exists in 'requests'
-          requestQuantities[normalizedType].donated += totalDonated
+          // Assuming 'totalDonated' field exists in 'requests' for fulfillment
+          const totalDonated = req.totalDonated || 0
+          requestTypeDetails[normalizedType].fulfilled += totalDonated
         }
       })
 
-      const requestTypes = Object.entries(requestTypeCount).map(([name, value]) => ({
+      const requestTypes = Object.entries(requestTypeDetails).map(([name, data]) => ({
         name,
-        value,
-        color: getRandomColor(),
+        value: data.count, // For the pie chart, use the count of requests
+        color: data.color,
+        icon: data.icon,
+        totalAmount: data.totalQuantity, // Total quantity requested
+        fulfilled: data.fulfilled, // Total quantity donated/fulfilled
       }))
 
       // Generate engagement data (simulated for now)
       const dailyActive = generateDailyActiveData(timeRange)
       const monthlyStats = generateMonthlyStats()
+
+      // Calculate Top Donors
+      const donorContributions = {}
+      donations.forEach((donation) => {
+        const donorId = donation.donorId // Assuming donorId is present in the donation document
+        const donorName = donorId ? donorMap.get(donorId) : donation.donorName || "Anonymous Donor"
+        const amount = Number(donation.amount) || 0
+
+        if (!donorContributions[donorId]) {
+          donorContributions[donorId] = { name: donorName, amount: 0, donations: 0 }
+        }
+        donorContributions[donorId].amount += amount
+        donorContributions[donorId].donations++
+      })
+      const topDonors = Object.values(donorContributions)
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 5) // Top 5 donors
+
+      // Calculate Top Orphanages
+      const orphanagePerformance = {}
+      requests.forEach((req) => {
+        const orphanageId = req.orphanageId // Assuming orphanageId is present in the request document
+        const orphanageName = orphanageId ? orphanageMap.get(orphanageId) : req.orphanageName || "Unknown Orphanage"
+        const quantity = req.quantity || 0
+        let numericQuantity = 0
+        if (typeof quantity === "string") {
+          const match = quantity.match(/\d+/)
+          numericQuantity = match ? Number.parseInt(match[0]) : 0
+        } else if (typeof quantity === "number") {
+          numericQuantity = quantity
+        }
+        const totalDonated = req.totalDonated || 0 // Assuming 'totalDonated' field exists in 'requests'
+
+        if (!orphanagePerformance[orphanageId]) {
+          orphanagePerformance[orphanageId] = { name: orphanageName, requests: 0, fulfilled: 0 }
+        }
+        orphanagePerformance[orphanageId].requests++
+        orphanagePerformance[orphanageId].fulfilled += totalDonated // Sum of fulfilled quantities
+      })
+      const topOrphanages = Object.values(orphanagePerformance)
+        .sort((a, b) => (b.fulfilled / b.requests || 0) - (a.fulfilled / a.requests || 0)) // Sort by fulfillment rate
+        .slice(0, 5) // Top 5 orphanages
 
       setStats({
         overview,
@@ -236,7 +290,28 @@ export default function AdminStatistics() {
           dailyActive,
           monthlyStats,
         },
-        requestQuantities, // Added to state
+        requestQuantities: {
+          clothes: {
+            count: requestTypeDetails.clothes.count,
+            totalQuantity: requestTypeDetails.clothes.totalQuantity,
+            donated: requestTypeDetails.clothes.fulfilled,
+          },
+          food: {
+            count: requestTypeDetails.food.count,
+            totalQuantity: requestTypeDetails.food.totalQuantity,
+            donated: requestTypeDetails.food.fulfilled,
+          },
+          money: {
+            count: requestTypeDetails.money.count,
+            totalQuantity: requestTypeDetails.money.totalQuantity,
+            donated: requestTypeDetails.money.fulfilled,
+          },
+          
+        },
+        topPerformers: {
+          topDonors,
+          topOrphanages,
+        },
       })
     } catch (err) {
       console.error("Error fetching statistics:", err)
@@ -250,8 +325,6 @@ export default function AdminStatistics() {
   useEffect(() => {
     fetchStatistics()
   }, [timeRange])
-
-  const [error, setError] = useState(null)
 
   const generateTimeSeriesData = (data, days, dateField) => {
     const result = []
@@ -537,9 +610,7 @@ export default function AdminStatistics() {
                   {type === "clothes" && <Shirt className="w-5 h-5 text-blue-600" />}
                   {type === "food" && <Utensils className="w-5 h-5 text-orange-600" />}
                   {type === "money" && <DollarSign className="w-5 h-5 text-green-600" />}
-                  {type === "education" && <GraduationCap className="w-5 h-5 text-purple-600" />}
-                  {type === "medical" && <HeartHandshake className="w-5 h-5 text-red-600" />}
-                  {type === "other" && <HeartHandshake className="w-5 h-5 text-gray-600" />}
+                 
                 </div>
                 <div>
                   <p className="font-semibold text-gray-700 capitalize">{type} Requests:</p>
@@ -578,7 +649,7 @@ export default function AdminStatistics() {
                 <AreaChart data={stats.trends.userGrowth}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
-                  <YAxis stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} domain={[0, (dataMax) => Math.ceil(dataMax * 1.2)]} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Area
                     type="monotone"
@@ -592,7 +663,6 @@ export default function AdminStatistics() {
               </ResponsiveContainer>
             </ChartContainer>
           </motion.div>
-
           {/* Content Growth Chart */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -625,7 +695,7 @@ export default function AdminStatistics() {
                 <BarChart data={stats.trends.contentGrowth}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
-                  <YAxis stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} domain={[0, (dataMax) => Math.ceil(dataMax * 1.2)]} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Legend />
                   <Bar dataKey="requests" fill="var(--color-requests)" name="Requests" />
@@ -675,7 +745,6 @@ export default function AdminStatistics() {
               </ResponsiveContainer>
             </ChartContainer>
           </motion.div>
-
           {/* Content Types Distribution */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -712,7 +781,6 @@ export default function AdminStatistics() {
               </ResponsiveContainer>
             </ChartContainer>
           </motion.div>
-
           {/* Request Types Distribution */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -752,7 +820,7 @@ export default function AdminStatistics() {
         </div>
 
         {/* Engagement Analytics */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Daily Active Users */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -785,7 +853,7 @@ export default function AdminStatistics() {
                 <LineChart data={stats.engagement.dailyActive}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
-                  <YAxis stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} domain={[0, (dataMax) => Math.ceil(dataMax * 1.2)]} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Legend />
                   <Line
@@ -807,7 +875,6 @@ export default function AdminStatistics() {
               </ResponsiveContainer>
             </ChartContainer>
           </motion.div>
-
           {/* Monthly Overview */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -840,7 +907,7 @@ export default function AdminStatistics() {
                 <AreaChart data={stats.engagement.monthlyStats}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="month" stroke="#6b7280" fontSize={12} />
-                  <YAxis stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} domain={[0, (dataMax) => Math.ceil(dataMax * 1.2)]} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Legend />
                   <Area
@@ -874,6 +941,76 @@ export default function AdminStatistics() {
               </ResponsiveContainer>
             </ChartContainer>
           </motion.div>
+        </div>
+
+        {/* Top Performers Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Top Donors */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Heart className="w-5 h-5 text-red-500" />
+                Top Donors
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {stats.topPerformers.topDonors.length > 0 ? (
+                <div className="space-y-4">
+                  {stats.topPerformers.topDonors.map((donor, index) => (
+                    <div
+                      key={donor.name}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">{donor.name}</p>
+                          <p className="text-sm text-gray-600">{donor.donations} donations</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">No top donor data available.</div>
+              )}
+            </CardContent>
+          </Card>
+          {/* Top Orphanages */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building className="w-5 h-5 text-blue-500" />
+                Top Performing Orphanages
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {stats.topPerformers.topOrphanages.length > 0 ? (
+                <div className="space-y-4">
+                  {stats.topPerformers.topOrphanages.map((orphanage, index) => (
+                    <div
+                      key={orphanage.name}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">{orphanage.name}</p>
+                          <p className="text-sm text-gray-600">{orphanage.requests} requests</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">No top orphanage data available.</div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

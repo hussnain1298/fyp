@@ -10,6 +10,7 @@ export default function DonationStart({ setShowForm, setShowReview, setDonationA
   const handleProceed = () => {
     if (!type) return alert("Please select a donation type.")
     if (type === "money" && (!amount || amount <= 0)) return alert("Please enter a valid amount.")
+    if (type === "money" && (amount < 500 || amount > 50000)) return alert("Donation amount must be between 500 and 50,000 PKR.")
 
     setDonationType(type)
     if (type === "money") setDonationAmount(amount)
@@ -120,12 +121,16 @@ export default function DonationStart({ setShowForm, setShowReview, setDonationA
             <input
               id="donationAmount"
               type="number"
-              min="1"
+              min="500"
+              max="50000"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="w-full pl-12 pr-4 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg font-semibold"
               placeholder="Enter amount (e.g. 1000)"
             />
+            {amount && (amount < 500 || amount > 50000) && (
+              <div className="text-red-500 text-sm mt-2">Amount must be between 500 and 50,000 PKR</div>
+            )}
           </div>
           <div className="flex gap-2 flex-wrap">
             {[500, 1000, 2000, 5000].map((preset) => (
@@ -159,7 +164,7 @@ export default function DonationStart({ setShowForm, setShowReview, setDonationA
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         onClick={handleProceed}
-        disabled={!type || (type === "money" && (!amount || amount <= 0))}
+        disabled={!type || (type === "money" && (amount < 500 || amount > 50000))}
         className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-3 text-lg shadow-lg disabled:shadow-none"
       >
         Proceed to Donor Details

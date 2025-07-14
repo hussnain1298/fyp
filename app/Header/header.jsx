@@ -4,7 +4,7 @@ import Link from "next/link";
 
 export default function Header({ dropdownItems }) {
   return (
-    <div className="hidden md:flex w-full border-t border-transparent bg-[rgb(239,239,239)] mt-14 ">
+    <div className="hidden md:flex w-full pt-2 border-t border-transparent bg-[rgb(239,239,239)] mt-14 ">
       <div className="max-w-[1480px] mx-auto px-4 py-2 flex justify-center items-center flex-wrap gap-6 ">
         {dropdownItems.map((item, index) => (
           <div key={item.name} className="flex items-center gap-8">

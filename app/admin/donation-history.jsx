@@ -159,7 +159,7 @@ export default function DonationsHistory() {
       // Add table
       autoTable(doc, {
         startY: 72,
-        head: [["ID", "Date", "Type", "Status", "Amount/Details", "Donor Email", "Linked ID"]],
+        head: [["ID", "Date", "Type", "Status", "Amount/Details", "Donor Email", ]],
         body: filteredDonations.map((d) => [
           `#${d.id.substring(0, 8)}`,
           d.date.toLocaleDateString(),
@@ -383,7 +383,7 @@ export default function DonationsHistory() {
                       { key: "status", label: "Status" },
                       { key: "total", label: "Amount/Details" },
                       { key: "donorEmail", label: "Donor Email" },
-                      { key: "linkedId", label: "Linked ID" }, // New column for linked ID
+                      // { key: "linkedId", label: "Linked ID" }, // New column for linked ID
                     ].map(({ key, label }) => (
                       <th
                         key={key}
@@ -435,11 +435,11 @@ export default function DonationsHistory() {
                         <span className="text-sm text-gray-900">{donation.donorEmail}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-500">
+                        {/* <span className="text-sm text-gray-500">
                           {donation.orphanageId !== "—" ? `Orphanage: ${donation.orphanageId.substring(0, 8)}...` : ""}
                           {donation.orphanageId !== "—" && donation.requestId !== "—" ? " | " : ""}
                           {donation.requestId !== "—" ? `Request: ${donation.requestId.substring(0, 8)}...` : "N/A"}
-                        </span>
+                        </span> */}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button

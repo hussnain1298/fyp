@@ -16,28 +16,58 @@ const poppins = Poppins({
 
 export default function DonorForm({ setShowForm, setShowReview, donationType, donationAmount, setDonorInfo }) {
   const validationSchema = Yup.object({
-    firstName: Yup.string().required("First name is required"),
-    lastName: Yup.string().required("Last name is required"),
-    address: Yup.string().required("Address is required"),
-    city: Yup.string().required("City is required"),
+    firstName: Yup.string()
+      .matches(/^[A-Za-z]+$/, "First name must contain only characters")
+      .min(2, "First name must be at least 2 characters")
+      .max(50, "First name must be less than 50 characters")
+      .required("First name is required"),
+    lastName: Yup.string()
+      .matches(/^[A-Za-z]+$/, "Last name must contain only characters")
+      .min(2, "Last name must be at least 2 characters")
+      .max(50, "Last name must be less than 50 characters")
+      .required("Last name is required"),
+    address: Yup.string()
+      .max(200, "Address cannot exceed 200 characters")
+      .required("Address is required"),
+    city: Yup.string()
+      .matches(/^[A-Za-z\s]+$/, "City must be a valid name with only letters and spaces")
+      .min(2, "City must be at least 2 characters")
+      .max(100, "City must be less than 100 characters")
+      .required("City is required"),
     state: Yup.string().required("State is required"),
     postcode: Yup.string()
       .matches(/^\d{5}$/, "Must be 5 digits")
       .required("Postcode is required"),
     phone: Yup.string()
-      .matches(/^\+92\d{10}$/, "Use +92XXXXXXXXXX format")
+      .matches(/^\+92\d{10}$/, "Phone number must be in the format +92XXXXXXXXXX")
       .required("Phone is required"),
-    clothesDesc: donationType === "clothes" ? Yup.string().required("Clothes description is required") : Yup.string(),
-    clothesQty:
-      donationType === "clothes"
-        ? Yup.number().min(1, "Quantity must be at least 1").required("Quantity is required")
-        : Yup.number(),
-    foodType: donationType === "food" ? Yup.string().required("Food type is required") : Yup.string(),
-    foodQty: donationType === "food" ? Yup.string().required("Food quantity is required") : Yup.string(),
+    clothesDesc: donationType === "clothes" 
+      ? Yup.string().max(300, "Clothes description cannot exceed 300 characters").required("Clothes description is required") 
+      : Yup.string(),
+    clothesQty: donationType === "clothes"
+  ? Yup.number().min(1, "Quantity must be at least 1")
+      .max(100, "Quantity cannot exceed 100 items")  // Max limit added here
+      .required("Quantity is required")
+  : Yup.number(),
+    foodType: donationType === "food" 
+      ? Yup.string().matches(/^[A-Za-z\s]+$/, "Food type must be a valid string with letters and spaces")
+        .min(2, "Food type must be at least 2 characters")
+        .max(50, "Food type must be less than 50 characters")
+        .required("Food type is required")
+      : Yup.string(),
+    
+foodQty: donationType === "food"
+  ? Yup.number().min(1, "Quantity must be at least 1")
+      .max(100, "Quantity cannot exceed 100 items")  // Max limit added here
+      .required("Food quantity is required")
+  : Yup.string(),
     foodExpiry:
       donationType === "food"
         ? Yup.date().min(new Date(), "Expiry date must be in the future").required("Expiry date is required")
         : Yup.date(),
+    foodDesc: donationType === "food" 
+      ? Yup.string().max(300, "Food description cannot exceed 300 characters").required("Food description is required")
+      : Yup.string(),
   })
 
   return (

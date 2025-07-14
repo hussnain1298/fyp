@@ -4,7 +4,15 @@ import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { auth, firestore } from "@/lib/firebase"
 import { doc, getDoc } from "firebase/firestore"
-import { BarChart3, Users, MessageSquare, Mail, Home, LogOut, Shield } from "lucide-react"
+import {
+  BarChart3,
+  Users,
+  MessageSquare,
+  Mail,
+  Home,
+  LogOut,
+  Shield,
+} from "lucide-react"
 
 import AdminHome from "./dashboard"
 import Statistics from "./statistics"
@@ -17,20 +25,16 @@ import ManageContent from "./manage-content"
 import Messages from "./messages"
 import AdminDonations from "./donations"
 import DonationsHistory from "./donation-history"
+
 const navigationItems = [
   { id: "dashboard", label: "Dashboard", icon: Home, component: AdminHome },
-   { id: "messages", label: "Messages", icon: MessageSquare, component: Messages },
-   { id: "users", label: "Users", icon: Users, component: UserManagement },
+  { id: "messages", label: "Messages", icon: MessageSquare, component: Messages },
+  { id: "users", label: "Users", icon: Users, component: UserManagement },
   { id: "statistics", label: "Statistics", icon: BarChart3, component: Statistics },
- 
- 
-    
- 
   { id: "contact", label: "Contact", icon: MessageSquare, component: Contact },
   { id: "subscriptions", label: "Subscriptions", icon: Mail, component: Subscriptions },
-  { id: "history", label: " History", icon: Shield, component: DonationsHistory },
-  
-   { id: "content", label: "Content Management", icon: Shield, component: ManageContent },
+  { id: "history", label: "History", icon: Shield, component: DonationsHistory },
+  { id: "content", label: "Content Management", icon: Shield, component: ManageContent },
   { id: "donation", label: "Donations Management", icon: Shield, component: AdminDonations },
 ]
 

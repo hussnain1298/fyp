@@ -25,7 +25,7 @@ export default function HeroSection() {
             Bring Hope to Their World
           </h1>
 
-          <div>
+          {/* <div>
             <a
               href="https://www.youtube.com/watch?v=ElG5-nXD0B8"
               className="flex items-center gap-2 hover:underline active:scale-95 active:opacity-80 lg:gap-3"
@@ -35,7 +35,7 @@ export default function HeroSection() {
               <IoPlayCircleOutline className="text-3xl lg:text-4xl text-green-700" />
               <span className="text-lg lg:text-xl">Watch Video</span>
             </a>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>
