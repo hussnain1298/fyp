@@ -3,8 +3,6 @@ import { useState, useEffect, useMemo } from "react"
 import { Label } from "@/components/ui/label"
 
 import { db } from "@/lib/firebase"
-import { database } from "@/lib/firebase";
-
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -40,7 +38,7 @@ export default function AdminDonations() {
         const donationsList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate().toLocaleString(), // Convert Timestamp to readable string
+          timestamp: doc.data().timestamp?.toDate().toLocaleDateString(), // Convert Timestamp to readable date string
         }))
         setDonations(donationsList)
       } catch (err) {
@@ -261,18 +259,6 @@ export default function AdminDonations() {
                     </Button>
                   </TableHead>
                   <TableHead>
-                    <Button variant="ghost" onClick={() => handleSort("status")}>
-                      Status
-                      {sortBy === "status" &&
-                        (sortOrder === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        ))}
-                    </Button>
-                  </TableHead>
-                  <TableHead>Payment Status</TableHead>
-                  <TableHead>
                     <Button variant="ghost" onClick={() => handleSort("timestamp")}>
                       Date
                       {sortBy === "timestamp" &&
@@ -283,8 +269,6 @@ export default function AdminDonations() {
                         ))}
                     </Button>
                   </TableHead>
-                  {/* Placeholder for Fundraiser/Request ID */}
-                  <TableHead>Fundraiser/Request ID</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -300,20 +284,7 @@ export default function AdminDonations() {
                       {donation.donationType === "clothes" && `${donation.clothesQty} items`}
                       {donation.donationType === "food" && `${donation.foodQty} (${donation.foodType})`}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(donation.status)}>
-                        {donation.status?.replace(/_/g, " ") || "N/A"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {donation.donationType === "money" ? (
-                        <Badge variant={donation.isPaid ? "green" : "red"}>{donation.isPaid ? "Paid" : "Unpaid"}</Badge>
-                      ) : (
-                        <Badge variant="outline">N/A</Badge>
-                      )}
-                    </TableCell>
                     <TableCell>{donation.timestamp}</TableCell>
-                    <TableCell>{donation.fundraiserId || donation.requestId || "N/A"}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleViewDonation(donation)}>
                         <Eye className="h-4 w-4" />
@@ -404,10 +375,9 @@ export default function AdminDonations() {
                   <strong>Linked ID:</strong> {selectedDonation.fundraiserId || selectedDonation.requestId}
                 </p>
               )}
-
               <div className="pt-4">
-                <Label htmlFor="status-select">Update Status:</Label>
-                <Select
+                {/* <Label htmlFor="status-select">Update Status:</Label> */}
+                {/* <Select
                   id="status-select"
                   onValueChange={(value) => handleUpdateStatus(selectedDonation.id, value)}
                   value={selectedDonation.status}
@@ -422,7 +392,7 @@ export default function AdminDonations() {
                     <SelectItem value="picked_up">Picked Up</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
-                </Select>
+                </Select> */}
               </div>
             </div>
             <div className="flex justify-end gap-2">

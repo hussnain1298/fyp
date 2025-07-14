@@ -57,7 +57,7 @@ const StatCard = ({ title, value, icon: Icon, color, trend, loading, subtitle, o
         className={`p-4 rounded-2xl shadow-lg group-hover:scale-110 transition-transform`}
         style={{ backgroundColor: color }}
       >
-        <Icon className="h-8 w-8 text-white" />
+        <Icon className="h-6 w-6 text-white" />
       </div>
     </div>
   </motion.div>

@@ -216,7 +216,7 @@ export default function ManageContent() {
 
       alert(`${itemToDelete.type} marked as deleted successfully and notification sent to orphanage.`)
     } catch (error) {
-      console.error("Error during soft delete:", error)
+      console.error("Error during  delete:", error)
 
       if (error.code === "permission-denied") {
         alert("Permission denied. Please check if you're logged in as an admin and Firebase rules are updated.")
@@ -516,7 +516,7 @@ export default function ManageContent() {
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleDeleteClick(item)}
                             className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                            title="Soft Delete Content"
+                            title=" Delete "
                           >
                             <Trash2 className="w-4 h-4" />
                           </motion.button>
@@ -659,7 +659,7 @@ export default function ManageContent() {
                       className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
-                      Soft Delete Content
+                       Delete 
                     </button>
                   </div>
                 </div>
@@ -690,12 +690,12 @@ export default function ManageContent() {
                     <div className="p-3 bg-red-100 rounded-full">
                       <AlertTriangle className="w-6 h-6 text-red-600" />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900">Soft Delete Content</h3>
+                    <h3 className="text-xl font-bold text-gray-900"> Delete </h3>
                   </div>
 
                   <div className="mb-6">
                     <p className="text-gray-600 mb-4">
-                      Are you sure you want to soft delete "{itemToDelete.title}"? This will hide it from users but keep
+                      Are you sure you want to delete "{itemToDelete.title}"? This will hide it from users but keep
                       it in the database.
                     </p>
 
@@ -730,12 +730,12 @@ export default function ManageContent() {
                       {deleting ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                          Soft Deleting...
+                           Deleting...
                         </>
                       ) : (
                         <>
                           <Trash2 className="w-4 h-4" />
-                          Soft Delete Content
+                           Delete 
                         </>
                       )}
                     </button>
