@@ -15,7 +15,7 @@ import {
 } from "firebase/firestore";
 import { toast, ToastContainer } from "react-toastify";
 import { motion } from "framer-motion";
-import { FaPlus, FaEdit, FaTrash, FaFilter } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaFilter, FaTimes } from "react-icons/fa"; // Added FaTimes for modal close
 import { Target, TrendingUp, Loader2 } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -24,6 +24,7 @@ const PAGE_SIZE = 9;
 const MIN_DESCRIPTION_CHARS = 60;
 const MAX_DESCRIPTION_CHARS = 250;
 const MAX_CUSTOM_CATEGORY_CHARS = 30;
+const READ_MORE_TEXT_LENGTH = 80; // Defined the 80 character limit here
 
 // Updated realistic fundraising categories
 const titleOptions = [
@@ -80,24 +81,149 @@ const validateDescription = (description) => {
   return null;
 };
 
-// Read More/Less Component
-const ReadMoreText = ({ text, maxLength = 50 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+// NEW: ReadMoreText component with Modal functionality
+const FundraiserReadMoreText = ({ text, fundraiser }) => {
+  const [showModal, setShowModal] = useState(false);
+  const maxLength = READ_MORE_TEXT_LENGTH; // Use the global constant
 
   if (!text || text.length <= maxLength) {
     return <span>{text}</span>;
   }
 
+  const openModal = () => setShowModal(true);
+  const closeModal = () => setShowModal(false);
+
+  const getProgressPercentage = (raised, total) => {
+    return total > 0 ? Math.min((raised / total) * 100, 100) : 0;
+  };
+  const progress = getProgressPercentage(
+    fundraiser.raisedAmount || 0,
+    fundraiser.totalAmount || 0
+  );
+
   return (
-    <span>
-      {isExpanded ? text : `${text.substring(0, maxLength)}...`}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="ml-2 text-green-600 hover:text-green-700 font-medium text-sm transition-colors"
-      >
-        {isExpanded ? "Read Less" : "Read More"}
-      </button>
-    </span>
+    <>
+      <span>
+        {text.substring(0, maxLength)}...
+        <button
+          onClick={openModal}
+          className="ml-1 text-green-600 hover:text-green-700 font-medium text-sm transition-colors underline"
+        >
+          Read More
+        </button>
+      </span>
+
+      {showModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4"
+          onClick={closeModal} // Close modal on backdrop click
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()} // Prevent modal closing when clicking inside
+          >
+            {/* Fixed Header */}
+            <div className="p-4 border-b border-gray-100 rounded-t-2xl flex-shrink-0">
+              <div className="flex justify-between items-start mb-3">
+                <h2 className="text-lg font-bold text-gray-800">
+                  Fundraiser Details
+                </h2>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
+                >
+                  <FaTimes className="w-4 h-4" />
+                </button>
+              </div>
+              <h3 className="text-xl font-bold text-gray-800">
+                {fundraiser.title}
+              </h3>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div>
+                <h4 className="font-semibold text-gray-700 mb-2 text-sm">
+                  Description:
+                </h4>
+                <p className="text-gray-600 leading-relaxed text-sm">
+                  {fundraiser.description}
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-gray-700 mb-2 text-sm">
+                  Goal:
+                </h4>
+                <p className="text-green-600 font-semibold text-sm">
+                  Rs. {fundraiser.totalAmount?.toLocaleString() || 0}
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-gray-700 mb-2 text-sm">
+                  Raised:
+                </h4>
+                <p className="text-green-600 font-semibold text-sm">
+                  Rs. {fundraiser.raisedAmount?.toLocaleString() || 0}
+                </p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="mb-4">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-600 font-medium">Progress</span>
+                  <span className="font-bold text-green-600">
+                    {progress.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-3">
+                  <div
+                    className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-gray-700 mb-2 text-sm">
+                  Orphanage:
+                </h4>
+                <p className="text-gray-600 text-sm">
+                  {fundraiser.orphanageName || "N/A"}
+                </p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-700 mb-2 text-sm">
+                  Created On:
+                </h4>
+                <p className="text-gray-600 text-sm">
+                  {fundraiser.createdAt?.toDate
+                    ? new Date(
+                        fundraiser.createdAt.toDate()
+                      ).toLocaleDateString()
+                    : "N/A"}
+                </p>
+              </div>
+            </div>
+
+            {/* Fixed Footer with Static Buttons */}
+            <div className="p-4 border-t border-gray-100 rounded-b-2xl flex-shrink-0">
+              <button
+                onClick={closeModal}
+                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-xl font-semibold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </>
   );
 };
 
@@ -144,6 +270,11 @@ export default function FundRaise() {
   const [filterTitle, setFilterTitle] = useState("All");
   const [descriptionCharCount, setDescriptionCharCount] = useState(0);
   const [customCategoryCharCount, setCustomCategoryCharCount] = useState(0);
+  // New state for custom category suggestions
+  const [
+    filteredCustomCategorySuggestions,
+    setFilteredCustomCategorySuggestions,
+  ] = useState([]);
 
   const fetchFundraisers = useCallback(async () => {
     setLoading(true);
@@ -317,7 +448,7 @@ export default function FundRaise() {
         raisedAmount: 0,
         orphanageId: user.uid,
         orphanageName: name,
-        status: "Pending",
+        status: "Pending", // Default status
         createdAt: new Date(),
       };
 
@@ -360,6 +491,7 @@ export default function FundRaise() {
     setError("");
     setDescriptionCharCount(0);
     setCustomCategoryCharCount(0);
+    setFilteredCustomCategorySuggestions([]); // Clear suggestions on close
   };
 
   const handleDescriptionChange = (e, isEdit = false) => {
@@ -379,6 +511,18 @@ export default function FundRaise() {
     const charCount = countChars(value);
     setCustomCategoryCharCount(charCount);
     setForm({ ...form, customTitle: value });
+
+    // Filter suggestions based on typed value
+    if (value.trim().length > 0) {
+      const suggestions = titleOptions.filter(
+        (option) =>
+          option.value !== "Custom Category" && // Exclude "Custom Category" itself
+          option.label.toLowerCase().includes(value.toLowerCase())
+      );
+      setFilteredCustomCategorySuggestions(suggestions);
+    } else {
+      setFilteredCustomCategorySuggestions([]); // Clear suggestions if input is empty
+    }
   };
 
   const getProgressPercentage = (raised, total) => {
@@ -589,9 +733,10 @@ export default function FundRaise() {
                   </div>
 
                   <div className="text-gray-600 mb-4 leading-relaxed flex-1">
-                    <ReadMoreText
+                    {/* Updated to use the new FundraiserReadMoreText component */}
+                    <FundraiserReadMoreText
                       text={fundraiser.description}
-                      maxLength={50}
+                      fundraiser={fundraiser}
                     />
                   </div>
 
@@ -689,7 +834,7 @@ export default function FundRaise() {
           </motion.div>
         )}
 
-        {/* Modal */}
+        {/* Modal for Create/Edit Fundraiser */}
         {modalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -789,7 +934,14 @@ export default function FundRaise() {
                             value={form.customTitle}
                             onChange={handleCustomCategoryChange}
                             maxLength={MAX_CUSTOM_CATEGORY_CHARS + 10}
+                            list="custom-category-suggestions" // Datalist attribute added
                           />
+                          {/* Datalist for suggestions */}
+                          <datalist id="custom-category-suggestions">
+                            {filteredCustomCategorySuggestions.map((option) => (
+                              <option key={option.value} value={option.label} />
+                            ))}
+                          </datalist>
                           <div className="flex justify-between items-center mt-1">
                             <span className="text-xs text-gray-500">
                               {customCategoryCharCount}/
