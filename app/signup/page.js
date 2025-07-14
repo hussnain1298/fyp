@@ -543,9 +543,21 @@ export default function SignUp() {
                     icon="👤"
                     {...register("fullName", {
                       required: "Full Name is required",
+                      pattern: {
+                        value: /^[A-Za-z\s]+$/,
+                        message:
+                          "Full name can only contain letters and spaces",
+                      },
                     })}
                     error={errors.fullName}
                     name="fullName"
+                    onInput={(e) => {
+                      // Remove non-alphabetic characters except spaces
+                      e.target.value = e.target.value.replace(
+                        /[^A-Za-z\s]/g,
+                        ""
+                      );
+                    }}
                   />
                 )}
 
