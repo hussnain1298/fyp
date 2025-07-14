@@ -20,7 +20,7 @@ export default function UpperNavbar({
   return (
     <div
       className={`max-w-9xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between py-4 fixed w-full top-0 z-50 transition-colors duration-300 ${
-        isScrolled ? "bg-green-700 shadow-md" : "bg-[rgb(239,239,239)]"
+        isScrolled ? "bg-green-700 shadow-md" : "bg-green-700"
       }`}
     >
       <h1
