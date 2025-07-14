@@ -1,0 +1,157 @@
+[33mb3e1f41[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mhussnain[m[33m)[m changes 15 July
+[33m8e52045[m Merge branch 'main' of https://github.com/hussnain1298/fyp into hussnain
+[33m7a17f46[m settings
+[33m1be1c0b[m[33m ([m[1;31morigin/main[m[33m)[m Merge pull request #59 from hussnain1298/sheikh
+[33md7c32e1[m dashboard
+[33m2d3bd9f[m Fundraising updated
+[33m4fc2f50[m Merge branch 'main' of https://github.com/hussnain1298/fyp into hussnain
+[33m3286de5[m Merge pull request #58 from hussnain1298/sheikh
+[33mdf6939b[m Transferred account details added in payment module
+[33mff7ffbe[m minor changes 14 July 12:37
+[33m66ae6b1[m Merge pull request #57 from hussnain1298/hussnain
+[33m0807f75[m[33m ([m[1;31morigin/hussnain[m[33m)[m Merge branch 'main' of https://github.com/hussnain1298/fyp into hussnain
+[33m2271cff[m Merge pull request #56 from hussnain1298/sheikh
+[33meddeb74[m 13 july
+[33m43ebc9c[m orphanage dashboard updated and costraints added, signup page updated with bank account
+[33m5e38325[m orphanage dashboard updated and costraints added, signup page updated with bank account
+[33md3bb774[m 12 July 4:09 PM by Ali Hussnain, Donations & Services & Admin Portal
+[33m4e5be15[m 12-July Requests-Services Updated - by ALI
+[33m42b2251[m Admin Portal updated on 12-July by Ali Hussnain
+[33m3032e24[m 12-7-2025
+[33m96adaaa[m admin portal
+[33m7687274[m messages section added for admin portal & updated for both users
+[33mc10eeda[m changes
+[33md352099[m admin portal updated with Soft Delete functionality added
+[33m2bccc4d[m Backup before running next/font codemod
+[33m6459517[m Backup before running next/font codemod
+[33ma42fedb[m Merge pull request #55 from hussnain1298/hussnain
+[33m504342c[m 12 July 4:09 PM by Ali Hussnain, Donations & Services & Admin Portal
+[33mdac577b[m 12-July Requests-Services Updated - by ALI
+[33m2d68c02[m Admin Portal updated on 12-July by Ali Hussnain
+[33m17b144e[m 12-7-2025
+[33m958c919[m admin portal
+[33m2d5aa85[m messages section added for admin portal & updated for both users
+[33m27ecabb[m Navbar updated, now it will detect orphanage and admin as well on login and logout button added
+[33mdddacff[m Merge branch 'main' of https://github.com/hussnain1298/fyp into hussnain
+[33m96a2631[m changes
+[33m600113f[m Merge pull request #51 from hussnain1298/sheikh
+[33m1fac580[m login Page updated
+[33m6b8e5d9[m Merge pull request #50 from hussnain1298/sheikh
+[33m5e6d510[m Reuquest module quantified, UI improvements made and Constraints applied on Request Module
+[33m5746041[m Merge pull request #49 from hussnain1298/hussnain
+[33m63f7ac1[m admin portal updated with Soft Delete functionality added
+[33m596ede6[m Merge pull request #48 from hussnain1298/hussnain
+[33m0150063[m ali hussnain 9 july
+[33m22c39b8[m all the static pages, UI updated
+[33mcddc17e[m Merge pull request #47 from hussnain1298/sheikh
+[33m6633fe3[m FundRaiser Module updated with cutom requests, constraints and UI
+[33mb85f66b[m Merge pull request #46 from hussnain1298/hussnain
+[33m6048c37[m 8 July
+[33mb26aaad[m Merge pull request #45 from hussnain1298/hussnain
+[33ma58b2de[m if any donor wants to submit donation, add them to the firebase & display to the orphanages priority-wise
+[33mc66a5a8[m Merge pull request #44 from hussnain1298/hussnain
+[33m1fddab4[m Merge branch 'main' of https://github.com/hussnain1298/fyp into hussnain
+[33m93f3ba2[m AI suggestions for Donors added, Goal Tracker, All the problems in dashboards are corrected
+[33m0ad91b6[m Merge pull request #43 from hussnain1298/sheikh
+[33m43a59df[m Subscriber now get notification through email, when a new request will be posted
+[33mc4eef35[m Merge pull request #42 from hussnain1298/hussnain
+[33m7871586[m adminNotfications are delivered to the orphanage dashboards for deletion of any content
+[33m7824ec1[m Merge branch 'main' of https://github.com/hussnain1298/fyp into hussnain
+[33ma4cd7d9[m Merge pull request #41 from hussnain1298/sheikh
+[33m0339290[m Payment module updated with OPT and payment confirmation, and constraints was  apllied on Funraising module
+[33me720c4f[m Merge branch 'main' of https://github.com/hussnain1298/fyp into hussnain
+[33m38de929[m content management by admin is updated
+[33m6af8c78[m Merge pull request #40 from hussnain1298/sheikh
+[33mdd0f90d[m Payment module updated with OPT and payment confirmation, and constraints was  apllied on Funraising module
+[33m57299ea[m Merge pull request #39 from hussnain1298/hussnain
+[33ma8b4f24[m donation requests updated
+[33mf7a4f72[m Merge pull request #38 from hussnain1298/hussnain
+[33m8bd0495[m Merge branch 'main' of https://github.com/hussnain1298/fyp into hussnain
+[33md374059[m UI CHANGES OF ALL 3 DASHBOARDS
+[33m096376d[m Merge pull request #37 from hussnain1298/sheikh
+[33md7938e9[m Payment module added, Fundraising Module integrated with payment, and UI improvement
+[33m60003dd[m Merge branch 'main' of https://github.com/hussnain1298/fyp into sheikh
+[33mbb5901f[m message
+[33mf00638b[m Merge pull request #36 from hussnain1298/hussnain
+[33m41c2277[m page paginations - toasters - orphanage dashboard
+[33mecdca15[m Merge pull request #35 from hussnain1298/hussnain
+[33m7ac7ed6[m food is now donated as number of meals & all types of donations- requests , services, fundraisers are now storing in donation history & our donors page is displaying registered donors
+[33m326333f[m[33m ([m[1;32mmain[m[33m)[m 4 JUNE 2025
+[33me76e459[m Our donors page set
+[33m001ed8f[m Merge pull request #34 from hussnain1298/sheikh
+[33m5ce6d72[m real-time request switching on loaction access and deny, real-time donation items updation, on locationa access other available cities will also display now in DonationRequest section
+[33mb6752d3[m Merge pull request #33 from hussnain1298/hussnain
+[33m15ed785[m Merge pull request #32 from hussnain1298/sheikh
+[33m35cdf36[m bht zyada changes
+[33mc08c3f9[m real-time listner added, location denied handled, available cities names added, location permission on try again added, in DonationRequest component
+[33m00be864[m Merge pull request #31 from hussnain1298/hussnain
+[33m0218222[m Admin Portal addded
+[33m23cdb24[m Merge pull request #30 from hussnain1298/sheikh
+[33me72673c[m Merge branch 'sheikh' of https://github.com/hussnain1298/fyp into sheikh
+[33mb753df8[m button added
+[33mb4b9d5c[m Merge pull request #29 from hussnain1298/hussnain
+[33mbd2cad6[m 7 JULY
+[33m058b7e1[m Merge pull request #28 from hussnain1298/hussnain
+[33m389baba[m donation button removed
+[33ma4c1291[m updated UI & Functionalities
+[33m64b24e0[m ali new
+[33mbfdace8[m dashboards updated
+[33m71d97cd[m updated version-requests
+[33m8c4e397[m Merge pull request #27 from hussnain1298/hussnain
+[33m1cf77fc[m few updates in request section
+[33m0e8a098[m Merge pull request #25 from hussnain1298/amnarazzaq
+[33ma451d27[m Merge pull request #26 from hussnain1298/hussnain
+[33m43b9846[m set
+[33m286a882[m again requests
+[33m63feeb7[m Merge pull request #24 from hussnain1298/hussnain
+[33mc3cf854[m updated requests
+[33me88eff2[m Merge branch 'main' of https://github.com/hussnain1298/fyp into amnaa
+[33m4006a05[m set
+[33mbb1617f[m Merge pull request #23 from hussnain1298/hussnain
+[33ma9e2d7a[m chats updated 12 June
+[33ma30c1a2[m fundraisers done
+[33m64dbded[m Merge pull request #22 from hussnain1298/ali
+[33mfbb9eab[m[33m ([m[1;32mali[m[33m)[m new changes 10
+[33m4fa5bbb[m Merge pull request #21 from hussnain1298/ali
+[33mf01f5bc[m changes
+[33m094723b[m signup page
+[33m4b7f07c[m Merge branch 'main' of https://github.com/hussnain1298/fyp into ali
+[33mb40a7f8[m Merge pull request #20 from hussnain1298/ali
+[33md3ba979[m fundraise-requests-services all are updated
+[33m5711488[m fundraising
+[33m4c04140[m Finalize merge and push
+[33m265f9b2[m Resolve merge conflict: confirmation page
+[33m9f3bd21[m profile set and chat
+[33mb3ec0d3[m Merge pull request #14 from hussnain1298/amna
+[33m7b9a080[m settin
+[33m654b675[m Merge pull request #13 from hussnain1298/amna
+[33m8c219be[m new commits
+[33md5bfe3c[m Merge pull request #12 from hussnain1298/ali
+[33m027a98e[m confirmations
+[33m3e8383c[m messages
+[33m13f8abb[m chatbox
+[33mdecc560[m Merge pull request #10 from hussnain1298/ali
+[33m77da919[m donation on both side
+[33mfa78ca8[m Merge pull request #9 from hussnain1298/amna
+[33md8586fc[m donation form updated
+[33md551162[m Merge pull request #8 from hussnain1298/amna
+[33mdc72b92[m donationforms
+[33mc4f64bf[m Merge pull request #7 from hussnain1298/amna
+[33m521c61f[m donation form
+[33mc162aef[m setup
+[33m5bf5935[m Your commit message
+[33mfdcb3c7[m Merge pull request #6 from hussnain1298/ali
+[33mb9a9c62[m Fundraise & profile updated
+[33mbdbeed5[m Merge pull request #5 from hussnain1298/ali
+[33mb0117ff[m updated login & signup pages
+[33m4f72ceb[m Merge pull request #4 from hussnain1298/ali
+[33m2c61ae1[m updated
+[33m460e5e9[m Merge pull request #3 from hussnain1298/ali
+[33m48b4c95[m Added services page
+[33mcbb5c0c[m Added services page for orphanage dashboard
+[33mb6ea7e8[m Merge pull request #2 from hussnain1298/amna
+[33mee341b1[m services page commit
+[33md62ba0e[m services page
+[33me80b8c9[m login & signup pages are updated in this update
+[33ma58d8f8[m Initial Commit
+[33m9344764[m Initial commit from Create Next App
