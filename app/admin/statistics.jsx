@@ -72,9 +72,7 @@ export default function AdminStatistics() {
       clothes: { count: 0, totalQuantity: 0, donated: 0 },
       food: { count: 0, totalQuantity: 0, donated: 0 },
       money: { count: 0, totalQuantity: 0, donated: 0 },
-      education: { count: 0, totalQuantity: 0, donated: 0 },
-      medical: { count: 0, totalQuantity: 0, donated: 0 },
-      other: { count: 0, totalQuantity: 0, donated: 0 },
+    
     },
     topPerformers: {
       topDonors: [],
@@ -135,16 +133,25 @@ export default function AdminStatistics() {
       // Process donations data (from 'donations' collection)
       const donations = donationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
       let totalDonationsAmount = 0
+
+      // Sum from 'donations' collection
       donations.forEach((donation) => {
         if (donation.donationType === "money" && donation.amount) {
           totalDonationsAmount += Number(donation.amount)
         }
       })
 
-      // Add raisedAmount from fundraisers to totalDonationsAmount
+      // Sum from 'fundraisers' collection
       fundraisers.forEach((fundraiser) => {
         if (fundraiser.raisedAmount) {
           totalDonationsAmount += Number(fundraiser.raisedAmount)
+        }
+      })
+
+      // Sum from 'requests' collection (totalDonated field)
+      requests.forEach((req) => {
+        if (req.totalDonated && typeof req.totalDonated === "number") {
+          totalDonationsAmount += req.totalDonated
         }
       })
 
@@ -184,9 +191,7 @@ export default function AdminStatistics() {
         clothes: { count: 0, totalQuantity: 0, fulfilled: 0, icon: Shirt, color: "#3B82F6" }, // Blue
         food: { count: 0, totalQuantity: 0, fulfilled: 0, icon: Utensils, color: "#F59E0B" }, // Orange
         money: { count: 0, totalQuantity: 0, fulfilled: 0, icon: DollarSign, color: "#10B981" }, // Green
-        education: { count: 0, totalQuantity: 0, fulfilled: 0, icon: GraduationCap, color: "#8B5CF6" }, // Purple
-        medical: { count: 0, totalQuantity: 0, fulfilled: 0, icon: HeartHandshake, color: "#EF4444" }, // Red
-        other: { count: 0, totalQuantity: 0, fulfilled: 0, icon: HeartHandshake, color: "#6B7280" }, // Gray
+      
       }
 
       requests.forEach((req) => {
@@ -301,21 +306,7 @@ export default function AdminStatistics() {
             totalQuantity: requestTypeDetails.money.totalQuantity,
             donated: requestTypeDetails.money.fulfilled,
           },
-          education: {
-            count: requestTypeDetails.education.count,
-            totalQuantity: requestTypeDetails.education.totalQuantity,
-            donated: requestTypeDetails.education.fulfilled,
-          },
-          medical: {
-            count: requestTypeDetails.medical.count,
-            totalQuantity: requestTypeDetails.medical.totalQuantity,
-            donated: requestTypeDetails.medical.fulfilled,
-          },
-          other: {
-            count: requestTypeDetails.other.count,
-            totalQuantity: requestTypeDetails.totalQuantity,
-            donated: requestTypeDetails.other.fulfilled,
-          },
+          
         },
         topPerformers: {
           topDonors,
@@ -619,9 +610,7 @@ export default function AdminStatistics() {
                   {type === "clothes" && <Shirt className="w-5 h-5 text-blue-600" />}
                   {type === "food" && <Utensils className="w-5 h-5 text-orange-600" />}
                   {type === "money" && <DollarSign className="w-5 h-5 text-green-600" />}
-                  {type === "education" && <GraduationCap className="w-5 h-5 text-purple-600" />}
-                  {type === "medical" && <HeartHandshake className="w-5 h-5 text-red-600" />}
-                  {type === "other" && <HeartHandshake className="w-5 h-5 text-gray-600" />}
+                 
                 </div>
                 <div>
                   <p className="font-semibold text-gray-700 capitalize">{type} Requests:</p>

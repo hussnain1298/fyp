@@ -312,7 +312,7 @@ export default function AdminHome({ user }) {
         icon: MessageSquare,
         color: "#F59E0B",
         trend: 15,
-        subtitle: `${stats.pendingRequests} pending`,
+        subtitle: "Waiting for Help",
         onClick: () => console.log("Navigate to requests"),
       },
       {
