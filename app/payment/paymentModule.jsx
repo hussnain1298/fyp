@@ -357,6 +357,7 @@ export default function PaymentModule({
   amount,
   onPaymentSuccess,
   orphanageId,
+  orphanagesData, // Add this prop
 }) {
   const [currentStep, setCurrentStep] = useState("bank-selection");
   const [searchQuery, setSearchQuery] = useState("");
@@ -390,6 +391,16 @@ export default function PaymentModule({
         setOrphanageDetails(null);
         return;
       }
+
+      // Prioritize using orphanagesData if provided and contains the orphanageId
+      if (orphanagesData && orphanagesData[orphanageId]) {
+        console.log("Using orphanage details from provided orphanagesData.");
+        setOrphanageDetails(orphanagesData[orphanageId]);
+        setLoadingOrphanage(false);
+        return; // Exit early, no need to fetch from Firestore
+      }
+
+      // Fallback: If orphanagesData is not available or doesn't have the ID, fetch from Firestore
       setLoadingOrphanage(true);
       try {
         const docRef = doc(firestore, "users", orphanageId);
@@ -398,11 +409,14 @@ export default function PaymentModule({
         if (docSnap.exists()) {
           setOrphanageDetails(docSnap.data());
         } else {
-          console.log("No such orphanage document!");
+          console.log("No such orphanage document found in Firestore!");
           setOrphanageDetails(null);
         }
       } catch (error) {
-        console.error("Error fetching orphanage details:", error);
+        console.error(
+          "Error fetching orphanage details from Firestore:",
+          error
+        );
         setOrphanageDetails(null);
       } finally {
         setLoadingOrphanage(false);
@@ -412,7 +426,7 @@ export default function PaymentModule({
     if (isOpen) {
       fetchOrphanageData();
     }
-  }, [isOpen, orphanageId]);
+  }, [isOpen, orphanageId, orphanagesData]);
 
   // Filter banks based on search query
   React.useEffect(() => {
