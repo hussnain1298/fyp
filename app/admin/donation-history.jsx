@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { db } from "@/lib/firebase" // Corrected import to 'db'
-import { collection, getDocs } from "firebase/firestore"
+import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { toast, ToastContainer } from "react-toastify"
@@ -22,9 +22,11 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
+  Building,
+  User,
 } from "lucide-react"
 
-export default function DonationsHistory() {
+const DonationsHistory = () => {
   const [donations, setDonations] = useState([])
   const [filteredDonations, setFilteredDonations] = useState([])
   const [filterStatus, setFilterStatus] = useState("All")
@@ -43,66 +45,190 @@ export default function DonationsHistory() {
     totalAmount: 0,
   })
 
+  // Caches for user and orphanage names
+  const [userNames, setUserNames] = useState(new Map())
+  const [orphanageNames, setOrphanageNames] = useState(new Map())
+
   const fetchComprehensiveHistory = async () => {
     setLoading(true)
     try {
-      // Fetch all donations from the 'donations' collection (global admin view)
-      const donationsSnap = await getDocs(collection(db, "donations"))
-      const donationList = donationsSnap.docs.map((doc) => {
-        const data = doc.data()
-        const rawDate = data.timestamp?.toDate()
-        let total = "—"
-        if (data.amount) {
-          total = `Rs${data.amount}`
-        } else if (data.numClothes) {
-          total = `${data.numClothes} Clothes`
-        } else if (data.numMeals) {
-          total = `${data.numMeals} Meals`
-        } else if (data.foodDescription) {
-          total = "Food"
+      const [donationsSnap, servicesSnap, fundraisersSnap, usersSnap] = await Promise.all([
+        getDocs(collection(db, "donations")),
+        getDocs(collection(db, "services")),
+        getDocs(collection(db, "fundraisers")),
+        getDocs(collection(db, "users")), // Fetch all users for name lookups
+      ])
+
+      // Populate user and orphanage name caches
+      const newUserNames = new Map()
+      const newOrphanageNames = new Map()
+      usersSnap.docs.forEach((docSnap) => {
+        const userData = docSnap.data()
+        if (userData.userType === "Donor") {
+          newUserNames.set(docSnap.id, userData.fullName || userData.email)
+        } else if (userData.userType === "Orphanage") {
+          newOrphanageNames.set(docSnap.id, userData.orgName || userData.email)
         }
+      })
+      setUserNames(newUserNames)
+      setOrphanageNames(newOrphanageNames)
+
+      const allCombinedData = []
+      let totalAmountSum = 0
+
+      // 1. Process all donations (money, clothes, food, service fulfillment)
+      const donationListPromises = donationsSnap.docs.map(async (docSnap) => {
+        const data = docSnap.data()
+        const rawDate = data.timestamp?.toDate() || new Date(0)
+        let totalDisplay = "—"
+        let typeDisplay = data.donationType || "Other Donation"
+        let status = data.confirmed === true ? "Approved" : data.confirmed === false ? "Rejected" : "Pending"
+        let category = "Donations Made"
+        let description = data.description || data.donationNote || "—"
+        const amount = data.amount || null // Actual numeric amount for money donations
+
+        if (data.donationType === "Money" && typeof data.amount === "number") {
+          totalDisplay = `Rs. ${Number(data.amount).toLocaleString()}`
+          totalAmountSum += Number(data.amount)
+        } else if (data.donationType === "Clothes" && (data.donatedAmount || data.subtypes?.[0]?.quantity)) {
+          totalDisplay = `${data.donatedAmount || data.subtypes[0].quantity} Clothes`
+        } else if (data.donationType === "Food" && (data.donatedAmount || data.subtypes?.[0]?.quantity)) {
+          totalDisplay = `${data.donatedAmount || data.subtypes[0].quantity} Meals`
+        } else if (data.donationType === "Service Fulfillment" && data.serviceId) {
+          // For service fulfillment, fetch linked service details
+          try {
+            const serviceDoc = await getDoc(doc(db, "services", data.serviceId))
+            if (serviceDoc.exists()) {
+              const serviceData = serviceDoc.data()
+              typeDisplay = serviceData.title || "Service Fulfillment"
+              status = serviceData.status || "Pending" // Use service status
+              category = "Services"
+              totalDisplay = data.donationNote || "Service Fulfilled"
+              description = data.donationNote || serviceData.description || "Service Fulfilled"
+            }
+          } catch (error) {
+            console.error("Error fetching service details for donation:", data.serviceId, error)
+            typeDisplay = "Service Fulfillment (Error)"
+            status = "Unknown"
+          }
+        }
+
         return {
-          id: doc.id,
-          date: rawDate || new Date(0),
-          status: data.confirmed === true ? "Approved" : data.confirmed === false ? "Rejected" : "Pending",
-          total,
-          type: data.donationType || "—",
-          description: data.description || "—",
-          source: "donation_linked", // Indicate this is from the 'donations' collection
-          category: "Linked Donations",
-          requestId: data.requestId || "—",
+          id: docSnap.id,
+          date: rawDate,
+          status: status,
+          total: totalDisplay,
+          type: typeDisplay,
+          description: description,
+          source: "donation",
+          category: category,
+          donorId: data.donorId || "—",
           orphanageId: data.orphanageId || "—",
+          requestId: data.requestId || "—",
           donationType: data.donationType || "—",
-          amount: data.amount || null,
+          amount: amount, // Store actual amount for money donations
           numClothes: data.numClothes || null,
           numMeals: data.numMeals || null,
           foodDescription: data.foodDescription || null,
-          donorEmail: data.donorEmail || "N/A",
-          subtypes: data.subtypes || [], // Include subtypes if available
-          donatedAmount: data.donatedAmount || null, // For consistency with other donation types
-          paymentData: data.paymentData || null, // Include payment data if available
+          serviceId: data.serviceId || null,
+          donationNote: data.donationNote || null,
+          paymentData: data.paymentData || null,
         }
       })
+      const donationList = await Promise.all(donationListPromises)
+      allCombinedData.push(...donationList)
 
-      // Sort by date (newest first)
-      donationList.sort((a, b) => b.date - a.date)
+      // 2. Process all services (posted by orphanages)
+      const servicePostedListPromises = servicesSnap.docs.map(async (docSnap) => {
+        const data = docSnap.data()
+        const rawDate = data.timestamp?.toDate() || new Date(0)
+        // Count fulfillments for this service
+        const fulfillmentCountSnap = await getDocs(
+          query(collection(db, "donations"), where("serviceId", "==", docSnap.id)),
+        )
+        return {
+          id: docSnap.id,
+          date: rawDate,
+          status: data.status || "Pending",
+          total: `${fulfillmentCountSnap.size} Fulfillments`,
+          type: data.title || "Service Posted",
+          description: data.description || data.title || "Service Posted",
+          source: "service_posted",
+          category: "Services Posted",
+          orphanageId: data.orphanageId || "—",
+          title: data.title,
+          fulfillmentCount: fulfillmentCountSnap.size,
+        }
+      })
+      const servicePostedList = await Promise.all(servicePostedListPromises)
+      allCombinedData.push(...servicePostedList)
 
-      setDonations(donationList)
-      setFilteredDonations(donationList)
+      // 3. Process all fundraisers (posted by orphanages) and their donations
+      const fundraiserListPromises = fundraisersSnap.docs.map(async (docSnap) => {
+        const data = docSnap.data()
+        const rawDate = data.timestamp?.toDate() || new Date(0)
+        const donationsInFundraiserSnap = await getDocs(collection(db, "fundraisers", docSnap.id, "donations"))
+        const totalRaised = data.raisedAmount || 0
+        const donationCount = donationsInFundraiserSnap.size
+
+        // Add individual fundraiser donations to the combined list
+        donationsInFundraiserSnap.docs.forEach((donationDoc) => {
+          const fundDonationData = donationDoc.data()
+          const fundDonationDate = fundDonationData.timestamp?.toDate() || new Date(0)
+          allCombinedData.push({
+            id: donationDoc.id,
+            fundraiserId: docSnap.id,
+            fundraiserTitle: data.title,
+            date: fundDonationDate,
+            status: fundDonationData.status === "pending" ? "Pending" : "Approved",
+            total: `Rs. ${Number(fundDonationData.amount).toLocaleString()}`,
+            type: "Fundraiser Donation",
+            description: fundDonationData.donationNote || `Contributed to ${data.title}`,
+            source: "fundraiser_donation",
+            category: "Fundraiser Donations",
+            amount: fundDonationData.amount,
+            donorId: fundDonationData.donorId || "—",
+            orphanageId: data.orphanageId || "—", // Fundraiser's orphanage
+          })
+          if (typeof fundDonationData.amount === "number") {
+            totalAmountSum += Number(fundDonationData.amount)
+          }
+        })
+
+        return {
+          id: docSnap.id,
+          date: rawDate,
+          status: data.status || "Active", // Fundraiser status
+          total: `Rs. ${Number(totalRaised).toLocaleString()} / Rs. ${Number(data.totalAmount).toLocaleString()}`,
+          type: data.title || "Fundraiser Posted",
+          description: data.description || data.title || "Fundraiser Posted",
+          source: "fundraiser_posted",
+          category: "Fundraisers Posted",
+          orphanageId: data.orphanageId || "—",
+          title: data.title,
+          totalAmount: data.totalAmount,
+          raisedAmount: totalRaised,
+          donationCount,
+          progress: data.totalAmount ? Math.round((totalRaised / data.totalAmount) * 100) : 0,
+        }
+      })
+      const fundraiserPostedList = await Promise.all(fundraiserListPromises)
+      allCombinedData.push(...fundraiserPostedList)
+
+      allCombinedData.sort((a, b) => b.date.getTime() - a.date.getTime()) // Ensure proper date sorting
+      setDonations(allCombinedData)
+      setFilteredDonations(allCombinedData)
 
       // Calculate stats
       const newStats = {
-        total: donationList.length,
-        approved: donationList.filter((d) => d.status === "Approved").length,
-        pending: donationList.filter((d) => d.status === "Pending").length,
-        totalAmount: donationList.reduce((sum, d) => {
-          if (d.amount) return sum + d.amount
-          return sum
-        }, 0),
+        total: allCombinedData.length,
+        approved: allCombinedData.filter((d) => d.status === "Approved" || d.status === "Fulfilled").length,
+        pending: allCombinedData.filter((d) => d.status === "Pending" || d.status === "In Progress").length,
+        totalAmount: totalAmountSum, // Summed up from all money and fundraiser donations
       }
       setStats(newStats)
     } catch (error) {
-      console.error("Error fetching donation history:", error)
+      console.error("Error fetching comprehensive history:", error)
       toast.error("Failed to load donation history")
     } finally {
       setLoading(false)
@@ -123,20 +249,24 @@ export default function DonationsHistory() {
     if (filterStatus !== "All") {
       filtered = filtered.filter((d) => d.status === filterStatus)
     }
-    // Filter by category (only "Linked Donations" for this page)
-    if (filterCategory !== "All Categories" && filterCategory !== "Linked Donations") {
-      filtered = [] // No other categories are expected here
+    // Filter by category
+    if (filterCategory !== "All Categories") {
+      filtered = filtered.filter((d) => d.category === filterCategory)
     }
     // Search
     if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase()
       filtered = filtered.filter(
         (d) =>
-          d.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.donorEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.orphanageId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.requestId?.toLowerCase().includes(searchTerm.toLowerCase()),
+          d.description?.toLowerCase().includes(searchLower) ||
+          d.type?.toLowerCase().includes(searchLower) ||
+          d.id?.toLowerCase().includes(searchLower) ||
+          userNames.get(d.donorId)?.toLowerCase().includes(searchLower) || // Search by donor name
+          orphanageNames.get(d.orphanageId)?.toLowerCase().includes(searchLower) || // Search by orphanage name
+          d.donorEmail?.toLowerCase().includes(searchLower) ||
+          d.orphanageId?.toLowerCase().includes(searchLower) ||
+          d.requestId?.toLowerCase().includes(searchLower) ||
+          d.fundraiserTitle?.toLowerCase().includes(searchLower), // Search by fundraiser title
       )
     }
     setFilteredDonations(filtered)
@@ -153,25 +283,27 @@ export default function DonationsHistory() {
       doc.setFontSize(12)
       doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 32)
       // Add stats
-      doc.text(`Total Donations: ${stats.total}`, 14, 42)
-      doc.text(`Approved: ${stats.approved} | Pending: ${stats.pending}`, 14, 52)
-      doc.text(`Total Amount: Rs. ${stats.totalAmount.toLocaleString()}`, 14, 62)
+      doc.text(`Total Entries: ${stats.total}`, 14, 42)
+      doc.text(`Approved/Fulfilled: ${stats.approved} | Pending/In Progress: ${stats.pending}`, 14, 52)
+      doc.text(`Total Money Amount: Rs. ${stats.totalAmount.toLocaleString()}`, 14, 62)
       // Add table
       autoTable(doc, {
         startY: 72,
-        head: [["ID", "Date", "Type", "Status", "Amount/Details", "Donor Email", ]],
+        head: [["ID", "Date", "Type", "Status", "Amount/Details", "Category", "Linked Entity"]],
         body: filteredDonations.map((d) => [
           `#${d.id.substring(0, 8)}`,
           d.date.toLocaleDateString(),
           d.type,
           d.status,
           d.total,
-          d.donorEmail,
-          d.orphanageId !== "—"
-            ? `Orphanage: ${d.orphanageId.substring(0, 8)}`
-            : d.requestId !== "—"
-              ? `Request: ${d.requestId.substring(0, 8)}`
-              : "N/A",
+          d.category,
+          d.donorId !== "—"
+            ? `Donor: ${userNames.get(d.donorId)?.substring(0, 15) || d.donorId.substring(0, 8)}...`
+            : d.orphanageId !== "—"
+              ? `Orphanage: ${orphanageNames.get(d.orphanageId)?.substring(0, 15) || d.orphanageId.substring(0, 8)}...`
+              : d.requestId !== "—"
+                ? `Request: ${d.requestId.substring(0, 8)}...`
+                : "N/A",
         ]),
         styles: { fontSize: 8 },
         headStyles: { fillColor: [59, 130, 246] },
@@ -190,7 +322,6 @@ export default function DonationsHistory() {
     const sorted = [...filteredDonations].sort((a, b) => {
       let aVal = a[key]
       let bVal = b[key]
-
       // Handle date sorting
       if (key === "date") {
         aVal = a.date.getTime()
@@ -198,26 +329,27 @@ export default function DonationsHistory() {
       }
       // Handle amount sorting (if 'total' is a string like 'Rs123')
       if (key === "total" && typeof aVal === "string" && aVal.startsWith("Rs")) {
-        aVal = Number.parseFloat(aVal.replace("Rs", "")) || 0
-        bVal = Number.parseFloat(bVal.replace("Rs", "")) || 0
+        aVal = Number.parseFloat(aVal.replace("Rs. ", "").replace(/,/g, "")) || 0
+        bVal = Number.parseFloat(bVal.replace("Rs. ", "").replace(/,/g, "")) || 0
       }
-
       return dir === "asc" ? (aVal > bVal ? 1 : -1) : aVal < bVal ? 1 : -1
     })
     setFilteredDonations(sorted)
   }
 
   const getTypeIcon = (type) => {
-    switch (type) {
+    switch (type.toLowerCase()) {
       case "money":
+      case "fundraiser donation":
         return <DollarSign className="w-4 h-4" />
       case "clothes":
         return <Shirt className="w-4 h-4" />
       case "food":
         return <UtensilsCrossed className="w-4 h-4" />
-      case "Service": // This type might come from other history views, but for 'donations' collection, it's usually money/clothes/food
+      case "service fulfillment":
+      case "service posted":
         return <GraduationCap className="w-4 h-4" />
-      case "Fundraiser": // Same as above
+      case "fundraiser posted":
         return <TrendingUp className="w-4 h-4" />
       default:
         return <CheckCircle className="w-4 h-4" />
@@ -230,8 +362,11 @@ export default function DonationsHistory() {
       case "Fulfilled":
         return "bg-green-50 text-green-700 border-green-200"
       case "Pending":
+      case "In Progress":
+      case "Active":
         return "bg-yellow-50 text-yellow-700 border-yellow-200"
       case "Rejected":
+      case "Completed": // For fundraisers that are completed
         return "bg-red-50 text-red-700 border-red-200"
       default:
         return "bg-gray-50 text-gray-700 border-gray-200"
@@ -258,14 +393,14 @@ export default function DonationsHistory() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Donation History</h1>
-        <p className="text-gray-600">Comprehensive record of all linked donations</p>
+        <p className="text-gray-600">Comprehensive record of all platform activities</p>
       </div>
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Donations</p>
+              <p className="text-sm text-gray-600">Total Entries</p>
               <p className="text-xl font-bold text-gray-900">{stats.total}</p>
             </div>
             <div className="bg-blue-50 p-2 rounded-lg">
@@ -276,7 +411,7 @@ export default function DonationsHistory() {
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Approved</p>
+              <p className="text-sm text-gray-600">Approved/Fulfilled</p>
               <p className="text-xl font-bold text-green-600">{stats.approved}</p>
             </div>
             <div className="bg-green-50 p-2 rounded-lg">
@@ -287,7 +422,7 @@ export default function DonationsHistory() {
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Pending</p>
+              <p className="text-sm text-gray-600">Pending/In Progress</p>
               <p className="text-xl font-bold text-yellow-600">{stats.pending}</p>
             </div>
             <div className="bg-yellow-50 p-2 rounded-lg">
@@ -298,7 +433,7 @@ export default function DonationsHistory() {
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Amount</p>
+              <p className="text-sm text-gray-600">Total Money Amount</p>
               <p className="text-xl font-bold text-purple-600">Rs. {stats.totalAmount.toLocaleString()}</p>
             </div>
             <div className="bg-purple-50 p-2 rounded-lg">
@@ -316,7 +451,7 @@ export default function DonationsHistory() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search donations..."
+                placeholder="Search history..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -330,21 +465,33 @@ export default function DonationsHistory() {
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white min-w-[150px]"
               >
-                {["All", "Approved", "Pending", "Rejected"].map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
+                {["All", "Approved", "Pending", "Rejected", "Fulfilled", "In Progress", "Active", "Completed"].map(
+                  (status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ),
+                )}
               </select>
             </div>
-            {/* Category Filter (fixed for this page) */}
+            {/* Category Filter */}
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white min-w-[180px]"
-              disabled // This page only shows "Linked Donations"
             >
-              <option value="Linked Donations">Linked Donations</option>
+              {[
+                "All Categories",
+                "Donations Made",
+                "Services", // Service Fulfillment
+                "Fundraiser Donations",
+                "Services Posted",
+                "Fundraisers Posted",
+              ].map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
             </select>
           </div>
           {/* Export Button */}
@@ -358,7 +505,7 @@ export default function DonationsHistory() {
         </div>
         {filteredDonations.length > 0 && (
           <div className="mt-3 text-sm text-gray-600">
-            Showing {filteredDonations.length} of {donations.length} donations
+            Showing {filteredDonations.length} of {donations.length} entries
           </div>
         )}
       </div>
@@ -367,7 +514,7 @@ export default function DonationsHistory() {
         {paginated.length === 0 ? (
           <div className="text-center py-12">
             <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-600 mb-2">No donations found</h3>
+            <h3 className="text-lg font-semibold text-gray-600 mb-2">No entries found</h3>
             <p className="text-gray-500">Try adjusting your search or filter criteria</p>
           </div>
         ) : (
@@ -382,8 +529,8 @@ export default function DonationsHistory() {
                       { key: "type", label: "Type" },
                       { key: "status", label: "Status" },
                       { key: "total", label: "Amount/Details" },
-                      { key: "donorEmail", label: "Donor Email" },
-                      // { key: "linkedId", label: "Linked ID" }, // New column for linked ID
+                      { key: "category", label: "Category" },
+                      { key: "linkedEntity", label: "Linked Entity" }, // New column for linked ID
                     ].map(({ key, label }) => (
                       <th
                         key={key}
@@ -402,48 +549,65 @@ export default function DonationsHistory() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {paginated.map((donation) => (
-                    <tr key={donation.id} className="hover:bg-gray-50 transition-colors">
+                  {paginated.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-blue-600">#{donation.id.substring(0, 8)}...</div>
+                        <div className="text-sm font-medium text-blue-600">#{entry.id.substring(0, 8)}...</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
                           <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm text-gray-900">{donation.date.toLocaleDateString()}</span>
+                          <span className="text-sm text-gray-900">{entry.date.toLocaleDateString()}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          {getTypeIcon(donation.type)}
-                          <span className="text-sm text-gray-900 capitalize">{donation.type}</span>
+                          {getTypeIcon(entry.type)}
+                          <span className="text-sm text-gray-900 capitalize">{entry.type}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`inline-flex px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(
-                            donation.status,
+                            entry.status,
                           )}`}
                         >
-                          {donation.status}
+                          {entry.status}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-gray-900">{donation.total}</span>
+                        <span className="text-sm font-medium text-gray-900">{entry.total}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900">{donation.donorEmail}</span>
+                        <span className="text-sm text-gray-500">{entry.category}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {/* <span className="text-sm text-gray-500">
-                          {donation.orphanageId !== "—" ? `Orphanage: ${donation.orphanageId.substring(0, 8)}...` : ""}
-                          {donation.orphanageId !== "—" && donation.requestId !== "—" ? " | " : ""}
-                          {donation.requestId !== "—" ? `Request: ${donation.requestId.substring(0, 8)}...` : "N/A"}
-                        </span> */}
+                        <div className="text-sm text-gray-500">
+                          {entry.donorId && entry.donorId !== "—" && (
+                            <div className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              <span>{userNames.get(entry.donorId)?.substring(0, 15) || "Donor ID"}...</span>
+                            </div>
+                          )}
+                          {entry.orphanageId && entry.orphanageId !== "—" && (
+                            <div className="flex items-center gap-1">
+                              <Building className="w-3 h-3" />
+                              <span>
+                                {orphanageNames.get(entry.orphanageId)?.substring(0, 15) || "Orphanage ID"}...
+                              </span>
+                            </div>
+                          )}
+                          {entry.requestId && entry.requestId !== "—" && (
+                            <div className="flex items-center gap-1">
+                              <span>Request ID: {entry.requestId.substring(0, 8)}...</span>
+                            </div>
+                          )}
+                          {!entry.donorId && !entry.orphanageId && !entry.requestId && "N/A"}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
-                          onClick={() => setSelectedDonation(donation)}
+                          onClick={() => setSelectedDonation(entry)}
                           className="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center space-x-1"
                         >
                           <Eye className="w-4 h-4" />
@@ -456,7 +620,7 @@ export default function DonationsHistory() {
               </table>
             </div>
             {/* Pagination */}
-                {totalPages > 1 && (
+            {totalPages > 1 && (
               <div className="bg-gray-50 px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-700">
@@ -494,7 +658,7 @@ export default function DonationsHistory() {
         >
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-900">Donation Details</h3>
+              <h3 className="text-xl font-bold text-gray-900">Entry Details</h3>
               <button
                 onClick={() => setSelectedDonation(null)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -532,26 +696,43 @@ export default function DonationsHistory() {
                 <span className="text-sm font-medium text-gray-600">Amount/Details:</span>
                 <span className="text-sm font-bold text-gray-900">{selectedDonation.total}</span>
               </div>
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-sm font-medium text-gray-600">Donor Email:</span>
-                <span className="text-sm text-gray-900">{selectedDonation.donorEmail}</span>
-              </div>
-              {(selectedDonation.orphanageId !== "—" || selectedDonation.requestId !== "—") && (
+
+              {selectedDonation.donorId && selectedDonation.donorId !== "—" && (
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm font-medium text-gray-600">Linked To:</span>
+                  <span className="text-sm font-medium text-gray-600">Donor:</span>
                   <span className="text-sm text-gray-900">
-                    {selectedDonation.orphanageId !== "—" ? `Orphanage ID: ${selectedDonation.orphanageId}` : ""}
-                    {selectedDonation.orphanageId !== "—" && selectedDonation.requestId !== "—" ? " | " : ""}
-                    {selectedDonation.requestId !== "—" ? `Request ID: ${selectedDonation.requestId}` : ""}
+                    {userNames.get(selectedDonation.donorId) || selectedDonation.donorId}
                   </span>
                 </div>
               )}
+              {selectedDonation.orphanageId && selectedDonation.orphanageId !== "—" && (
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium text-gray-600">Orphanage:</span>
+                  <span className="text-sm text-gray-900">
+                    {orphanageNames.get(selectedDonation.orphanageId) || selectedDonation.orphanageId}
+                  </span>
+                </div>
+              )}
+              {selectedDonation.requestId && selectedDonation.requestId !== "—" && (
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium text-gray-600">Request ID:</span>
+                  <span className="text-sm text-gray-900">{selectedDonation.requestId}</span>
+                </div>
+              )}
+              {selectedDonation.fundraiserId && selectedDonation.fundraiserId !== "—" && (
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium text-gray-600">Fundraiser ID:</span>
+                  <span className="text-sm text-gray-900">{selectedDonation.fundraiserId}</span>
+                </div>
+              )}
+
               {selectedDonation.description && selectedDonation.description !== "—" && (
                 <div className="p-3 bg-gray-50 rounded-lg">
                   <span className="text-sm font-medium text-gray-600 block mb-2">Description:</span>
                   <p className="text-sm text-gray-700 bg-white p-3 rounded border">{selectedDonation.description}</p>
                 </div>
               )}
+
               {selectedDonation.donationType === "money" && selectedDonation.paymentData && (
                 <div className="bg-green-50 p-4 rounded-xl">
                   <h3 className="font-semibold text-green-800 mb-2">Payment Information:</h3>
@@ -561,6 +742,32 @@ export default function DonationsHistory() {
                     </p>
                     <p className="text-green-700">Bank: {selectedDonation.paymentData.bank || "N/A"}</p>
                     <p className="text-green-700">Status: Completed</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedDonation.source === "fundraiser_posted" && (
+                <div className="bg-orange-50 p-4 rounded-xl">
+                  <h3 className="font-semibold text-orange-800 mb-2">Fundraiser Details:</h3>
+                  <div className="text-sm space-y-1">
+                    <p className="text-orange-700">
+                      Target Amount: Rs. {selectedDonation.totalAmount?.toLocaleString() || "N/A"}
+                    </p>
+                    <p className="text-orange-700">
+                      Raised Amount: Rs. {selectedDonation.raisedAmount?.toLocaleString() || "N/A"}
+                    </p>
+                    <p className="text-orange-700">Donations Count: {selectedDonation.donationCount || 0}</p>
+                    <p className="text-orange-700">Progress: {selectedDonation.progress || 0}%</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedDonation.source === "service_posted" && (
+                <div className="bg-blue-50 p-4 rounded-xl">
+                  <h3 className="font-semibold text-blue-800 mb-2">Service Details:</h3>
+                  <div className="text-sm space-y-1">
+                    <p className="text-blue-700">Title: {selectedDonation.title || "N/A"}</p>
+                    <p className="text-blue-700">Fulfillments: {selectedDonation.fulfillmentCount || 0}</p>
                   </div>
                 </div>
               )}
@@ -579,3 +786,5 @@ export default function DonationsHistory() {
     </div>
   )
 }
+
+export default DonationsHistory

@@ -1,8 +1,7 @@
 "use client"
-
 import { useEffect, useState } from "react"
 import { auth, firestore } from "@/lib/firebase"
-import { doc, getDoc, collection, query, where, onSnapshot, updateDoc } from "firebase/firestore"
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot, updateDoc } from "firebase/firestore"
 import {
   Calendar,
   Heart,
@@ -48,7 +47,6 @@ export default function EnhancedGoalTracker() {
     monthly: { amount: 30000, type: "amount" },
     yearly: { amount: 365000, type: "amount" },
   })
-
   const [achievements, setAchievements] = useState([])
   const [streaks, setStreaks] = useState({
     current: 0,
@@ -56,7 +54,6 @@ export default function EnhancedGoalTracker() {
     weekly: 0,
     monthly: 0,
   })
-
   const [analytics, setAnalytics] = useState({
     todayAmount: 0,
     weekAmount: 0,
@@ -66,7 +63,6 @@ export default function EnhancedGoalTracker() {
     totalDonations: 0,
     impactScore: 0,
   })
-
   const [weeklyData, setWeeklyData] = useState([])
   const [monthlyData, setMonthlyData] = useState([])
   const [donationTypes, setDonationTypes] = useState([])
@@ -79,50 +75,75 @@ export default function EnhancedGoalTracker() {
     percentile: 0,
     communityImpact: 0,
   })
-
   const user = auth.currentUser
 
   // Enhanced Data Fetching
   useEffect(() => {
-    if (!user) return
+    if (!user) {
+      setLoading(false)
+      return
+    }
 
     const userRef = doc(firestore, "users", user.uid)
-
     const fetchUserData = async () => {
       const snap = await getDoc(userRef)
       if (snap.exists()) {
         const data = snap.data()
-        if (data.goals) setGoals({ ...goals, ...data.goals })
+        if (data.goals) setGoals((prev) => ({ ...prev, ...data.goals }))
         if (data.achievements) setAchievements(data.achievements)
-        if (data.streaks) setStreaks({ ...streaks, ...data.streaks })
+        if (data.streaks) setStreaks((prev) => ({ ...prev, ...data.streaks }))
         if (data.milestones) setMilestones(data.milestones || [])
       }
     }
-
     fetchUserData()
 
     // Real-time donation tracking
-    const donationQuery = query(collection(firestore, "donations"), where("donorId", "==", user.uid))
+    const directDonationQuery = query(collection(firestore, "donations"), where("donorId", "==", user.uid))
 
-    const unsubscribe = onSnapshot(donationQuery, (snapshot) => {
-      const donations = snapshot.docs.map((doc) => ({
+    const unsubscribe = onSnapshot(directDonationQuery, async (snapshot) => {
+      const directDonations = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
+        isFundraiserDonation: false, // Flag for direct donations
       }))
 
-      calculateAnalytics(donations)
-      calculateStreaks(donations)
-      generateWeeklyData(donations)
-      generateMonthlyData(donations)
-      analyzeDonationTypes(donations)
-      checkAchievements(donations)
-      calculateSocialStats(donations)
+      // Fetch fundraiser donations (one-time fetch for now, could be real-time if needed)
+      const allFundraiserDonations = []
+      const fundraisersSnap = await getDocs(collection(firestore, "fundraisers"))
+      for (const fundraiserDoc of fundraisersSnap.docs) {
+        const donationsInFundraiserSnap = await getDocs(
+          query(collection(firestore, "fundraisers", fundraiserDoc.id, "donations"), where("donorId", "==", user.uid)),
+        )
+        donationsInFundraiserSnap.docs.forEach((donationDoc) => {
+          allFundraiserDonations.push({
+            id: donationDoc.id,
+            fundraiserId: fundraiserDoc.id,
+            fundraiserTitle: fundraiserDoc.data().title,
+            ...donationDoc.data(),
+            donationType: "Fundraiser Donation", // Explicitly set type
+            isFundraiserDonation: true, // Flag for fundraiser donations
+          })
+        })
+      }
 
+      const allCombinedDonations = [...directDonations, ...allFundraiserDonations].sort((a, b) => {
+        const aTime = a.timestamp?.toDate?.() || new Date(0)
+        const bTime = b.timestamp?.toDate?.() || new Date(0)
+        return aTime.getTime() - bTime.getTime() // Sort ascending for streak calculation
+      })
+
+      calculateAnalytics(allCombinedDonations)
+      calculateStreaks(allCombinedDonations)
+      generateWeeklyData(allCombinedDonations)
+      generateMonthlyData(allCombinedDonations)
+      analyzeDonationTypes(allCombinedDonations)
+      checkAchievements(allCombinedDonations)
+      calculateSocialStats(allCombinedDonations)
       setLoading(false)
     })
 
     return () => unsubscribe()
-  }, [user])
+  }, [user, goals, streaks, achievements, donationTypes]) // Added dependencies for re-calculation when goals/streaks/achievements change
 
   // Enhanced Analytics Calculation
   const calculateAnalytics = (donations) => {
@@ -141,11 +162,15 @@ export default function EnhancedGoalTracker() {
 
     donations.forEach((donation) => {
       const donationDate = donation.timestamp?.toDate()
-      const amount = donation.amount || 0
+      // Ensure we only sum monetary amounts from 'Money' and 'Fundraiser Donation' types
+      const amount =
+        (donation.donationType === "Money" || donation.donationType === "Fundraiser Donation") &&
+        typeof donation.amount === "number"
+          ? donation.amount
+          : 0
 
       if (donationDate) {
         totalAmount += amount
-
         if (donationDate >= today) todayAmount += amount
         if (donationDate >= weekStart) weekAmount += amount
         if (donationDate >= monthStart) monthAmount += amount
@@ -156,7 +181,12 @@ export default function EnhancedGoalTracker() {
     const avgDailyDonation =
       donations.length > 0
         ? totalAmount /
-          Math.max(1, Math.ceil((now - donations[donations.length - 1]?.timestamp?.toDate()) / (1000 * 60 * 60 * 24)))
+          Math.max(
+            1,
+            Math.ceil(
+              (now.getTime() - (donations[0]?.timestamp?.toDate()?.getTime() || now.getTime())) / (1000 * 60 * 60 * 24),
+            ),
+          )
         : 0
 
     const impactScore = Math.floor(
@@ -176,49 +206,61 @@ export default function EnhancedGoalTracker() {
 
   // Enhanced Streak Calculation
   const calculateStreaks = (donations) => {
-    const dailyGoalMet = new Set()
-    const weeklyGoalMet = new Set()
-    const monthlyGoalMet = new Set()
+    const dailyGoalMetDates = new Set()
+    const donationsByDay = new Map()
 
     donations.forEach((donation) => {
       const date = donation.timestamp?.toDate()
-      if (!date || !donation.amount) return
+      if (!date) return
 
       const dateKey = date.toDateString()
-      const weekKey = `${date.getFullYear()}-W${Math.ceil(date.getDate() / 7)}`
-      const monthKey = `${date.getFullYear()}-${date.getMonth()}`
+      const amount =
+        (donation.donationType === "Money" || donation.donationType === "Fundraiser Donation") &&
+        typeof donation.amount === "number"
+          ? donation.amount
+          : 0
 
-      // Check if daily goal was met
-      const dayTotal = donations
-        .filter((d) => d.timestamp?.toDate()?.toDateString() === dateKey)
-        .reduce((sum, d) => sum + (d.amount || 0), 0)
-
-      if (dayTotal >= goals.daily.amount) {
-        dailyGoalMet.add(dateKey)
-      }
+      donationsByDay.set(dateKey, (donationsByDay.get(dateKey) || 0) + amount)
     })
 
-    // Calculate current streak
-    let currentStreak = 0
-    let longestStreak = 0
-    let tempStreak = 0
-
-    for (let i = 0; i < 365; i++) {
-      const checkDate = new Date()
-      checkDate.setDate(checkDate.getDate() - i)
-      const dateKey = checkDate.toDateString()
-
-      if (dailyGoalMet.has(dateKey)) {
-        tempStreak++
-        if (i === 0) currentStreak = tempStreak
-      } else {
-        longestStreak = Math.max(longestStreak, tempStreak)
-        tempStreak = 0
-        if (i === 0) currentStreak = 0
+    // Determine which days met the daily goal
+    for (const [dateKey, totalAmount] of donationsByDay.entries()) {
+      if (totalAmount >= goals.daily.amount) {
+        dailyGoalMetDates.add(dateKey)
       }
     }
 
-    longestStreak = Math.max(longestStreak, tempStreak)
+    // Calculate current and longest streak
+    let currentStreak = 0
+    let longestStreak = 0
+    let tempStreak = 0
+    const today = new Date()
+    today.setHours(0, 0, 0, 0) // Normalize to start of day
+
+    // Iterate backwards from today to calculate streaks
+    for (let i = 0; i < 365; i++) {
+      // Check up to a year back
+      const checkDate = new Date(today)
+      checkDate.setDate(today.getDate() - i)
+      const dateKey = checkDate.toDateString()
+
+      if (dailyGoalMetDates.has(dateKey)) {
+        tempStreak++
+        if (i === 0) {
+          // If today met the goal, it contributes to current streak
+          currentStreak = tempStreak
+        }
+      } else {
+        // If the current day (i=0) didn't meet the goal, current streak is 0
+        if (i === 0) {
+          currentStreak = 0
+        }
+        // If a previous day didn't meet the goal, the streak is broken
+        longestStreak = Math.max(longestStreak, tempStreak)
+        tempStreak = 0
+      }
+    }
+    longestStreak = Math.max(longestStreak, tempStreak) // Capture the last streak if it's the longest
 
     setStreaks((prev) => ({
       ...prev,
@@ -233,15 +275,18 @@ export default function EnhancedGoalTracker() {
     for (let i = 6; i >= 0; i--) {
       const date = new Date()
       date.setDate(date.getDate() - i)
+      date.setHours(0, 0, 0, 0) // Normalize to start of day
       const dayName = date.toLocaleDateString("en-US", { weekday: "short" })
-
       const dayTotal = donations
         .filter((d) => {
           const donationDate = d.timestamp?.toDate()
-          return donationDate?.toDateString() === date.toDateString()
+          return (
+            donationDate &&
+            donationDate.toDateString() === date.toDateString() &&
+            (d.donationType === "Money" || d.donationType === "Fundraiser Donation")
+          )
         })
         .reduce((sum, d) => sum + (d.amount || 0), 0)
-
       weekData.push({
         day: dayName,
         amount: dayTotal,
@@ -258,15 +303,20 @@ export default function EnhancedGoalTracker() {
     for (let i = 11; i >= 0; i--) {
       const date = new Date()
       date.setMonth(date.getMonth() - i)
+      date.setDate(1) // Set to first day of month for consistent comparison
+      date.setHours(0, 0, 0, 0) // Normalize to start of day
       const monthName = date.toLocaleDateString("en-US", { month: "short" })
-
       const monthTotal = donations
         .filter((d) => {
           const donationDate = d.timestamp?.toDate()
-          return donationDate?.getMonth() === date.getMonth() && donationDate?.getFullYear() === date.getFullYear()
+          return (
+            donationDate &&
+            donationDate.getMonth() === date.getMonth() &&
+            donationDate.getFullYear() === date.getFullYear() &&
+            (d.donationType === "Money" || d.donationType === "Fundraiser Donation")
+          )
         })
         .reduce((sum, d) => sum + (d.amount || 0), 0)
-
       monthData.push({
         month: monthName,
         amount: monthTotal,
@@ -281,22 +331,30 @@ export default function EnhancedGoalTracker() {
     const typeCount = {}
     donations.forEach((d) => {
       const type = d.donationType || "Other"
-      typeCount[type] = (typeCount[type] || 0) + (d.amount || 1)
-    })
+      // For pie chart, we want to sum the amounts for each type
+      const amount =
+        (d.donationType === "Money" || d.donationType === "Fundraiser Donation") && typeof d.amount === "number"
+          ? d.amount
+          : 0 // Only sum monetary values for these types
 
+      typeCount[type] = (typeCount[type] || 0) + amount
+    })
     const typeData = Object.entries(typeCount).map(([type, amount]) => ({
       name: type,
       value: amount,
-      count: donations.filter((d) => (d.donationType || "Other") === type).length,
+      count: donations.filter((d) => (d.donationType || "Other") === type).length, // Still count total donations of that type
     }))
-
     setDonationTypes(typeData)
   }
 
   // Achievement System
   const checkAchievements = async (donations) => {
     const newAchievements = []
-    const totalAmount = donations.reduce((sum, d) => sum + (d.amount || 0), 0)
+    const totalAmount = donations.reduce((sum, d) => {
+      return (d.donationType === "Money" || d.donationType === "Fundraiser Donation") && typeof d.amount === "number"
+        ? sum + d.amount
+        : sum
+    }, 0)
     const totalCount = donations.length
 
     // Achievement definitions
@@ -364,14 +422,12 @@ export default function EnhancedGoalTracker() {
     if (newAchievements.length > 0) {
       const updatedAchievements = [...achievements, ...newAchievements]
       setAchievements(updatedAchievements)
-
       // Save to Firebase
       if (user) {
         await updateDoc(doc(firestore, "users", user.uid), {
           achievements: updatedAchievements,
         })
       }
-
       // Show notifications
       newAchievements.forEach((achievement) => {
         setNotifications((prev) => [
@@ -392,11 +448,14 @@ export default function EnhancedGoalTracker() {
   const calculateSocialStats = (donations) => {
     // This would typically involve comparing with other users
     // For demo purposes, we'll simulate some values
-    const totalAmount = donations.reduce((sum, d) => sum + (d.amount || 0), 0)
+    const totalAmount = donations.reduce((sum, d) => {
+      return (d.donationType === "Money" || d.donationType === "Fundraiser Donation") && typeof d.amount === "number"
+        ? sum + d.amount
+        : sum
+    }, 0)
     const rank = Math.max(1, Math.floor(Math.random() * 100))
     const percentile = Math.min(99, Math.floor(totalAmount / 1000 + Math.random() * 20))
     const communityImpact = Math.floor(totalAmount / 100)
-
     setSocialStats({ rank, percentile, communityImpact })
   }
 
@@ -407,7 +466,6 @@ export default function EnhancedGoalTracker() {
       [period]: { ...goals[period], amount: newAmount },
     }
     setGoals(updatedGoals)
-
     if (user) {
       await updateDoc(doc(firestore, "users", user.uid), {
         goals: updatedGoals,
@@ -476,7 +534,6 @@ export default function EnhancedGoalTracker() {
           </motion.div>
         ))}
       </AnimatePresence>
-
       {/* Enhanced Goal Dashboard */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {Object.entries(goals).map(([period, goal]) => (
@@ -505,12 +562,10 @@ export default function EnhancedGoalTracker() {
                 </div>
                 <h3 className="font-semibold text-gray-800 capitalize">{period} Goal</h3>
               </div>
-
               <button onClick={() => setEditingGoal(period)} className="text-gray-400 hover:text-gray-600">
                 <Edit3 className="w-4 h-4" />
               </button>
             </div>
-
             {editingGoal === period ? (
               <div className="space-y-3">
                 <input
@@ -552,7 +607,6 @@ export default function EnhancedGoalTracker() {
                     ></div>
                   </div>
                 </div>
-
                 <div className="text-center">
                   <span className="text-2xl font-bold text-gray-800">{Math.round(getProgress(period))}%</span>
                   <p className="text-xs text-gray-500">Complete</p>
@@ -562,7 +616,6 @@ export default function EnhancedGoalTracker() {
           </motion.div>
         ))}
       </div>
-
       {/* Streak & Achievement Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Streak Dashboard */}
@@ -576,21 +629,18 @@ export default function EnhancedGoalTracker() {
               <p className="text-sm text-gray-600">Keep the momentum going!</p>
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 text-center">
               <div className="text-3xl font-bold text-orange-600">{streaks.current}</div>
               <div className="text-sm text-gray-600">Current Streak</div>
               <div className="text-xs text-gray-500">days</div>
             </div>
-
             <div className="bg-white/70 backdrop-blur-sm rounded-xl p-4 text-center">
               <div className="text-3xl font-bold text-red-600">{streaks.longest}</div>
               <div className="text-sm text-gray-600">Longest Streak</div>
               <div className="text-xs text-gray-500">days</div>
             </div>
           </div>
-
           {streaks.current >= 3 && (
             <div className="mt-4 p-3 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg border border-yellow-200">
               <div className="flex items-center space-x-2">
@@ -602,7 +652,6 @@ export default function EnhancedGoalTracker() {
             </div>
           )}
         </div>
-
         {/* Achievements */}
         <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 shadow-lg border border-purple-100">
           <div className="flex items-center gap-3 mb-6">
@@ -614,7 +663,6 @@ export default function EnhancedGoalTracker() {
               <p className="text-sm text-gray-600">{achievements.length} unlocked</p>
             </div>
           </div>
-
           <div className="space-y-3 max-h-48 overflow-y-auto">
             {achievements.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
@@ -642,7 +690,6 @@ export default function EnhancedGoalTracker() {
           </div>
         </div>
       </div>
-
       {/* Enhanced Analytics Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Weekly Trend */}
@@ -654,7 +701,6 @@ export default function EnhancedGoalTracker() {
             </div>
             <div className="text-sm text-gray-500">Total: Rs. {analytics.weekAmount.toLocaleString()}</div>
           </div>
-
           <ResponsiveContainer width="100%" height={250}>
             <AreaChart data={weeklyData}>
               <defs>
@@ -674,7 +720,6 @@ export default function EnhancedGoalTracker() {
             </AreaChart>
           </ResponsiveContainer>
         </div>
-
         {/* Monthly Overview */}
         <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
           <div className="flex items-center justify-between mb-6">
@@ -684,7 +729,6 @@ export default function EnhancedGoalTracker() {
             </div>
             <div className="text-sm text-gray-500">This Year: Rs. {analytics.yearAmount.toLocaleString()}</div>
           </div>
-
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={monthlyData}>
               <XAxis dataKey="month" />
@@ -702,7 +746,6 @@ export default function EnhancedGoalTracker() {
           </ResponsiveContainer>
         </div>
       </div>
-
       {/* Donation Types & Social Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Donation Types Distribution */}
@@ -711,7 +754,6 @@ export default function EnhancedGoalTracker() {
             <Gift className="w-5 h-5 text-purple-500" />
             <h2 className="text-xl font-semibold text-gray-800">Donation Types</h2>
           </div>
-
           {donationTypes.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
@@ -739,7 +781,6 @@ export default function EnhancedGoalTracker() {
             </div>
           )}
         </div>
-
         {/* Social Impact Stats */}
         <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 shadow-lg border border-indigo-100">
           <div className="flex items-center gap-3 mb-6">
@@ -751,7 +792,6 @@ export default function EnhancedGoalTracker() {
               <p className="text-sm text-gray-600">Your social contribution</p>
             </div>
           </div>
-
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-white/70 backdrop-blur-sm rounded-xl">
               <div className="flex items-center space-x-3">
@@ -760,7 +800,6 @@ export default function EnhancedGoalTracker() {
               </div>
               <span className="text-xl font-bold text-indigo-600">#{socialStats.rank}</span>
             </div>
-
             <div className="flex items-center justify-between p-4 bg-white/70 backdrop-blur-sm rounded-xl">
               <div className="flex items-center space-x-3">
                 <Star className="w-5 h-5 text-blue-500" />
@@ -768,7 +807,6 @@ export default function EnhancedGoalTracker() {
               </div>
               <span className="text-xl font-bold text-blue-600">{socialStats.percentile}%</span>
             </div>
-
             <div className="flex items-center justify-between p-4 bg-white/70 backdrop-blur-sm rounded-xl">
               <div className="flex items-center space-x-3">
                 <Sparkles className="w-5 h-5 text-purple-500" />
@@ -777,7 +815,6 @@ export default function EnhancedGoalTracker() {
               <span className="text-xl font-bold text-purple-600">{analytics.impactScore}</span>
             </div>
           </div>
-
           <div className="mt-6 p-4 bg-gradient-to-r from-green-100 to-blue-100 rounded-xl border border-green-200">
             <div className="flex items-center space-x-2">
               <Heart className="w-5 h-5 text-green-600" />
@@ -788,30 +825,25 @@ export default function EnhancedGoalTracker() {
           </div>
         </div>
       </div>
-
       {/* Quick Actions */}
       <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
         <div className="flex items-center gap-3 mb-6">
           <Target className="w-5 h-5 text-green-500" />
           <h2 className="text-xl font-semibold text-gray-800">Quick Actions</h2>
         </div>
-
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <button className="flex flex-col items-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl hover:shadow-md transition-all">
             <Bell className="w-6 h-6 text-blue-500 mb-2" />
             <span className="text-sm font-medium text-gray-700">Set Reminders</span>
           </button>
-
           <button className="flex flex-col items-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl hover:shadow-md transition-all">
             <Share2 className="w-6 h-6 text-green-500 mb-2" />
             <span className="text-sm font-medium text-gray-700">Share Progress</span>
           </button>
-
           <button className="flex flex-col items-center p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl hover:shadow-md transition-all">
             <Trophy className="w-6 h-6 text-purple-500 mb-2" />
             <span className="text-sm font-medium text-gray-700">View Leaderboard</span>
           </button>
-
           <button className="flex flex-col items-center p-4 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl hover:shadow-md transition-all">
             <Target className="w-6 h-6 text-yellow-500 mb-2" />
             <span className="text-sm font-medium text-gray-700">Set New Goals</span>

@@ -1,7 +1,8 @@
 "use client"
+
 import { useState, useEffect } from "react"
 import { auth, firestore } from "@/lib/firebase"
-import { collection, query, where, getDocs } from "firebase/firestore"
+import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore" // Added getDoc
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { toast, ToastContainer } from "react-toastify"
@@ -23,7 +24,7 @@ import {
   AlertCircle,
 } from "lucide-react"
 
-export default function DonationsHistory() {
+const DonationsHistory = () => {
   const [donations, setDonations] = useState([])
   const [filteredDonations, setFilteredDonations] = useState([])
   const [filterStatus, setFilterStatus] = useState("All")
@@ -49,17 +50,16 @@ export default function DonationsHistory() {
       setLoading(false)
       return
     }
-
     try {
       // Get user type to determine what to fetch
-      const userDoc = await getDocs(query(collection(firestore, "users"), where("__name__", "==", user.uid)))
-      const userData = userDoc.docs[0]?.data()
+      const userDocSnap = await getDocs(query(collection(firestore, "users"), where("__name__", "==", user.uid)))
+      const userData = userDocSnap.docs[0]?.data()
       const userType = userData?.userType
 
       const promises = [
         // Donations made by user
         getDocs(query(collection(firestore, "donations"), where("donorId", "==", user.uid))),
-        // Services fulfilled by user
+        // Services fulfilled by user (these are the service documents themselves)
         getDocs(query(collection(firestore, "services"), where("donorId", "==", user.uid))),
         // Fundraiser donations made by user
         fetchFundraiserDonations(user.uid),
@@ -79,53 +79,85 @@ export default function DonationsHistory() {
       const [donSnap, servFulfilledSnap, fundDonationsSnap, servCreatedSnap, fundCreatedSnap] = results
 
       // Process donations made
-      const donationList = donSnap.docs.map((doc) => {
-        const data = doc.data()
+      const donationListPromises = donSnap.docs.map(async (docSnap) => {
+        const data = docSnap.data()
         const rawDate = data.timestamp?.toDate()
-
         let total = "—"
-        if (data.amount) {
-          total = `Rs${data.amount}`
-        } else if (data.numClothes) {
-          total = `${data.numClothes} Clothes`
-        } else if (data.numMeals) {
-          total = `${data.numMeals} Meals`
+        let numClothes = null
+        let numMeals = null
+        let amount = null
+        const donationType = data.donationType || "—"
+        let status = data.confirmed ? "Approved" : "Pending" // Default status for general donations
+        let description = data.description || data.donationNote || "—"
+        let category = "Donations Made"
+        let typeDisplay = donationType // Default display for type column
+
+        // If a serviceId is present, it's a service fulfillment
+        if (data.serviceId) {
+          try {
+            const serviceDoc = await getDoc(doc(firestore, "services", data.serviceId))
+            if (serviceDoc.exists()) {
+              const serviceData = serviceDoc.data()
+              typeDisplay = serviceData.title || "Service Fulfillment" // Display service title
+              status = serviceData.status || "Pending" // Get status from service document
+              category = "Services" // Change category to Services
+              total = data.donationNote || "Service Fulfilled" // Amount column for services
+              description = data.donationNote || serviceData.description || "Service Fulfilled"
+            }
+          } catch (error) {
+            console.error("Error fetching service details for donation:", data.serviceId, error)
+            typeDisplay = "Service Fulfillment (Error)"
+            status = "Unknown"
+            category = "Services"
+          }
+        } else if (donationType === "Money" && data.amount) {
+          amount = data.amount
+          total = data.amount ? `Rs. ${Number(data.amount).toLocaleString()}` : "—"
+        } else if (donationType === "Clothes" && (data.donatedAmount || data.subtypes?.[0]?.quantity)) {
+          numClothes = data.donatedAmount || data.subtypes[0].quantity
+          total = `${numClothes} Clothes`
+        } else if (donationType === "Food" && (data.donatedAmount || data.subtypes?.[0]?.quantity)) {
+          numMeals = data.donatedAmount || data.subtypes[0].quantity
+          total = `${numMeals} Meals`
         } else if (data.foodDescription) {
-          total = "Food"
+          total = "Food" // Fallback for older food donations
         }
 
         return {
-          id: doc.id,
+          id: docSnap.id,
           date: rawDate || new Date(0),
-          status: data.confirmed ? "Approved" : "Pending",
-          total,
-          type: data.donationType || "—",
-          description: data.description || "—",
+          status: status, // Use fetched service status or default
+          total, // This is for the table display
+          type: typeDisplay, // Use service title or donation type
+          description: description,
           source: "donation_made",
-          category: "Donations Made",
+          category: category, // Use updated category
           requestId: data.requestId || "—",
           orphanageId: data.orphanageId || "—",
-          donationType: data.donationType || "—",
-          amount: data.amount || null,
-          numClothes: data.numClothes || null,
-          numMeals: data.numMeals || null,
+          donationType: donationType,
+          amount: amount,
+          numClothes: numClothes,
+          numMeals: numMeals,
           foodDescription: data.foodDescription || null,
+          serviceId: data.serviceId || null,
+          donationNote: data.donationNote || null,
         }
       })
+      const donationList = await Promise.all(donationListPromises)
 
-      // Process services fulfilled
-      const serviceFulfilledList = servFulfilledSnap.docs.map((doc) => {
-        const data = doc.data()
+      // Process services fulfilled (these are the service documents themselves, where donorId matches)
+      const serviceFulfilledList = servFulfilledSnap.docs.map((docSnap) => {
+        const data = docSnap.data()
         const rawDate = data.fulfilledAt?.toDate() || data.timestamp?.toDate()
         return {
-          id: doc.id,
+          id: docSnap.id,
           date: rawDate || new Date(0),
-          status: data.status === "In Progress" ? "Fulfilled" : data.status,
-          total: "—",
-          type: "Service",
-          description: data.lastFulfillmentNote || data.title || "Service Fulfilled",
+          status: data.status || "Pending", // Use the service's actual status
+          total: data.lastFulfillmentNote || data.title || "Service Fulfilled", // Display note or title
+          type: data.title || "Service", // Display service title
+          description: data.lastFulfillmentNote || data.description || data.title || "Service Fulfilled",
           source: "service_fulfilled",
-          category: "Services Fulfilled",
+          category: "Services", // Change category to Services
           serviceTitle: data.title,
           orphanageId: data.orphanageId,
         }
@@ -140,7 +172,7 @@ export default function DonationsHistory() {
           fundraiserTitle: donation.fundraiserTitle,
           date: rawDate || new Date(0),
           status: donation.status === "pending" ? "Pending" : "Approved",
-          total: `Rs${donation.amount}`,
+          total: `Rs. ${Number(donation.amount).toLocaleString()}`,
           type: "Fundraiser",
           description: donation.fundraiserTitle || "Fundraiser Donation",
           source: "fundraiser_donation",
@@ -155,26 +187,24 @@ export default function DonationsHistory() {
       // Process services created (for orphanages)
       if (servCreatedSnap) {
         serviceCreatedList = await Promise.all(
-          servCreatedSnap.docs.map(async (doc) => {
-            const data = doc.data()
+          servCreatedSnap.docs.map(async (docSnap) => {
+            const data = docSnap.data()
             const rawDate = data.timestamp?.toDate()
-
             // Count fulfillments for this service
-            const fulfillmentCount = await getDocs(
-              query(collection(firestore, "services"), where("originalServiceId", "==", doc.id)),
+            const fulfillmentCountSnap = await getDocs(
+              query(collection(firestore, "donations"), where("serviceId", "==", docSnap.id)),
             )
-
             return {
-              id: doc.id,
+              id: docSnap.id,
               date: rawDate || new Date(0),
               status: data.status || "Pending",
-              total: `${fulfillmentCount.size} Fulfillments`,
-              type: "Service Created",
+              total: `${fulfillmentCountSnap.size} Fulfillments`,
+              type: data.title || "Service Created",
               description: data.description || data.title || "Service Posted",
               source: "service_created",
               category: "Services Posted",
               title: data.title,
-              fulfillmentCount: fulfillmentCount.size,
+              fulfillmentCount: fulfillmentCountSnap.size,
             }
           }),
         )
@@ -183,21 +213,19 @@ export default function DonationsHistory() {
       // Process fundraisers created (for orphanages)
       if (fundCreatedSnap) {
         fundraiserCreatedList = await Promise.all(
-          fundCreatedSnap.docs.map(async (doc) => {
-            const data = doc.data()
+          fundCreatedSnap.docs.map(async (docSnap) => {
+            const data = docSnap.data()
             const rawDate = data.timestamp?.toDate()
-
             // Get donation count and total raised
-            const donationsSnap = await getDocs(collection(firestore, "fundraisers", doc.id, "donations"))
+            const donationsSnap = await getDocs(collection(firestore, "fundraisers", docSnap.id, "donations"))
             const totalRaised = data.raisedAmount || 0
             const donationCount = donationsSnap.size
-
             return {
-              id: doc.id,
+              id: docSnap.id,
               date: rawDate || new Date(0),
               status: data.status || "Pending",
-              total: `Rs${totalRaised} / Rs${data.totalAmount}`,
-              type: "Fundraiser Created",
+              total: `Rs. ${Number(totalRaised).toLocaleString()} / Rs. ${Number(data.totalAmount).toLocaleString()}`,
+              type: data.title || "Fundraiser Created",
               description: data.description || data.title || "Fundraiser Posted",
               source: "fundraiser_created",
               category: "Fundraisers Posted",
@@ -218,8 +246,7 @@ export default function DonationsHistory() {
         ...serviceCreatedList,
         ...fundraiserCreatedList,
       ]
-
-      combined.sort((a, b) => b.date - a.date)
+      combined.sort((a, b) => b.date.getTime() - a.date.getTime()) // Ensure proper date sorting
       setDonations(combined)
       setFilteredDonations(combined)
 
@@ -229,13 +256,16 @@ export default function DonationsHistory() {
         approved: combined.filter((d) => d.status === "Approved" || d.status === "Fulfilled").length,
         pending: combined.filter((d) => d.status === "Pending").length,
         totalAmount: combined.reduce((sum, d) => {
-          if (d.amount) return sum + d.amount
+          // Only sum 'amount' if it's a number and not a service fulfillment (which uses donationNote for 'total')
+          if (d.amount && typeof d.amount === "number") return sum + d.amount
+          // For fundraiser donations, also add their amount
+          if (d.source === "fundraiser_donation" && d.amount && typeof d.amount === "number") return sum + d.amount
           return sum
         }, 0),
       }
       setStats(newStats)
     } catch (error) {
-      console.error("Error fetching donation history:", error)
+      console.error("Error fetching comprehensive history:", error)
       toast.error("Failed to load donation history")
     } finally {
       setLoading(false)
@@ -256,14 +286,12 @@ export default function DonationsHistory() {
       // First get all fundraisers
       const fundraisersSnap = await getDocs(collection(firestore, "fundraisers"))
       const allDonations = []
-
       // For each fundraiser, check its donations subcollection
       for (const fundraiserDoc of fundraisersSnap.docs) {
         const fundraiserData = fundraiserDoc.data()
         const donationsSnap = await getDocs(
           query(collection(firestore, "fundraisers", fundraiserDoc.id, "donations"), where("donorId", "==", userId)),
         )
-
         donationsSnap.docs.forEach((donationDoc) => {
           allDonations.push({
             id: donationDoc.id,
@@ -273,7 +301,6 @@ export default function DonationsHistory() {
           })
         })
       }
-
       return allDonations
     } catch (error) {
       console.error("Error fetching fundraiser donations:", error)
@@ -283,17 +310,14 @@ export default function DonationsHistory() {
 
   const filterAndSearchDonations = () => {
     let filtered = donations
-
     // Filter by status
     if (filterStatus !== "All") {
       filtered = filtered.filter((d) => d.status === filterStatus)
     }
-
     // Filter by category
     if (filterCategory !== "All Categories") {
       filtered = filtered.filter((d) => d.category === filterCategory)
     }
-
     // Search
     if (searchTerm) {
       filtered = filtered.filter(
@@ -303,7 +327,6 @@ export default function DonationsHistory() {
           d.id?.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
-
     setFilteredDonations(filtered)
     setCurrentPage(1)
   }
@@ -311,20 +334,16 @@ export default function DonationsHistory() {
   const exportPDF = () => {
     try {
       const doc = new jsPDF()
-
       // Add title
       doc.setFontSize(20)
       doc.text("Donation History Report", 14, 22)
-
       // Add date
       doc.setFontSize(12)
       doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 32)
-
       // Add stats
       doc.text(`Total Donations: ${stats.total}`, 14, 42)
       doc.text(`Approved: ${stats.approved} | Pending: ${stats.pending}`, 14, 52)
       doc.text(`Total Amount: Rs. ${stats.totalAmount.toLocaleString()}`, 14, 62)
-
       // Add table
       autoTable(doc, {
         startY: 72,
@@ -340,7 +359,6 @@ export default function DonationsHistory() {
         styles: { fontSize: 8 },
         headStyles: { fillColor: [59, 130, 246] },
       })
-
       doc.save(`donation-history-${new Date().toISOString().split("T")[0]}.pdf`)
       toast.success("PDF exported successfully!")
     } catch (error) {
@@ -355,6 +373,10 @@ export default function DonationsHistory() {
     const sorted = [...filteredDonations].sort((a, b) => {
       const aVal = a[key]
       const bVal = b[key]
+      // Handle date objects for sorting
+      if (key === "date") {
+        return dir === "asc" ? aVal.getTime() - bVal.getTime() : bVal.getTime() - aVal.getTime()
+      }
       return dir === "asc" ? (aVal > bVal ? 1 : -1) : aVal < bVal ? 1 : -1
     })
     setFilteredDonations(sorted)
@@ -369,10 +391,16 @@ export default function DonationsHistory() {
       case "Food":
         return <UtensilsCrossed className="w-4 h-4" />
       case "Service":
+      case "Service Fulfillment": // Added for service fulfillment donations
         return <GraduationCap className="w-4 h-4" />
       case "Fundraiser":
         return <TrendingUp className="w-4 h-4" />
       default:
+        // If type is a service title, use GraduationCap
+        if (type && type.includes("Service")) {
+          // Simple check, can be more robust
+          return <GraduationCap className="w-4 h-4" />
+        }
         return <CheckCircle className="w-4 h-4" />
     }
   }
@@ -406,13 +434,11 @@ export default function DonationsHistory() {
   return (
     <div className="p-6">
       <ToastContainer position="top-right" autoClose={5000} />
-
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Donation History</h1>
         <p className="text-gray-600">Track all your contributions and activities</p>
       </div>
-
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -426,7 +452,6 @@ export default function DonationsHistory() {
             </div>
           </div>
         </div>
-
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -438,7 +463,6 @@ export default function DonationsHistory() {
             </div>
           </div>
         </div>
-
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -450,7 +474,6 @@ export default function DonationsHistory() {
             </div>
           </div>
         </div>
-
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -463,7 +486,6 @@ export default function DonationsHistory() {
           </div>
         </div>
       </div>
-
       {/* Filters and Search */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
         <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
@@ -479,7 +501,6 @@ export default function DonationsHistory() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-
             {/* Status Filter */}
             <div className="relative">
               <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -495,7 +516,6 @@ export default function DonationsHistory() {
                 ))}
               </select>
             </div>
-
             {/* Category Filter */}
             <select
               value={filterCategory}
@@ -505,10 +525,9 @@ export default function DonationsHistory() {
               {[
                 "All Categories",
                 "Donations Made",
-                "Services Fulfilled",
+                "Services", // Changed from "Services Fulfilled"
                 "Fundraiser Donations",
-                "Services Posted",
-                "Fundraisers Posted",
+               
               ].map((category) => (
                 <option key={category} value={category}>
                   {category}
@@ -516,7 +535,6 @@ export default function DonationsHistory() {
               ))}
             </select>
           </div>
-
           {/* Export Button */}
           <button
             onClick={exportPDF}
@@ -526,14 +544,12 @@ export default function DonationsHistory() {
             <span>Export PDF</span>
           </button>
         </div>
-
         {filteredDonations.length > 0 && (
           <div className="mt-3 text-sm text-gray-600">
             Showing {filteredDonations.length} of {donations.length} donations
           </div>
         )}
       </div>
-
       {/* Donations Table */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         {paginated.length === 0 ? (
@@ -617,7 +633,6 @@ export default function DonationsHistory() {
                 </tbody>
               </table>
             </div>
-
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="bg-gray-50 px-6 py-4">
@@ -648,7 +663,6 @@ export default function DonationsHistory() {
           </>
         )}
       </div>
-
       {/* Donation Detail Modal */}
       {selectedDonation && (
         <div
@@ -665,18 +679,15 @@ export default function DonationsHistory() {
                 <X className="w-6 h-6" />
               </button>
             </div>
-
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span className="text-sm font-medium text-gray-600">ID:</span>
                 <span className="text-sm text-blue-600 font-mono">#{selectedDonation.id}</span>
               </div>
-
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span className="text-sm font-medium text-gray-600">Date:</span>
                 <span className="text-sm text-gray-900">{selectedDonation.date.toLocaleString()}</span>
               </div>
-
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span className="text-sm font-medium text-gray-600">Status:</span>
                 <span
@@ -685,7 +696,6 @@ export default function DonationsHistory() {
                   {selectedDonation.status}
                 </span>
               </div>
-
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span className="text-sm font-medium text-gray-600">Type:</span>
                 <div className="flex items-center space-x-2">
@@ -693,24 +703,23 @@ export default function DonationsHistory() {
                   <span className="text-sm text-gray-900">{selectedDonation.type}</span>
                 </div>
               </div>
-
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span className="text-sm font-medium text-gray-600">Amount:</span>
                 <span className="text-sm font-bold text-gray-900">{selectedDonation.total}</span>
               </div>
-
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span className="text-sm font-medium text-gray-600">Category:</span>
                 <span className="text-sm text-gray-900">{selectedDonation.category}</span>
               </div>
-
               {/* Enhanced donation details based on source */}
               {selectedDonation.source === "donation_made" && (
                 <>
                   {selectedDonation.amount && (
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <span className="text-sm font-medium text-gray-600">Amount:</span>
-                      <span className="text-sm font-bold text-green-600">Rs. {selectedDonation.amount}</span>
+                      <span className="text-sm font-bold text-green-600">
+                        Rs. {Number(selectedDonation.amount).toLocaleString()}
+                      </span>
                     </div>
                   )}
                   {selectedDonation.numClothes && (
@@ -725,9 +734,16 @@ export default function DonationsHistory() {
                       <span className="text-sm font-bold text-orange-600">{selectedDonation.numMeals} meals</span>
                     </div>
                   )}
+                  {selectedDonation.donationType === "Service Fulfillment" && selectedDonation.donationNote && (
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <span className="text-sm font-medium text-gray-600 block mb-2">Fulfillment Note:</span>
+                      <p className="text-sm text-gray-700 bg-white p-3 rounded border">
+                        {selectedDonation.donationNote}
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
-
               {selectedDonation.description && selectedDonation.description !== "—" && (
                 <div className="p-3 bg-gray-50 rounded-lg">
                   <span className="text-sm font-medium text-gray-600 block mb-2">Description:</span>
@@ -735,7 +751,6 @@ export default function DonationsHistory() {
                 </div>
               )}
             </div>
-
             <div className="flex justify-end mt-6">
               <button
                 onClick={() => setSelectedDonation(null)}
@@ -750,3 +765,5 @@ export default function DonationsHistory() {
     </div>
   )
 }
+
+export default DonationsHistory
