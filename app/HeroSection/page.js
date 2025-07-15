@@ -2,7 +2,7 @@
 import React from "react";
 import Image from "next/image";
 import { IoPlayCircleOutline } from "react-icons/io5";
-import LiveDonationFeed from "../LiveDonation/page";
+
 
 export default function HeroSection() {
   return (

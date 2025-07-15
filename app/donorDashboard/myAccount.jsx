@@ -65,7 +65,7 @@ export default function MyAccount() {
    
    
       // 🔥 NEW TAB
-      { id: "My Goal", label: "My Goal" },
+      // { id: "My Goal", label: "My Goal" },
          { id: "Donations", label: "Donation History"},
       { id: "Logout", label: "Logout", isAction: true },
     ],
@@ -87,8 +87,8 @@ export default function MyAccount() {
     
     
       // 🔥 NEW CASE
-      case "My Goal":
-        return <GoalAndChartSection />;
+      // case "My Goal":
+      //   return <GoalAndChartSection />;
 
           case "Donations":
         return <DonationsHistory />;

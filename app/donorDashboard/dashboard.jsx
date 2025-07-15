@@ -1,4 +1,5 @@
 "use client"
+
 import { useState, useEffect, useMemo } from "react"
 import { auth, firestore } from "@/lib/firebase"
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore"
@@ -31,7 +32,6 @@ export default function DonorDashboard() {
   })
   const [loading, setLoading] = useState(true)
   const [recentActivity, setRecentActivity] = useState([])
-
   // States to hold raw data from real-time listeners and one-time fetches
   const [allDonations, setAllDonations] = useState([])
   const [allServices, setAllServices] = useState([])
@@ -53,7 +53,6 @@ export default function DonorDashboard() {
 
         // Set up real-time listeners for donations
         const donationsQuery = query(collection(firestore, "donations"), where("donorId", "==", currentUser.uid))
-
         const unsubscribeDonations = onSnapshot(donationsQuery, (donationsSnap) => {
           const donations = donationsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
           setAllDonations(donations)
@@ -100,7 +99,6 @@ export default function DonorDashboard() {
         setLoading(false) // Ensure loading is false on error
       }
     }
-
     setupListenersAndFetchData()
   }, []) // Empty dependency array for initial setup of listeners and one-time fetches
 
@@ -206,7 +204,6 @@ export default function DonorDashboard() {
         const sortedRecentActivity = combinedActivity
           .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
           .slice(0, 5)
-
         setRecentActivity(sortedRecentActivity)
 
         // Calculate achievements based on updated stats
@@ -217,10 +214,8 @@ export default function DonorDashboard() {
         if (newTotalDonations >= 10) userAchievements.push({ title: "Community Hero", icon: "🦸" })
         if (totalAmount >= 1000) userAchievements.push({ title: "Major Contributor", icon: "💎" })
         setAchievements(userAchievements)
-
         setLoading(false) // Set loading to false once all data is processed
       }
-
       processActivity()
     })
   }, [allDonations, allServices, allFundraiserDonations, user]) // Dependencies for this effect
@@ -267,35 +262,7 @@ export default function DonorDashboard() {
     [stats],
   )
 
-  const quickActions = useMemo(
-    () => [
-      {
-        title: "Make a Donation",
-        description: "Help children in need by fulfilling their requests",
-        icon: Heart,
-        color: "from-red-500 to-pink-500",
-      },
-      {
-        title: "Offer Services",
-        description: "Share your skills and knowledge with orphanages",
-        icon: GraduationCap,
-        color: "from-blue-500 to-cyan-500",
-      },
-      {
-        title: "Support Fundraisers",
-        description: "Contribute to ongoing fundraising campaigns",
-        icon: DollarSign,
-        color: "from-green-500 to-emerald-500",
-      },
-      {
-        title: "View History",
-        description: "Track your donations and contributions",
-        icon: TrendingUp,
-        color: "from-purple-500 to-indigo-500",
-      },
-    ],
-    [],
-  )
+  // Quick actions are removed as per request.
 
   if (loading) {
     return (
@@ -310,8 +277,8 @@ export default function DonorDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
+      <div className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Enhanced Welcome Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-3xl p-8 text-white relative overflow-hidden">
@@ -357,6 +324,7 @@ export default function DonorDashboard() {
             </div>
           </div>
         </motion.div>
+
         {/* AI Donation Suggestion Bot */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -366,6 +334,7 @@ export default function DonorDashboard() {
         >
           <AIDonationSuggestionBot donationHistory={recentActivity} userStats={stats} />
         </motion.div>
+
         {/* Enhanced Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {statCards.map((stat, index) => (
@@ -393,135 +362,93 @@ export default function DonorDashboard() {
             </motion.div>
           ))}
         </div>
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Quick Actions */}
-          <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
-              className="mb-8"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Target className="w-6 h-6 text-green-600" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900"> Actions</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {quickActions.map((action, index) => (
+
+        {/* Enhanced Impact Summary */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <TrendingUp className="w-6 h-6 text-purple-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Your Impact Dashboard</h2>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div>
+              <h3 className="font-semibold text-gray-700 mb-4 text-lg">What you can do:</h3>
+              <div className="space-y-3">
+                {[
+                  { text: "View and fulfill donation requests", icon: CheckCircle },
+                  { text: "Offer your skills and services", icon: GraduationCap },
+                  { text: "Support fundraising campaigns", icon: Target },
+                  { text: "Track your donation history", icon: Clock },
+                  { text: "Connect with orphanages", icon: Users },
+                ].map((item, index) => (
                   <motion.div
-                    key={action.title}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 + index * 0.1 }}
-                    whileHover={{ scale: 1.02, y: -2 }}
-                    className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-200 cursor-pointer group"
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.9 + index * 0.1 }}
+                    className="flex items-center gap-3"
                   >
-                    <div className="flex items-center justify-between mb-4">
-                      <div
-                        className={`p-3 rounded-xl bg-gradient-to-r ${action.color} group-hover:scale-110 transition-transform`}
-                      >
-                        <action.icon className="w-6 h-6 text-white" />
-                      </div>
+                    <div className="p-1 bg-green-100 rounded-full">
+                      <item.icon className="w-4 h-4 text-green-600" />
                     </div>
-                    <div>
-                      <h3 className="font-bold text-lg text-gray-900 mb-2 group-hover:text-green-600 transition-colors">
-                        {action.title}
-                      </h3>
-                      <p className="text-gray-600 text-sm leading-relaxed">{action.description}</p>
-                    </div>
+                    <span className="text-gray-600">{item.text}</span>
                   </motion.div>
                 ))}
               </div>
-            </motion.div>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-700 mb-4 text-lg">Your Achievements:</h3>
+              <div className="space-y-4">
+                {[
+                  { label: "Donations Made", value: stats.totalDonations, color: "bg-red-500", icon: Heart },
+                  {
+                    label: "Amount Contributed",
+                    value: `Rs. ${stats.totalAmount.toLocaleString()}`,
+                    color: "bg-green-500",
+                    icon: DollarSign,
+                  },
+                  {
+                    label: "Fundraisers Supported",
+                    value: stats.fundraisersSupported,
+                    color: "bg-purple-500",
+                    icon: Target,
+                  },
+                  {
+                    label: "Impact Score",
+                    value: stats.impactScore,
+                    color: "bg-yellow-500",
+                    icon: Star,
+                  },
+                ].map((achievement, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 1.0 + index * 0.1 }}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 ${achievement.color} rounded-full`}></div>
+                      <achievement.icon className="w-4 h-4 text-gray-500" />
+                      <span className="text-gray-600">{achievement.label}</span>
+                    </div>
+                    <span className="font-bold text-gray-900">{achievement.value}</span>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
           </div>
-        
-        </div>
-          {/* Enhanced Impact Summary */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-            className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100"
-          >
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-purple-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900">Your Impact Dashboard</h2>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div>
-                <h3 className="font-semibold text-gray-700 mb-4 text-lg">What you can do:</h3>
-                <div className="space-y-3">
-                  {[
-                    { text: "View and fulfill donation requests", icon: CheckCircle },
-                    { text: "Offer your skills and services", icon: GraduationCap },
-                    { text: "Support fundraising campaigns", icon: Target },
-                    { text: "Track your donation history", icon: Clock },
-                    { text: "Connect with orphanages", icon: Users },
-                  ].map((item, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.9 + index * 0.1 }}
-                      className="flex items-center gap-3"
-                    >
-                      <div className="p-1 bg-green-100 rounded-full">
-                        <item.icon className="w-4 h-4 text-green-600" />
-                      </div>
-                      <span className="text-gray-600">{item.text}</span>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-700 mb-4 text-lg">Your Achievements:</h3>
-                <div className="space-y-4">
-                  {[
-                    { label: "Donations Made", value: stats.totalDonations, color: "bg-red-500", icon: Heart },
-                    {
-                      label: "Amount Contributed",
-                      value: `Rs. ${stats.totalAmount.toLocaleString()}`,
-                      color: "bg-green-500",
-                      icon: DollarSign,
-                    },
-                    {
-                      label: "Fundraisers Supported",
-                      value: stats.fundraisersSupported,
-                      color: "bg-purple-500",
-                      icon: Target,
-                    },
-                    {
-                      label: "Impact Score",
-                      value: stats.impactScore,
-                      color: "bg-yellow-500",
-                      icon: Star,
-                    },
-                  ].map((achievement, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 1.0 + index * 0.1 }}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 ${achievement.color} rounded-full`}></div>
-                        <achievement.icon className="w-4 h-4 text-gray-500" />
-                        <span className="text-gray-600">{achievement.label}</span>
-                      </div>
-                      <span className="font-bold text-gray-900">{achievement.value}</span>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </motion.div>
+        </motion.div>
       </div>
+
+     
+    
     </div>
   )
 }

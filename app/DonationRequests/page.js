@@ -62,9 +62,9 @@ const HeroSection = () => (
       </h1>
 
       {/* Subtitle */}
-      <p className="text-gray-700 text-lg md:text-xl lg:text-2xl xl:text-2xl mb-8 leading-relaxed font-medium">
-        <span className="text-green-600">Serving Humanity</span> is the{" "}
-        <span className="text-blue-600">Spirit of All Religions</span>
+      <p className="text-gray-700 text-md md:text-md lg:text-md xl:text-2xl mb-8 leading-relaxed font-medium">
+        <span className="text-gray-600">Serving Humanity</span> is the{" "}
+        <span className="text-gray-600">Spirit of All Religions</span>
       </p>
 
       {/* Stats cards */}
@@ -74,7 +74,7 @@ const HeroSection = () => (
             <div className="p-3 bg-red-100 rounded-full group-hover:bg-red-200 transition-colors">
               <Heart className="h-6 w-6 text-red-600" />
             </div>
-            <span className="text-3xl font-bold text-gray-800">1000+</span>
+            <span className="text-3xl font-bold text-gray-800"></span>
           </div>
           <h3 className="font-bold text-gray-800 mb-2">Lives Touched</h3>
           <p className="text-gray-600 text-sm leading-relaxed">
@@ -87,7 +87,7 @@ const HeroSection = () => (
             <div className="p-3 bg-blue-100 rounded-full group-hover:bg-blue-200 transition-colors">
               <Handshake className="h-6 w-6 text-blue-600" />
             </div>
-            <span className="text-3xl font-bold text-gray-800">500+</span>
+            <span className="text-3xl font-bold text-gray-800"></span>
           </div>
           <h3 className="font-bold text-gray-800 mb-2">Kind Hearts</h3>
           <p className="text-gray-600 text-sm leading-relaxed">
@@ -100,7 +100,7 @@ const HeroSection = () => (
             <div className="p-3 bg-green-100 rounded-full group-hover:bg-green-200 transition-colors">
               <Target className="h-6 w-6 text-green-600" />
             </div>
-            <span className="text-3xl font-bold text-gray-800">50+</span>
+            <span className="text-3xl font-bold text-gray-800"></span>
           </div>
           <h3 className="font-bold text-gray-800 mb-2">Cities Served</h3>
           <p className="text-gray-600 text-sm leading-relaxed">
