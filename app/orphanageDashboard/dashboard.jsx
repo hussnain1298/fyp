@@ -879,7 +879,7 @@ const OrphanageDashboard = () => {
                 <div className="p-2 bg-green-100 rounded-lg">
                   <Target className="w-6 h-6 text-green-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900">Quick Actions</h3>
+                <h3 className="text-xl font-bold text-gray-900">Actions</h3>
               </div>
 
               <div className="space-y-4">
@@ -889,21 +889,21 @@ const OrphanageDashboard = () => {
                     description: "Post a new donation request",
                     icon: Heart,
                     color: "from-red-500 to-pink-500",
-                    path: "/orphanageDashboard/requests",
+                   
                   },
                   {
                     title: "Add Service",
                     description: "Offer educational services",
                     icon: GraduationCap,
                     color: "from-purple-500 to-indigo-500",
-                    path: "/orphanageDashboard/services",
+                 
                   },
                   {
                     title: "Start Fundraiser",
                     description: "Launch a fundraising campaign",
                     icon: DollarSign,
                     color: "from-green-500 to-emerald-500",
-                    path: "/orphanageDashboard/fundraise",
+                   
                   },
                 ].map((action, index) => (
                   <motion.button
@@ -913,7 +913,7 @@ const OrphanageDashboard = () => {
                     transition={{ delay: 0.6 + index * 0.1 }}
                     whileHover={{ scale: 1.02, x: 4 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => (window.location.href = action.path)}
+                    // onClick={() => (window.location.href = action.path)}
                     className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-300 hover:shadow-md transition-all duration-200 text-left group"
                   >
                     <div className="flex items-center gap-4">

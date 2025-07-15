@@ -1,8 +1,7 @@
 "use client"
-
 import { useState, useEffect } from "react"
-import { firestore, auth } from "@/lib/firebase"
-import { collection, query, where, getDocs, doc, updateDoc, getDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase" // Corrected import to 'db'
+import { collection, getDocs, doc, updateDoc, getDoc, query, where } from "firebase/firestore"
 import { toast, ToastContainer } from "react-toastify"
 import { motion } from "framer-motion"
 import {
@@ -17,13 +16,18 @@ import {
   Loader2,
   Filter,
   Search,
+  GraduationCap,
+  TrendingUp,
 } from "lucide-react"
 import "react-toastify/dist/ReactToastify.css"
+import { auth } from "@/lib/firebase"
 
 const REQUEST_TYPES = [
   { value: "Money", label: "Money", icon: DollarSign },
   { value: "Clothes", label: "Clothes", icon: Shirt, unit: "piece" },
   { value: "Food", label: "Food", icon: UtensilsCrossed, unit: "1 KG" },
+  { value: "Service Fulfillment", label: "Service Fulfillment", icon: GraduationCap },
+  { value: "Fundraiser Donation", label: "Fundraiser Donation", icon: TrendingUp }, // Added
   { value: "Other", label: "Other", icon: Package },
 ]
 
@@ -31,14 +35,27 @@ const STATUS_COLORS = {
   pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
   confirmed: "bg-green-50 text-green-700 border-green-200",
   rejected: "bg-red-50 text-red-700 border-red-200",
+  "in progress": "bg-blue-50 text-blue-700 border-blue-200", // For service status
+  fulfilled: "bg-green-50 text-green-700 border-green-200", // For service status
 }
 
 // Donation Details Modal Component
 const DonationDetailsModal = ({ isOpen, onClose, donation, onConfirm, onReject, loading }) => {
   if (!isOpen || !donation) return null
-
   const requestType = REQUEST_TYPES.find((t) => t.value === donation.donationType)
   const IconComponent = requestType?.icon || Package
+
+  // Determine the display status for the modal
+  let displayStatus = "Pending"
+  if (donation.confirmed === true) {
+    displayStatus = "Confirmed"
+  } else if (donation.confirmed === false) {
+    displayStatus = "Rejected"
+  } else if (donation.donationType?.toLowerCase().trim() === "service fulfillment" && donation.serviceDetails?.status) {
+    displayStatus = donation.serviceDetails.status // Use service status for display if it's a service fulfillment
+  } else if (donation.donationType === "Fundraiser Donation" && donation.status) {
+    displayStatus = donation.status // Use fundraiser donation status
+  }
 
   return (
     <motion.div
@@ -63,7 +80,6 @@ const DonationDetailsModal = ({ isOpen, onClose, donation, onConfirm, onReject, 
               <X className="w-4 h-4" />
             </button>
           </div>
-
           <div className="space-y-4">
             {/* Donation Type */}
             <div className="flex items-center space-x-3">
@@ -75,11 +91,39 @@ const DonationDetailsModal = ({ isOpen, onClose, donation, onConfirm, onReject, 
                 <p className="text-sm text-gray-500">Donation Type</p>
               </div>
             </div>
-
             {/* Donation Amount/Items */}
             <div className="bg-blue-50 p-4 rounded-xl">
               <h3 className="font-semibold text-blue-800 mb-2">Donation Details:</h3>
-              {donation.subtypes && donation.subtypes.length > 0 ? (
+              {donation.donationType?.toLowerCase().trim() === "service fulfillment" ? (
+                <div className="space-y-2 text-sm">
+                  <p className="text-blue-700">
+                    Service Title:{" "}
+                    <span className="font-semibold text-blue-800">{donation.serviceDetails?.title || "N/A"}</span>
+                  </p>
+                  <p className="text-blue-700">
+                    Service Status:{" "}
+                    <span className="font-semibold text-blue-800">{donation.serviceDetails?.status || "N/A"}</span>
+                  </p>
+                  <p className="text-blue-700">
+                    Fulfillment Note:{" "}
+                    <span className="font-semibold text-blue-800">{donation.donationNote || "No note provided"}</span>
+                  </p>
+                </div>
+              ) : donation.donationType === "Fundraiser Donation" ? (
+                <div className="space-y-2 text-sm">
+                  <p className="text-blue-700">
+                    Fundraiser: <span className="font-semibold text-blue-800">{donation.fundraiserTitle || "N/A"}</span>
+                  </p>
+                  <p className="text-blue-700">
+                    Amount:{" "}
+                    <span className="font-semibold text-blue-800">Rs. {donation.amount?.toLocaleString() || 0}</span>
+                  </p>
+                  <p className="text-blue-700">
+                    Donor Note:{" "}
+                    <span className="font-semibold text-blue-800">{donation.donationNote || "No note provided"}</span>
+                  </p>
+                </div>
+              ) : donation.subtypes && donation.subtypes.length > 0 ? (
                 <div className="space-y-2">
                   {donation.subtypes.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-sm">
@@ -109,7 +153,6 @@ const DonationDetailsModal = ({ isOpen, onClose, donation, onConfirm, onReject, 
                 </div>
               )}
             </div>
-
             {/* Donor Information */}
             <div className="bg-gray-50 p-4 rounded-xl">
               <h3 className="font-semibold text-gray-800 mb-2">Donor Information:</h3>
@@ -118,7 +161,6 @@ const DonationDetailsModal = ({ isOpen, onClose, donation, onConfirm, onReject, 
                 Date: {donation.timestamp?.toDate?.()?.toLocaleDateString() || "N/A"}
               </p>
             </div>
-
             {/* Description */}
             {donation.description && (
               <div>
@@ -126,7 +168,6 @@ const DonationDetailsModal = ({ isOpen, onClose, donation, onConfirm, onReject, 
                 <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">{donation.description}</p>
               </div>
             )}
-
             {/* Payment Information (for Money donations) */}
             {donation.donationType === "Money" && donation.paymentData && (
               <div className="bg-green-50 p-4 rounded-xl">
@@ -138,22 +179,18 @@ const DonationDetailsModal = ({ isOpen, onClose, donation, onConfirm, onReject, 
                 </div>
               </div>
             )}
-
             {/* Status */}
             <div className="flex items-center justify-center">
               <span
                 className={`px-4 py-2 rounded-full text-sm font-semibold border ${
-                  STATUS_COLORS[
-                    donation.confirmed === true ? "confirmed" : donation.confirmed === false ? "rejected" : "pending"
-                  ]
+                  STATUS_COLORS[displayStatus.toLowerCase()] || STATUS_COLORS.pending
                 }`}
               >
-                {donation.confirmed === true ? "Confirmed" : donation.confirmed === false ? "Rejected" : "Pending"}
+                {displayStatus}
               </span>
             </div>
-
-            {/* Action Buttons */}
-            {donation.confirmed === null && (
+            {/* Action Buttons - Only for direct donations that are pending */}
+            {donation.isFundraiserDonation !== true && donation.confirmed === null && (
               <div className="flex space-x-3 pt-4">
                 <button
                   onClick={() => onConfirm(donation)}
@@ -199,42 +236,63 @@ export default function DonationReceived() {
     const user = auth.currentUser
     if (!user) {
       toast.error("Please log in to view donations")
+      setLoading(false)
       return
     }
 
     setLoading(true)
     try {
-      const q = query(collection(firestore, "donations"), where("orphanageId", "==", user.uid))
-      const snapshot = await getDocs(q)
+      const allCombinedDonations = []
 
-      const donationsList = await Promise.all(
-        snapshot.docs.map(async (docSnap) => {
-          const donation = { id: docSnap.id, ...docSnap.data() }
-
-          // Fetch request details
-          if (donation.requestId) {
-            try {
-              const requestDoc = await getDoc(doc(firestore, "requests", donation.requestId))
-              if (requestDoc.exists()) {
-                donation.requestDetails = requestDoc.data()
-              }
-            } catch (err) {
-              console.error("Error fetching request details:", err)
+      // 1. Fetch direct donations (money, clothes, food, service fulfillment)
+      const directDonationsQuery = query(collection(db, "donations"), where("orphanageId", "==", user.uid))
+      const directDonationsSnapshot = await getDocs(directDonationsQuery)
+      const directDonationsPromises = directDonationsSnapshot.docs.map(async (docSnap) => {
+        const donation = { id: docSnap.id, ...docSnap.data() }
+        // Fetch linked service details for "Service Fulfillment" donations
+        if (donation.donationType?.toLowerCase().trim() === "service fulfillment" && donation.serviceId) {
+          try {
+            const serviceDoc = await getDoc(doc(db, "services", donation.serviceId))
+            if (serviceDoc.exists()) {
+              donation.serviceDetails = serviceDoc.data()
             }
+          } catch (err) {
+            console.error("Error fetching service details for donation:", err)
           }
+        }
+        return donation
+      })
+      const directDonations = await Promise.all(directDonationsPromises)
+      allCombinedDonations.push(...directDonations)
 
-          return donation
-        }),
-      )
+      // 2. Fetch fundraiser donations for this orphanage's fundraisers
+      const fundraisersQuery = query(collection(db, "fundraisers"), where("orphanageId", "==", user.uid))
+      const fundraisersSnapshot = await getDocs(fundraisersQuery)
+      const fundraiserDonationsPromises = fundraisersSnapshot.docs.map(async (fundraiserDoc) => {
+        const fundraiserData = fundraiserDoc.data()
+        const fundraiserDonationsSubcollectionQuery = collection(db, "fundraisers", fundraiserDoc.id, "donations")
+        const fundraiserDonationsSnapshot = await getDocs(fundraiserDonationsSubcollectionQuery)
+        return fundraiserDonationsSnapshot.docs.map((donationDoc) => ({
+          id: donationDoc.id,
+          ...donationDoc.data(),
+          donationType: "Fundraiser Donation", // Explicitly set type
+          fundraiserId: fundraiserDoc.id,
+          fundraiserTitle: fundraiserData.title, // Link to parent fundraiser title
+          orphanageId: user.uid, // Ensure orphanageId is present for filtering
+          isFundraiserDonation: true, // Flag to distinguish
+        }))
+      })
+      const nestedFundraiserDonations = await Promise.all(fundraiserDonationsPromises)
+      nestedFundraiserDonations.forEach((donationsArray) => allCombinedDonations.push(...donationsArray))
 
-      // Sort by timestamp (newest first)
-      donationsList.sort((a, b) => {
+      // Sort all combined donations by timestamp (newest first)
+      allCombinedDonations.sort((a, b) => {
         const aTime = a.timestamp?.toDate?.() || new Date(0)
         const bTime = b.timestamp?.toDate?.() || new Date(0)
-        return bTime - aTime
+        return bTime.getTime() - aTime.getTime()
       })
 
-      setDonations(donationsList)
+      setDonations(allCombinedDonations)
     } catch (err) {
       toast.error("Failed to load donations: " + err.message)
     } finally {
@@ -245,16 +303,39 @@ export default function DonationReceived() {
   const handleConfirm = async (donation) => {
     setActionLoading(true)
     try {
-      await updateDoc(doc(firestore, "donations", donation.id), {
+      // Only direct donations can be confirmed/rejected by the orphanage
+      if (donation.isFundraiserDonation) {
+        toast.error("Fundraiser donations are managed automatically.")
+        return
+      }
+
+      await updateDoc(doc(db, "donations", donation.id), {
         confirmed: true,
       })
 
-      // Update local state
-      setDonations((prev) => prev.map((d) => (d.id === donation.id ? { ...d, confirmed: true } : d)))
+      // If it's a service fulfillment, also update the service status to Fulfilled
+      if (donation.donationType?.toLowerCase().trim() === "service fulfillment" && donation.serviceId) {
+        await updateDoc(doc(db, "services", donation.serviceId), {
+          status: "Fulfilled",
+        })
+      }
 
+      // Update local state
+      setDonations((prev) =>
+        prev.map((d) =>
+          d.id === donation.id
+            ? {
+                ...d,
+                confirmed: true,
+                serviceDetails: d.serviceDetails ? { ...d.serviceDetails, status: "Fulfilled" } : d.serviceDetails,
+              }
+            : d,
+        ),
+      )
       toast.success("Donation confirmed successfully!")
       setShowModal(false)
     } catch (err) {
+      console.error("Failed to confirm donation:", err)
       toast.error("Failed to confirm donation: " + err.message)
     } finally {
       setActionLoading(false)
@@ -264,16 +345,39 @@ export default function DonationReceived() {
   const handleReject = async (donation) => {
     setActionLoading(true)
     try {
-      await updateDoc(doc(firestore, "donations", donation.id), {
+      // Only direct donations can be confirmed/rejected by the orphanage
+      if (donation.isFundraiserDonation) {
+        toast.error("Fundraiser donations are managed automatically.")
+        return
+      }
+
+      await updateDoc(doc(db, "donations", donation.id), {
         confirmed: false,
       })
 
-      // Update local state
-      setDonations((prev) => prev.map((d) => (d.id === donation.id ? { ...d, confirmed: false } : d)))
+      // If it's a service fulfillment, also update the service status to Rejected
+      if (donation.donationType?.toLowerCase().trim() === "service fulfillment" && donation.serviceId) {
+        await updateDoc(doc(db, "services", donation.serviceId), {
+          status: "Rejected",
+        })
+      }
 
+      // Update local state
+      setDonations((prev) =>
+        prev.map((d) =>
+          d.id === donation.id
+            ? {
+                ...d,
+                confirmed: false,
+                serviceDetails: d.serviceDetails ? { ...d.serviceDetails, status: "Rejected" } : d.serviceDetails,
+              }
+            : d,
+        ),
+      )
       toast.success("Donation rejected")
       setShowModal(false)
     } catch (err) {
+      console.error("Failed to reject donation:", err)
       toast.error("Failed to reject donation: " + err.message)
     } finally {
       setActionLoading(false)
@@ -292,17 +396,39 @@ export default function DonationReceived() {
 
   // Filter and search donations
   const filteredDonations = donations.filter((donation) => {
-    const matchesFilter =
-      filter === "all" ||
-      (filter === "pending" && donation.confirmed === null) ||
-      (filter === "confirmed" && donation.confirmed === true) ||
-      (filter === "rejected" && donation.confirmed === false)
+    let matchesFilter = false
+    if (filter === "all") {
+      matchesFilter = true
+    } else if (filter === "pending") {
+      matchesFilter = donation.confirmed === null && donation.donationType !== "Fundraiser Donation" // Direct pending
+      if (donation.donationType === "Fundraiser Donation") {
+        matchesFilter = donation.status === "pending" // Fundraiser pending
+      } else if (donation.donationType?.toLowerCase().trim() === "service fulfillment") {
+        matchesFilter = donation.serviceDetails?.status === "In Progress" // Service in progress
+      }
+    } else if (filter === "confirmed") {
+      matchesFilter = donation.confirmed === true
+      if (donation.donationType === "Fundraiser Donation") {
+        matchesFilter = donation.status === "approved" // Fundraiser approved
+      } else if (donation.donationType?.toLowerCase().trim() === "service fulfillment") {
+        matchesFilter = donation.serviceDetails?.status === "Fulfilled" // Service fulfilled
+      }
+    } else if (filter === "rejected") {
+      matchesFilter = donation.confirmed === false
+      if (donation.donationType === "Fundraiser Donation") {
+        matchesFilter = donation.status === "rejected" // Fundraiser rejected
+      } else if (donation.donationType?.toLowerCase().trim() === "service fulfillment") {
+        matchesFilter = donation.serviceDetails?.status === "Rejected" // Service rejected
+      }
+    }
 
     const matchesSearch =
       !searchTerm ||
       donation.donorEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       donation.donationType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      donation.requestDetails?.title?.toLowerCase().includes(searchTerm.toLowerCase())
+      donation.serviceDetails?.title?.toLowerCase().includes(searchTerm.toLowerCase()) || // Search by service title
+      donation.fundraiserTitle?.toLowerCase().includes(searchTerm.toLowerCase()) || // Search by fundraiser title
+      donation.description?.toLowerCase().includes(searchTerm.toLowerCase()) // Search by description
 
     return matchesFilter && matchesSearch
   })
@@ -314,9 +440,29 @@ export default function DonationReceived() {
 
   const stats = {
     total: donations.length,
-    pending: donations.filter((d) => d.confirmed === null).length,
-    confirmed: donations.filter((d) => d.confirmed === true).length,
-    rejected: donations.filter((d) => d.confirmed === false).length,
+    pending: donations.filter((d) => {
+      if (d.isFundraiserDonation) return d.status === "pending"
+      if (d.donationType?.toLowerCase().trim() === "service fulfillment")
+        return d.serviceDetails?.status === "In Progress"
+      return d.confirmed === null
+    }).length,
+    confirmed: donations.filter((d) => {
+      if (d.isFundraiserDonation) return d.status === "approved"
+      if (d.donationType?.toLowerCase().trim() === "service fulfillment")
+        return d.serviceDetails?.status === "Fulfilled"
+      return d.confirmed === true
+    }).length,
+    rejected: donations.filter((d) => {
+      if (d.isFundraiserDonation) return d.status === "rejected"
+      if (d.donationType?.toLowerCase().trim() === "service fulfillment") return d.serviceDetails?.status === "Rejected"
+      return d.confirmed === false
+    }).length,
+    totalMoneyDonated: donations.reduce((sum, d) => {
+      if (d.donationType === "Money" || d.donationType === "Fundraiser Donation") {
+        return sum + (Number(d.amount) || 0)
+      }
+      return sum
+    }, 0),
   }
 
   if (loading) {
@@ -337,7 +483,6 @@ export default function DonationReceived() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white">
       <ToastContainer position="top-right" autoClose={3000} />
-
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
@@ -362,9 +507,9 @@ export default function DonationReceived() {
             <div className="text-2xl font-bold text-green-600">{stats.confirmed}</div>
             <div className="text-sm text-green-600">Confirmed</div>
           </div>
-          <div className="bg-red-50 p-4 rounded-xl border border-red-100">
-            <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
-            <div className="text-sm text-red-600">Rejected</div>
+          <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
+            <div className="text-2xl font-bold text-purple-600">Rs. {stats.totalMoneyDonated.toLocaleString()}</div>
+            <div className="text-sm text-purple-600">Total Money Donated</div>
           </div>
         </div>
 
@@ -389,7 +534,6 @@ export default function DonationReceived() {
                 </select>
               </div>
             </div>
-
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
@@ -434,7 +578,7 @@ export default function DonationReceived() {
                         Amount/Items
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Request
+                        Linked Request/Service/Fundraiser
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Date
@@ -449,15 +593,27 @@ export default function DonationReceived() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {paginatedDonations.map((donation, index) => {
+                      // Log donation details for debugging
+                      console.log(
+                        `Donation ID: ${donation.id}, Type: '${donation.donationType}', Service Details:`,
+                        donation.serviceDetails,
+                      )
+
                       const requestType = REQUEST_TYPES.find((t) => t.value === donation.donationType)
                       const IconComponent = requestType?.icon || Package
-                      const status =
-                        donation.confirmed === true
-                          ? "confirmed"
-                          : donation.confirmed === false
-                            ? "rejected"
-                            : "pending"
-
+                      let displayStatus = "Pending"
+                      if (donation.confirmed === true) {
+                        displayStatus = "Confirmed"
+                      } else if (donation.confirmed === false) {
+                        displayStatus = "Rejected"
+                      } else if (
+                        donation.donationType?.toLowerCase().trim() === "service fulfillment" &&
+                        donation.serviceDetails?.status
+                      ) {
+                        displayStatus = donation.serviceDetails.status
+                      } else if (donation.donationType === "Fundraiser Donation" && donation.status) {
+                        displayStatus = donation.status
+                      }
                       return (
                         <motion.tr
                           key={donation.id}
@@ -481,7 +637,20 @@ export default function DonationReceived() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm">
-                              {donation.subtypes && donation.subtypes.length > 0 ? (
+                              {donation.donationType?.toLowerCase().trim() === "service fulfillment" ? (
+                                <p className="font-medium text-gray-900">
+                                  Service Fulfillment
+                                  {donation.serviceDetails?.category && (
+                                    <span className="text-xs text-gray-500 ml-1">
+                                      ({donation.serviceDetails.category})
+                                    </span>
+                                  )}
+                                </p>
+                              ) : donation.donationType === "Fundraiser Donation" ? (
+                                <p className="font-medium text-gray-900">
+                                  Rs. {donation.amount?.toLocaleString() || 0}
+                                </p>
+                              ) : donation.subtypes && donation.subtypes.length > 0 ? (
                                 <div>
                                   <p className="font-medium text-gray-900">
                                     {donation.donatedAmount} {requestType?.unit || ""}
@@ -501,7 +670,16 @@ export default function DonationReceived() {
                           </td>
                           <td className="px-6 py-4">
                             <p className="text-sm text-gray-900 truncate max-w-[120px]">
-                              {donation.requestDetails?.title || "N/A"}
+                              {donation.requestId
+                                ? donation.requestDetails?.title ||
+                                  `Request ID: ${donation.requestId.substring(0, 8)}...`
+                                : donation.serviceId
+                                  ? donation.serviceDetails?.title ||
+                                    `Service ID: ${donation.serviceId.substring(0, 8)}...`
+                                  : donation.fundraiserId
+                                    ? donation.fundraiserTitle ||
+                                      `Fundraiser ID: ${donation.fundraiserId.substring(0, 8)}...`
+                                    : "N/A"}
                             </p>
                           </td>
                           <td className="px-6 py-4">
@@ -511,9 +689,11 @@ export default function DonationReceived() {
                           </td>
                           <td className="px-6 py-4">
                             <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${STATUS_COLORS[status]}`}
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${
+                                STATUS_COLORS[displayStatus.toLowerCase()] || STATUS_COLORS.pending
+                              }`}
                             >
-                              {status === "confirmed" ? "Confirmed" : status === "rejected" ? "Rejected" : "Pending"}
+                              {displayStatus}
                             </span>
                           </td>
                           <td className="px-6 py-4">
@@ -525,7 +705,8 @@ export default function DonationReceived() {
                               >
                                 <Eye className="w-4 h-4" />
                               </button>
-                              {donation.confirmed === null && (
+                              {/* Only show confirm/reject for direct donations that are pending */}
+                              {donation.isFundraiserDonation !== true && donation.confirmed === null && (
                                 <>
                                   <button
                                     onClick={() => handleConfirm(donation)}
@@ -558,11 +739,27 @@ export default function DonationReceived() {
             {/* Mobile Card View */}
             <div className="lg:hidden space-y-4">
               {paginatedDonations.map((donation, index) => {
+                // Log donation details for debugging
+                console.log(
+                  `Donation ID: ${donation.id}, Type: '${donation.donationType}', Service Details:`,
+                  donation.serviceDetails,
+                )
+
                 const requestType = REQUEST_TYPES.find((t) => t.value === donation.donationType)
                 const IconComponent = requestType?.icon || Package
-                const status =
-                  donation.confirmed === true ? "confirmed" : donation.confirmed === false ? "rejected" : "pending"
-
+                let displayStatus = "Pending"
+                if (donation.confirmed === true) {
+                  displayStatus = "Confirmed"
+                } else if (donation.confirmed === false) {
+                  displayStatus = "Rejected"
+                } else if (
+                  donation.donationType?.toLowerCase().trim() === "service fulfillment" &&
+                  donation.serviceDetails?.status
+                ) {
+                  displayStatus = donation.serviceDetails.status
+                } else if (donation.donationType === "Fundraiser Donation" && donation.status) {
+                  displayStatus = donation.status
+                }
                 return (
                   <motion.div
                     key={donation.id}
@@ -578,11 +775,14 @@ export default function DonationReceived() {
                         </div>
                         <span className="text-sm font-medium text-gray-900">{donation.donationType}</span>
                       </div>
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${STATUS_COLORS[status]}`}>
-                        {status === "confirmed" ? "Confirmed" : status === "rejected" ? "Rejected" : "Pending"}
+                      <span
+                        className={`px-2 py-1 text-xs font-semibold rounded-full border ${
+                          STATUS_COLORS[displayStatus.toLowerCase()] || STATUS_COLORS.pending
+                        }`}
+                      >
+                        {displayStatus}
                       </span>
                     </div>
-
                     <div className="space-y-2 mb-4">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Donor:</span>
@@ -591,9 +791,20 @@ export default function DonationReceived() {
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Amount:</span>
                         <span className="font-medium text-gray-900">
-                          {donation.donationType === "Money"
-                            ? `Rs. ${donation.amount || donation.donatedAmount || 0}`
-                            : `${donation.donatedAmount || donation.numClothes || donation.numMeals || 0} ${requestType?.unit || ""}`}
+                          {donation.donationType?.toLowerCase().trim() === "service fulfillment" ? (
+                            <>
+                              Service Fulfillment
+                              {donation.serviceDetails?.category && (
+                                <span className="text-xs text-gray-500 ml-1">({donation.serviceDetails.category})</span>
+                              )}
+                            </>
+                          ) : donation.donationType === "Fundraiser Donation" ? (
+                            `Rs. ${donation.amount?.toLocaleString() || 0}`
+                          ) : donation.donationType === "Money" ? (
+                            `Rs. ${donation.amount || donation.donatedAmount || 0}`
+                          ) : (
+                            `${donation.donatedAmount || donation.numClothes || donation.numMeals || 0} ${requestType?.unit || ""}`
+                          )}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
@@ -602,8 +813,20 @@ export default function DonationReceived() {
                           {donation.timestamp?.toDate?.()?.toLocaleDateString() || "N/A"}
                         </span>
                       </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Linked:</span>
+                        <span className="font-medium text-gray-900 truncate ml-2">
+                          {donation.requestId
+                            ? donation.requestDetails?.title || `Request ID: ${donation.requestId.substring(0, 8)}...`
+                            : donation.serviceId
+                              ? donation.serviceDetails?.title || `Service ID: ${donation.serviceId.substring(0, 8)}...`
+                              : donation.fundraiserId
+                                ? donation.fundraiserTitle ||
+                                  `Fundraiser ID: ${donation.fundraiserId.substring(0, 8)}...`
+                                : "N/A"}
+                        </span>
+                      </div>
                     </div>
-
                     <div className="flex space-x-2">
                       <button
                         onClick={() => openModal(donation)}
@@ -612,7 +835,7 @@ export default function DonationReceived() {
                         <Eye className="w-4 h-4" />
                         <span>Details</span>
                       </button>
-                      {donation.confirmed === null && (
+                      {donation.isFundraiserDonation !== true && donation.confirmed === null && (
                         <>
                           <button
                             onClick={() => handleConfirm(donation)}
@@ -648,7 +871,6 @@ export default function DonationReceived() {
                 >
                   Previous
                 </button>
-
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                   <button
                     key={page}
@@ -662,7 +884,6 @@ export default function DonationReceived() {
                     {page}
                   </button>
                 ))}
-
                 <button
                   onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}

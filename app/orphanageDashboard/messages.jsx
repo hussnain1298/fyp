@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { firestore, auth } from "@/lib/firebase"
+import { firestore, auth } from "@/lib/firebase" // Assuming firebase is in lib/firebase
 import {
   collection,
   query,
@@ -88,7 +88,6 @@ export default function OrphanageMessages() {
           if (userDoc.exists()) {
             const userData = userDoc.data()
             setUserProfile(userData)
-
             if (userData.userType !== "Orphanage") {
               setError("Access denied. Orphanage account required.")
               setLoading(false)
@@ -115,7 +114,6 @@ export default function OrphanageMessages() {
   // Fetch all donors
   useEffect(() => {
     if (!user || !userProfile || userProfile.userType !== "Orphanage") return
-
     const fetchDonors = async () => {
       try {
         const usersSnapshot = await getDocs(collection(firestore, "users"))
@@ -126,24 +124,20 @@ export default function OrphanageMessages() {
             ...doc.data(),
           }))
           .filter((user) => user.userType === "Donor")
-
         setAllDonors(donors)
       } catch (error) {
         console.error("Error fetching donors:", error)
       }
     }
-
     fetchDonors()
   }, [user, userProfile])
 
   // Fetch regular chats with real-time updates
   useEffect(() => {
     if (!user || !userProfile || userProfile.userType !== "Orphanage") return
-
     const fetchChats = () => {
       try {
         const chatsRef = collection(firestore, "chats")
-
         const unsubscribe = onSnapshot(
           chatsRef,
           async (snapshot) => {
@@ -151,16 +145,13 @@ export default function OrphanageMessages() {
               const data = doc.data()
               return data.participants?.includes(user.uid)
             })
-
             const chatPromises = userChats.map(async (docSnap) => {
               const chatData = docSnap.data()
               const chatId = docSnap.id
               const donorId = chatData.donorId
-
               let lastMessage = null
               let lastTimestamp = null
               let unreadCount = 0
-
               try {
                 const messagesQuery = query(
                   collection(firestore, "chats", chatId, "messages"),
@@ -173,7 +164,6 @@ export default function OrphanageMessages() {
                   lastMessage = msg.text || ""
                   lastTimestamp = msg.timestamp?.toDate() || null
                 }
-
                 const allMessagesSnap = await getDocs(collection(firestore, "chats", chatId, "messages"))
                 unreadCount = allMessagesSnap.docs.filter((doc) => {
                   const data = doc.data()
@@ -182,7 +172,6 @@ export default function OrphanageMessages() {
               } catch (e) {
                 console.error("Error fetching messages:", e)
               }
-
               return {
                 id: chatId,
                 ...chatData,
@@ -193,7 +182,6 @@ export default function OrphanageMessages() {
                 type: "donor",
               }
             })
-
             const enrichedChats = await Promise.all(chatPromises)
             setChats(enrichedChats)
           },
@@ -202,14 +190,12 @@ export default function OrphanageMessages() {
             setError("Failed to load conversations. Please refresh the page.")
           },
         )
-
         return () => unsubscribe()
       } catch (error) {
         console.error("Error setting up chats listener:", error)
         setError("Failed to load conversations.")
       }
     }
-
     const unsubscribe = fetchChats()
     return () => {
       if (typeof unsubscribe === "function") {
@@ -221,11 +207,9 @@ export default function OrphanageMessages() {
   // Fetch admin chats with real-time updates
   useEffect(() => {
     if (!user || !userProfile || userProfile.userType !== "Orphanage") return
-
     const fetchAdminChats = () => {
       try {
         const adminChatsRef = collection(firestore, "adminChats")
-
         const unsubscribe = onSnapshot(
           adminChatsRef,
           async (snapshot) => {
@@ -233,15 +217,12 @@ export default function OrphanageMessages() {
               const data = doc.data()
               return data.userId === user.uid
             })
-
             const chatPromises = userAdminChats.map(async (docSnap) => {
               const chatData = docSnap.data()
               const chatId = docSnap.id
-
               let lastMessage = null
               let lastTimestamp = null
               let unreadCount = 0
-
               try {
                 const messagesQuery = query(
                   collection(firestore, "adminChats", chatId, "messages"),
@@ -254,7 +235,6 @@ export default function OrphanageMessages() {
                   lastMessage = msg.text || ""
                   lastTimestamp = msg.timestamp?.toDate() || null
                 }
-
                 const allMessagesSnap = await getDocs(collection(firestore, "adminChats", chatId, "messages"))
                 unreadCount = allMessagesSnap.docs.filter((doc) => {
                   const data = doc.data()
@@ -263,7 +243,6 @@ export default function OrphanageMessages() {
               } catch (e) {
                 console.error("Error fetching admin messages:", e)
               }
-
               return {
                 id: chatId,
                 ...chatData,
@@ -273,7 +252,6 @@ export default function OrphanageMessages() {
                 type: "admin",
               }
             })
-
             const enrichedAdminChats = await Promise.all(chatPromises)
             setAdminChats(enrichedAdminChats)
           },
@@ -281,13 +259,11 @@ export default function OrphanageMessages() {
             console.error("Error in admin chats listener:", error)
           },
         )
-
         return () => unsubscribe()
       } catch (error) {
         console.error("Error setting up admin chats listener:", error)
       }
     }
-
     const unsubscribe = fetchAdminChats()
     return () => {
       if (typeof unsubscribe === "function") {
@@ -299,9 +275,7 @@ export default function OrphanageMessages() {
   // Fetch donor profiles with caching
   useEffect(() => {
     const donorIds = chats.map((chat) => chat.donorId).filter((id) => id && !donorProfiles[id] && !profileCache.has(id))
-
     if (donorIds.length === 0) return
-
     const fetchProfiles = async () => {
       const updates = {}
       for (const id of donorIds) {
@@ -309,7 +283,6 @@ export default function OrphanageMessages() {
           updates[id] = profileCache.get(id)
           continue
         }
-
         try {
           const docSnap = await getDoc(doc(firestore, "users", id))
           if (docSnap.exists()) {
@@ -333,7 +306,6 @@ export default function OrphanageMessages() {
       }
       setDonorProfiles((prev) => ({ ...prev, ...updates }))
     }
-
     fetchProfiles()
   }, [chats, donorProfiles, profileCache])
 
@@ -344,20 +316,16 @@ export default function OrphanageMessages() {
   // Start new chat with donor
   const startChat = async (donor) => {
     if (!user || !donor) return
-
     try {
       // Create a consistent chat ID
       const chatId = `${donor.uid}_${user.uid}`
-
       // Check if chat already exists
       const existingChat = await getDoc(doc(firestore, "chats", chatId))
-
       if (existingChat.exists()) {
         setShowNewChatModal(false)
         setDonorSearch("")
         return router.push(`/chat?chatId=${chatId}`)
       }
-
       // Create new chat with consistent ID
       await setDoc(doc(firestore, "chats", chatId), {
         donorId: donor.uid,
@@ -367,7 +335,6 @@ export default function OrphanageMessages() {
         lastMessage: "",
         lastMessageTime: serverTimestamp(),
       })
-
       setShowNewChatModal(false)
       setDonorSearch("")
       router.push(`/chat?chatId=${chatId}`)
@@ -380,7 +347,6 @@ export default function OrphanageMessages() {
   // Start admin chat
   const startAdminChat = async () => {
     if (!user) return
-
     try {
       // Check if admin chat already exists
       const adminChatsSnapshot = await getDocs(collection(firestore, "adminChats"))
@@ -388,25 +354,20 @@ export default function OrphanageMessages() {
         const data = doc.data()
         return data.userId === user.uid
       })
-
       if (existingChat) {
         return router.push(`/chat?chatId=${existingChat.id}&isAdmin=true`)
       }
-
       // Find an admin user
       const usersSnapshot = await getDocs(collection(firestore, "users"))
       const adminUser = usersSnapshot.docs.find((doc) => {
         const data = doc.data()
         return data.userType === "admin"
       })
-
       if (!adminUser) {
         setError("No admin available at the moment. Please try again later.")
         return
       }
-
       const adminId = adminUser.id
-
       // Create new admin chat
       const chatRef = await addDoc(collection(firestore, "adminChats"), {
         adminId: adminId,
@@ -417,7 +378,6 @@ export default function OrphanageMessages() {
         lastMessage: "",
         lastMessageTime: serverTimestamp(),
       })
-
       router.push(`/chat?chatId=${chatRef.id}&isAdmin=true`)
     } catch (error) {
       console.error("Failed to start admin chat:", error)
@@ -433,26 +393,40 @@ export default function OrphanageMessages() {
   }
 
   // Filter chats based on search
-  const filteredChats = chats.filter((chat) => {
-    const profile = donorProfiles[chat.donorId]
-    if (!profile) return false
+  const allConversations = useMemo(() => {
+    const combined = [...chats, ...adminChats]
+    const searchLower = search.toLowerCase()
 
-    if (search) {
-      const searchTarget = (profile.name || "").toLowerCase()
-      const emailTarget = (profile.email || "").toLowerCase()
-      if (!searchTarget.includes(search.toLowerCase()) && !emailTarget.includes(search.toLowerCase())) return false
-    }
+    return combined
+      .filter((chat) => {
+        if (chat.type === "admin") {
+          // For admin chats, search against hardcoded admin profile
+          const adminName = "admin support".toLowerCase()
+          const adminEmail = "admin@careconnect.com".toLowerCase()
+          return adminName.includes(searchLower) || adminEmail.includes(searchLower)
+        } else {
+          // For donor chats, use the fetched donor profile
+          const profile = donorProfiles[chat.donorId]
+          if (!profile) return false // Exclude if profile not found or not yet loaded
 
-    return true
-  })
+          const donorName = (profile.name || "").toLowerCase()
+          const donorEmail = (profile.email || "").toLowerCase()
+          return donorName.includes(searchLower) || donorEmail.includes(searchLower)
+        }
+      })
+      .sort((a, b) => {
+        // Sort by unread first, then by last message time
+        if (a.unreadCount > 0 && b.unreadCount === 0) return -1
+        if (a.unreadCount === 0 && b.unreadCount > 0) return 1
+        return (b.lastTimestamp?.getTime() || 0) - (a.lastTimestamp?.getTime() || 0)
+      })
+  }, [chats, adminChats, donorProfiles, search])
 
   // Filter donors for new chat modal with animations
   const filteredDonors = useMemo(() => {
     if (!donorSearch.trim()) return []
-
     setLoadingUsers(true)
     setTimeout(() => setLoadingUsers(false), 300)
-
     return allDonors
       .filter((donor) => {
         const name = (donor.fullName || "").toLowerCase()
@@ -461,14 +435,6 @@ export default function OrphanageMessages() {
       })
       .slice(0, 10)
   }, [allDonors, donorSearch])
-
-  // Combine and sort all chats
-  const allChats = [...filteredChats, ...adminChats].sort((a, b) => {
-    // Sort by unread first, then by last message time
-    if (a.unreadCount > 0 && b.unreadCount === 0) return -1
-    if (a.unreadCount === 0 && b.unreadCount > 0) return 1
-    return (b.lastTimestamp?.getTime() || 0) - (a.lastTimestamp?.getTime() || 0)
-  })
 
   if (loading) {
     return (
@@ -584,7 +550,7 @@ export default function OrphanageMessages() {
 
         {/* Conversations List */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          {allChats.length === 0 ? (
+          {allConversations.length === 0 ? (
             <div className="text-center py-16">
               <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No conversations yet</h3>
@@ -606,12 +572,11 @@ export default function OrphanageMessages() {
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-              {allChats.map((chat, index) => {
+              {allConversations.map((chat, index) => {
                 const isAdminChat = chat.type === "admin"
                 const profile = isAdminChat
                   ? { name: "Admin Support", email: "admin@careconnect.com", city: "Support" }
                   : donorProfiles[chat.donorId] || { name: "Loading...", email: "", city: "" }
-
                 return (
                   <div
                     key={chat.id}
@@ -683,7 +648,6 @@ export default function OrphanageMessages() {
                   </button>
                 </div>
               </div>
-
               <div className="p-6">
                 <div className="relative mb-4">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -695,7 +659,6 @@ export default function OrphanageMessages() {
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
-
                 <div className="max-h-60 overflow-y-auto">
                   {loadingUsers ? (
                     <div className="space-y-2">
@@ -742,24 +705,27 @@ export default function OrphanageMessages() {
           </div>
         )}
       </div>
-
       <style jsx>{`
         @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
         }
-        
+
         @keyframes slideUp {
-          from { 
+          from {
             opacity: 0;
             transform: translateY(20px);
           }
-          to { 
+          to {
             opacity: 1;
             transform: translateY(0);
           }
         }
-        
+
         @keyframes fadeInUp {
           from {
             opacity: 0;
@@ -770,15 +736,15 @@ export default function OrphanageMessages() {
             transform: translateY(0);
           }
         }
-        
+
         .animate-fadeIn {
           animation: fadeIn 0.2s ease-out;
         }
-        
+
         .animate-slideUp {
           animation: slideUp 0.3s ease-out;
         }
-        
+
         .animate-fadeInUp {
           animation: fadeInUp 0.3s ease-out forwards;
           opacity: 0;
