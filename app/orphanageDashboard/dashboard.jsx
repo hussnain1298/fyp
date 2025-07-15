@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { auth, firestore, updateDoc, deleteDoc } from "@/lib/firebase"
-import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore"
+import { auth, firestore } from "@/lib/firebase"
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot, updateDoc, deleteDoc } from "firebase/firestore"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   AlertTriangle,
@@ -16,10 +16,7 @@ import {
   GraduationCap,
   Bell,
   Building,
-  Activity,
-  Users,
   Target,
-  Award,
   Sparkles,
   Gift,
   MapPin,
@@ -31,6 +28,7 @@ import {
   Star,
   Eye,
   TrendingUp,
+  AlertCircle,
 } from "lucide-react"
 
 const OrphanageDashboard = () => {
@@ -55,6 +53,7 @@ const OrphanageDashboard = () => {
   const [orphanageRequests, setOrphanageRequests] = useState([])
   const [showDonations, setShowDonations] = useState(false)
   const [donationFilter, setDonationFilter] = useState("All")
+  const [donationsError, setDonationsError] = useState(null)
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -65,11 +64,10 @@ const OrphanageDashboard = () => {
             const userData = userDoc.data()
             const userWithId = { ...userData, uid: currentUser.uid }
             setUser(userWithId)
-
             loadDashboardData(currentUser.uid)
             loadAdminNotifications(currentUser.uid, userData)
             loadRecentActivity(currentUser.uid)
-            loadPublicDonations()
+            loadPublicDonations(currentUser.uid) // Pass userId for permission check
             loadOrphanageRequests(currentUser.uid)
           }
         } catch (error) {
@@ -78,32 +76,63 @@ const OrphanageDashboard = () => {
       }
       setLoading(false)
     })
-
     return () => unsubscribe()
   }, [])
 
-  const loadPublicDonations = async () => {
+  const loadPublicDonations = async (userId) => {
     try {
+      setDonationsError(null)
+
+      // Try to load public donations with error handling
       const donationsQuery = query(collection(firestore, "publicDonations"))
-      const unsubscribe = onSnapshot(donationsQuery, (snapshot) => {
-        const donations = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
 
-        // Sort by timestamp (newest first)
-        donations.sort((a, b) => {
-          const aTime = a.timestamp?.toDate?.() || new Date(0)
-          const bTime = b.timestamp?.toDate?.() || new Date(0)
-          return bTime - aTime
-        })
-
-        setPublicDonations(donations)
-      })
+    const unsubscribe = onSnapshot(
+  donationsQuery,
+  (snapshot) => {
+    const donations = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setPublicDonations(donations);
+    setDonationsError(null); // Clear error if successful
+  },
+  (error) => {
+    console.error("Error loading donations:", error);
+    setDonationsError(error.message); // Show error in state for debugging
+  }
+);
 
       return unsubscribe
     } catch (error) {
-      console.error("Error loading public donations:", error)
+      console.error("Error setting up public donations listener:", error)
+      setDonationsError(error.message)
+      loadFallbackDonations(userId)
+    }
+  }
+
+  const loadFallbackDonations = async (userId) => {
+    try {
+      // Alternative approach: Load from donations collection with public flag
+      const fallbackQuery = query(collection(firestore, "donations"), where("isPublic", "==", true))
+
+      const snapshot = await getDocs(fallbackQuery)
+      const donations = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+
+      donations.sort((a, b) => {
+        const aTime = a.timestamp?.toDate?.() || new Date(0)
+        const bTime = b.timestamp?.toDate?.() || new Date(0)
+        return bTime - aTime
+      })
+
+      setPublicDonations(donations)
+      setDonationsError(null)
+    } catch (fallbackError) {
+      console.error("Fallback donations loading also failed:", fallbackError)
+      setPublicDonations([])
+      setDonationsError("Unable to load available donations. Please check your permissions.")
     }
   }
 
@@ -117,7 +146,6 @@ const OrphanageDashboard = () => {
         }))
         setOrphanageRequests(requests)
       })
-
       return unsubscribe
     } catch (error) {
       console.error("Error loading orphanage requests:", error)
@@ -150,7 +178,6 @@ const OrphanageDashboard = () => {
 
       // Check if donation type matches any of our requests
       const isDirectMatch = requestTypes.includes(donationType)
-
       if (isDirectMatch) {
         priorityScore = 3 // High priority for direct matches
         matchedDonations.push({ ...donation, priority: "high", priorityScore })
@@ -163,7 +190,6 @@ const OrphanageDashboard = () => {
 
     // Only return donations if we have priority matches (priorityScore > 1)
     const highPriorityDonations = matchedDonations.filter((d) => d.priorityScore > 1)
-
     if (highPriorityDonations.length === 0) {
       return [] // Don't show any donations if no priority matches
     }
@@ -295,7 +321,6 @@ const OrphanageDashboard = () => {
 
   const loadAdminNotifications = (userId, userData) => {
     const orgName = userData.orgName || userData.organizationName || userData.fullName || userData.name
-
     const simpleQuery = query(collection(firestore, "adminNotifications"), where("orphanageId", "==", userId))
 
     const unsubscribe = onSnapshot(
@@ -306,15 +331,12 @@ const OrphanageDashboard = () => {
             id: doc.id,
             ...doc.data(),
           }))
-
           notifications.sort((a, b) => {
             const aTime = a.createdAt?.toDate?.() || new Date(0)
             const bTime = b.createdAt?.toDate?.() || new Date(0)
             return bTime - aTime
           })
-
           setAdminNotifications(notifications)
-
           const unreadCount = notifications.filter((n) => !n.read).length
           if (unreadCount > 0) {
             setShowNotifications(true)
@@ -324,21 +346,17 @@ const OrphanageDashboard = () => {
             collection(firestore, "adminNotifications"),
             where("orphanageName", "==", orgName),
           )
-
           onSnapshot(fallbackQuery, (fallbackSnapshot) => {
             const notifications = fallbackSnapshot.docs.map((doc) => ({
               id: doc.id,
               ...doc.data(),
             }))
-
             notifications.sort((a, b) => {
               const aTime = a.createdAt?.toDate?.() || new Date(0)
               const bTime = b.createdAt?.toDate?.() || new Date(0)
               return bTime - aTime
             })
-
             setAdminNotifications(notifications)
-
             const unreadCount = notifications.filter((n) => !n.read).length
             if (unreadCount > 0) {
               setShowNotifications(true)
@@ -354,7 +372,6 @@ const OrphanageDashboard = () => {
               id: doc.id,
               ...doc.data(),
             }))
-
             const filteredNotifications = allNotifications.filter((notification) => {
               return (
                 notification.orphanageId === userId ||
@@ -362,15 +379,12 @@ const OrphanageDashboard = () => {
                 notification.targetOrganization === orgName
               )
             })
-
             filteredNotifications.sort((a, b) => {
               const aTime = a.createdAt?.toDate?.() || new Date(0)
               const bTime = b.createdAt?.toDate?.() || new Date(0)
               return bTime - aTime
             })
-
             setAdminNotifications(filteredNotifications)
-
             const unreadCount = filteredNotifications.filter((n) => !n.read).length
             if (unreadCount > 0) {
               setShowNotifications(true)
@@ -412,7 +426,6 @@ const OrphanageDashboard = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50 flex items-center justify-center">
         <div className="text-center">
-         
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-gray-600 text-lg font-medium">
             Loading your dashboard...
           </motion.p>
@@ -489,6 +502,25 @@ const OrphanageDashboard = () => {
           </div>
         </motion.div>
 
+        {/* Error Message for Donations */}
+        {donationsError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg"
+          >
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-600" />
+              <div>
+                <h4 className="font-medium text-yellow-800">Donations Access Limited</h4>
+                <p className="text-sm text-yellow-700">
+                  Unable to load available donations. Please contact your administrator to update permissions.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Available Donations Panel - Only show if there are priority matches */}
         <AnimatePresence>
           {showDonations && priorityMatchCount > 0 && (
@@ -539,7 +571,6 @@ const OrphanageDashboard = () => {
                     </div>
                   </div>
                 </div>
-
                 <div className="max-h-96 overflow-y-auto">
                   {filteredDonations.length === 0 ? (
                     <div className="p-8 text-center text-gray-500">
@@ -552,7 +583,6 @@ const OrphanageDashboard = () => {
                       {filteredDonations.map((donation, index) => {
                         const IconComponent = getDonationIcon(donation.donationType)
                         const isHighPriority = donation.priority === "high"
-
                         return (
                           <motion.div
                             key={donation.id}
@@ -569,7 +599,6 @@ const OrphanageDashboard = () => {
                                 Priority Match
                               </div>
                             )}
-
                             <div className="flex items-center gap-3 mb-3">
                               <div
                                 className={`p-2 rounded-lg bg-gradient-to-r ${getDonationColor(donation.donationType, donation.priority)}`}
@@ -583,35 +612,32 @@ const OrphanageDashboard = () => {
                                 </p>
                               </div>
                             </div>
-
                             <div className="space-y-2 text-sm">
                               {donation.donationType === "money" && (
                                 <div className="flex items-center gap-2">
                                   <DollarSign className="w-4 h-4 text-green-600" />
                                   <span className="font-semibold text-green-600">
-                                    Rs. {Number(donation.donationAmount).toLocaleString()}
+                                    Rs. {Number(donation.donationAmount || donation.amount || 0).toLocaleString()}
                                   </span>
                                 </div>
                               )}
-
                               {donation.donationType === "clothes" && (
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2">
                                     <Shirt className="w-4 h-4 text-blue-600" />
-                                    <span>Qty: {donation.clothesQty}</span>
+                                    <span>Qty: {donation.clothesQty || donation.quantity || "N/A"}</span>
                                   </div>
                                   {donation.clothesDesc && (
                                     <p className="text-gray-600 text-xs">{donation.clothesDesc}</p>
                                   )}
                                 </div>
                               )}
-
                               {donation.donationType === "food" && (
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2">
                                     <UtensilsCrossed className="w-4 h-4 text-orange-600" />
                                     <span>
-                                      {donation.foodType} - {donation.foodQty}
+                                      {donation.foodType || "Food"} - {donation.foodQty || donation.quantity || "N/A"}
                                     </span>
                                   </div>
                                   {donation.foodExpiry && (
@@ -622,19 +648,16 @@ const OrphanageDashboard = () => {
                                   )}
                                 </div>
                               )}
-
                               <div className="flex items-center gap-2 text-gray-500">
                                 <MapPin className="w-4 h-4" />
                                 <span className="text-xs">
-                                  {donation.city}, {donation.state}
+                                  {donation.city || "N/A"}, {donation.state || "N/A"}
                                 </span>
                               </div>
-
                               <div className="flex items-center gap-2 text-gray-500">
                                 <Phone className="w-4 h-4" />
-                                <span className="text-xs">{donation.phone}</span>
+                                <span className="text-xs">{donation.phone || "N/A"}</span>
                               </div>
-
                               <div className="flex items-center gap-2 text-gray-500">
                                 <Calendar className="w-4 h-4" />
                                 <span className="text-xs">
@@ -642,7 +665,6 @@ const OrphanageDashboard = () => {
                                 </span>
                               </div>
                             </div>
-
                             <div className="mt-4 pt-3 border-t border-gray-100">
                               <motion.button
                                 whileHover={{ scale: 1.02 }}
@@ -703,7 +725,6 @@ const OrphanageDashboard = () => {
                     </motion.button>
                   </div>
                 </div>
-
                 <div className="max-h-96 overflow-y-auto">
                   {adminNotifications.length === 0 ? (
                     <div className="p-8 text-center text-gray-500">
@@ -734,7 +755,6 @@ const OrphanageDashboard = () => {
                                   </span>
                                 )}
                               </div>
-
                               <div className="space-y-2 mb-4">
                                 <p className="text-gray-900">
                                   <strong>Item:</strong> {notification.itemTitle}
@@ -746,7 +766,6 @@ const OrphanageDashboard = () => {
                                   <strong>Reason:</strong> {notification.reason}
                                 </p>
                               </div>
-
                               <div className="flex items-center gap-6 text-sm text-gray-500">
                                 <div className="flex items-center gap-2">
                                   <Calendar className="w-4 h-4" />
@@ -758,7 +777,6 @@ const OrphanageDashboard = () => {
                                 </div>
                               </div>
                             </div>
-
                             <div className="flex items-center gap-2">
                               {!notification.read && (
                                 <motion.button
@@ -802,7 +820,6 @@ const OrphanageDashboard = () => {
               bgColor: "bg-red-50",
               textColor: "text-red-600",
               subtitle: `${stats.activeRequests} active, ${stats.completedRequests} completed`,
-           
             },
             {
               title: "Services",
@@ -812,7 +829,6 @@ const OrphanageDashboard = () => {
               bgColor: "bg-purple-50",
               textColor: "text-purple-600",
               subtitle: `${stats.pendingServices} pending`,
-             
             },
             {
               title: "Fundraisers",
@@ -822,7 +838,6 @@ const OrphanageDashboard = () => {
               bgColor: "bg-green-50",
               textColor: "text-green-600",
               subtitle: `Rs. ${stats.totalRaised.toLocaleString()} raised`,
-          
             },
             {
               title: "Priority Matches",
@@ -831,7 +846,6 @@ const OrphanageDashboard = () => {
               color: "from-blue-500 to-cyan-500",
               bgColor: "bg-blue-50",
               textColor: "text-blue-600",
-             
               trend: priorityMatchCount > 0 ? "New!" : "None",
             },
           ].map((stat, index) => (
@@ -862,12 +876,8 @@ const OrphanageDashboard = () => {
           ))}
         </div>
 
-        {/* Recent Activity & Quick Actions Grid */}
+        {/* Quick Actions */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Recent Activity */}
-          
-
-          {/* Quick Actions */}
           <div className="lg:col-span-1">
             <motion.div
               initial={{ opacity: 0, x: 20 }}
@@ -881,7 +891,6 @@ const OrphanageDashboard = () => {
                 </div>
                 <h3 className="text-xl font-bold text-gray-900">Actions</h3>
               </div>
-
               <div className="space-y-4">
                 {[
                   {
@@ -889,21 +898,18 @@ const OrphanageDashboard = () => {
                     description: "Post a new donation request",
                     icon: Heart,
                     color: "from-red-500 to-pink-500",
-                   
                   },
                   {
                     title: "Add Service",
                     description: "Offer educational services",
                     icon: GraduationCap,
                     color: "from-purple-500 to-indigo-500",
-                 
                   },
                   {
                     title: "Start Fundraiser",
                     description: "Launch a fundraising campaign",
                     icon: DollarSign,
                     color: "from-green-500 to-emerald-500",
-                   
                   },
                 ].map((action, index) => (
                   <motion.button
@@ -913,7 +919,6 @@ const OrphanageDashboard = () => {
                     transition={{ delay: 0.6 + index * 0.1 }}
                     whileHover={{ scale: 1.02, x: 4 }}
                     whileTap={{ scale: 0.98 }}
-                    // onClick={() => (window.location.href = action.path)}
                     className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-300 hover:shadow-md transition-all duration-200 text-left group"
                   >
                     <div className="flex items-center gap-4">
@@ -935,16 +940,6 @@ const OrphanageDashboard = () => {
             </motion.div>
           </div>
         </div>
-
-        {/* Enhanced Welcome Message */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.7 }}
-          className="bg-gradient-to-r from-green-500 to-emerald-500  text-white relative overflow-hidden"
-        >
-          
-        </motion.div>
       </div>
     </div>
   )
